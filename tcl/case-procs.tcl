@@ -880,7 +880,10 @@ ad_proc -public workflow::case::role::set_assignee_values {
                         -label $cur_assignee(name)] 
                 if { [ad_conn user_id] != 0 } {
                     append display_value " (<a href=\"mailto:$cur_assignee(email)\">$cur_assignee(email)</a>)"
-                }
+                } else {
+		    append display_value " ([string replace $cur_assignee(email) \
+			    [expr [string first "@" $cur_assignee(email)]+3] end "..."])"
+		}
             }
 
             uplevel [list element set_properties $form_name $element -display_value $display_value]
