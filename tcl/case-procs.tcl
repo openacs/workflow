@@ -2197,8 +2197,17 @@ ad_proc -private workflow::case::action::enable {
                     from   workflow_actions 
                     where  parent_action_id = :action_id
                     and    trigger_type = 'init'
-                }]
+                } -default {}]
                 
+                if { [empty_string_p $child_init_id] } {
+                    error "Child workflow for action $action(pretty_name) doesn't have an action with trigger_type = 'init', or it has more than one."
+                }
+                
+                workflow::action::fsm::get -action_id $child_init_id -array initial_action
+                if { [empty_string_p $initial_action(new_state)] } {
+                    error "Initial action with short_name \"$initial_action(short_name)\" does not have any new_state. In order to be an initial state, it must have new_state set."
+                }
+
                 workflow::case::action::execute \
                     -no_notification \
                     -initial \
