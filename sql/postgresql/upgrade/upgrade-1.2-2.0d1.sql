@@ -40,3 +40,14 @@ create index wf_case_enbl_act_case_idx on workflow_case_enabled_actions(case_id)
 create index wf_case_enbl_act_action_idx on workflow_case_enabled_actions(action_id);
 create index wf_case_enbl_act_state_idx on workflow_case_enabled_actions(enabled_state);
 
+
+-- Missing unique constraints on names
+-- TODO: Test these
+alter table workflow_roles add constraint wf_roles_short_name_un unique (workflow_id, short_name);
+alter table workflow_roles add constraint wf_roles_pretty_name_un unique (workflow_id, pretty_name);
+
+alter table workflow_actions add constraint wf_actions_short_name_un unique (workflow_id, short_name);
+alter table workflow_actions add constraint wf_actions_pretty_name_un unique (workflow_id, pretty_name);
+
+alter table workflow_fsm_states add constraint wf_fsm_states_short_name_un unique (workflow_id, short_name);
+alter table workflow_fsm_states add constraint wf_fsm_states_pretty_name_un unique (workflow_id, pretty_name);

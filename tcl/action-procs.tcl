@@ -60,11 +60,11 @@ ad_proc -public workflow::action::new {
     @param edit_fields            A space-separated list of the names of form fields which should be
                                   opened for editing when this action is carried out.
 
-    @param assigned_role          The name of an assigned role. Users in this 
+    @param assigned_role          The short_name of an assigned role. Users in this 
                                   role are expected (obliged) to take 
                                   the action.
 
-    @param allowed_roles          A list of role names. Users in these roles are 
+    @param allowed_roles          A list of role short_names or IDs. Users in these roles are 
                                   allowed to take the action.
                                   
     @param privileges             Users with these privileges on the object 
@@ -161,13 +161,13 @@ ad_proc -public workflow::action::edit {
 
     @param action_id    The action to edit.
 
-    @param workflow_id  Optionally specify  the workflow_id. If not specified, we will execute a query to find it.
+    @param workflow_id  Optionally specify the workflow_id. If not specified, we will execute a query to find it.
     
     @param array        Name of an array in the caller's namespace with attributes to edit.
 
-    @param internal               Set this flag if you're calling this proc from within the corresponding proc 
-                                  for a particular workflow model. Will cause this proc to not flush the cache 
-                                  or call workflow::definition_changed_handler, which the caller must then do.
+    @param internal     Set this flag if you're calling this proc from within the corresponding proc 
+                        for a particular workflow model. Will cause this proc to not flush the cache 
+                        or call workflow::definition_changed_handler, which the caller must then do.
 
     @return action_id
     
@@ -186,14 +186,16 @@ ad_proc -public workflow::action::edit {
                              -element workflow_id]
     }
 
+    # Handle columns in the workflow_actions table
     foreach attr { 
-        short_name pretty_name pretty_past_tense edit_fields description description_mime_type 
+        short_name pretty_name pretty_past_tense edit_fields description description_mime_type sort_order
         always_enabled_p 
         assigned_role
         timeout_seconds
     } {
         if { [info exists row($attr)] } {
             set varname attr_$attr
+            # Convert the Tcl value to something we can use in the query
             switch $attr {
                 always_enabled_p {
                     set $varname [db_boolean [template::util::is_true $row($attr)]]
@@ -208,6 +210,7 @@ ad_proc -public workflow::action::edit {
                     set $varname $row($attr)
                 }
             }
+            # Add the column to the SET clause
             switch $attr {
                 timeout_seconds {
                     lappend set_clauses [db_map update_timeout_seconds]
@@ -388,9 +391,14 @@ ad_proc -public workflow::action::get {
     @author Peter Marklund
     @author Lars Pind (lars@collaboraid.biz)
 
-    @return An array list with workflow_id, sort_order, short_name, pretty_name, 
-            pretty_past_tense, assigned_role, and always_enabled_p, description, 
+    @return The array will contain the following entries: 
+            workflow_id, sort_order, short_name, pretty_name, 
+            pretty_past_tense, assigned_role (short_name), assigned_role_id, 
+            always_enabled_p, initial_action_p, description, 
             description_mime_type column values for an action.
+
+    @see workflow::action::get_all_info
+    @see workflow::action::get_all_info_not_cached
 } {
     # Select the info into the upvar'ed Tcl Array
     upvar $array row
@@ -956,10 +964,6 @@ ad_proc -private workflow::action::get_all_info {
 
     @author Peter Marklund
 } {
-    # LARS HACK
-#    return [workflow::action::get_all_info_not_cached \
- #           -workflow_id $workflow_id]
-
     return [util_memoize [list workflow::action::get_all_info_not_cached \
             -workflow_id $workflow_id] [workflow::cache_timeout]]
 }

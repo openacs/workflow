@@ -27,8 +27,8 @@
                a.pretty_name,
                a.pretty_past_tense,
                a.edit_fields,
-               a.assigned_role,
-               (select short_name from workflow_roles where role_id = a.assigned_role) as assigned_role_short_name,
+               a.assigned_role as assigned_role_id,
+               (select short_name from workflow_roles where role_id = a.assigned_role) as assigned_role,
                a.always_enabled_p,
                (select case when count(*) = 1 then 't' else 'f' end 
                 from   workflow_initial_action 

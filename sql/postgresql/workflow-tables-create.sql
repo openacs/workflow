@@ -109,7 +109,11 @@ create table workflow_roles (
                           not null,
   sort_order              integer
                           constraint wf_roles_so_nn
-                          not null
+                          not null,
+  constraint wf_roles_short_name_un
+  unique (workflow_id, short_name),
+  constraint wf_roles_pretty_name_un
+  unique (workflow_id, pretty_name)
 );
 
 create sequence workflow_roles_seq;
@@ -171,7 +175,11 @@ create table workflow_actions (
   -- When the action to automatically fire.
   -- A value of 0 means immediately, null means never.
   -- Other values mean x amount of time after having become enabled
-  timeout                 interval
+  timeout                 interval,
+  constraint wf_actions_short_name_un
+  unique (workflow_id, short_name),
+  constraint wf_actions_pretty_name_un
+  unique (workflow_id, pretty_name)
 );
 
 create sequence workflow_actions_seq;
@@ -273,7 +281,11 @@ create table workflow_fsm_states (
   pretty_name             varchar(200)
                           constraint wf_fsm_states_pretty_name_nn
                           not null,
-  hide_fields             varchar(4000)
+  hide_fields             varchar(4000),
+  constraint wf_fsm_states_short_name_un
+  unique (workflow_id, short_name),
+  constraint wf_fsm_states_pretty_name_un
+  unique (workflow_id, pretty_name)
 );
 
 create sequence workflow_fsm_states_seq;

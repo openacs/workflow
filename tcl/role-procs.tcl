@@ -45,10 +45,9 @@ ad_proc -private workflow::role::insert {
                     -workflow_id $workflow_id \
                     -table_name "workflow_roles"]
         } else {
-            set sort_order_taken_p [db_string select_sort_order_p {}]
-            if { $sort_order_taken_p } {
-                db_dml update_sort_order {}
-            }
+            workflow::role::update_sort_order \
+                -workflow_id $workflow_id \
+                -sort_order $sort_order
         }
 
         set role_id [db_nextval "workflow_roles_seq"]
@@ -68,11 +67,11 @@ ad_proc -public workflow::role::new {
 } {
     Creates a new role for a workflow.
     
-    @param workflow_id The ID of the workflow the new role belongs to
-    @param short_name The short_name of the new role
-    @param pretty_name The pretty name of the new role
-    @param callbacks A list of names service-contract implementations.
-    @return The ID of the new role
+    @param workflow_id  The ID of the workflow the new role belongs to
+    @param short_name   The short_name of the new role
+    @param pretty_name  The pretty name of the new role
+    @param callbacks    A list of names service-contract implementations.
+    @return             role_id
     
     @author Peter Marklund
     @author Lars Pind (lars@collaboraid.biz)
@@ -86,16 +85,115 @@ ad_proc -public workflow::role::new {
                 -sort_order $sort_order \
                 ]
 
-        # Set up the assignment rules
-        foreach callback_name $callbacks {
-            workflow::role::callback_insert \
-                    -role_id $role_id \
-                    -name $callback_name
-        }
+        # Callbacks
+        set edit_array(callbacks) $callbacks
+        workflow::role::edit \
+            -role_id $role_id \
+            -array edit_array \
+            -internal
     }
 
     # Role info for the workflow is changed, need to flush
     workflow::role::flush_cache -workflow_id $workflow_id
+
+    return $role_id
+}
+
+ad_proc -public workflow::role::edit {
+    {-role_id:required}
+    {-workflow_id {}}
+    {-array:required}
+    {-internal:boolean}
+} {
+    Edit a workflow role. Attributes of the array are: short_name, pretty_name, sort_order, callbacks.
+
+    @param role_id      The role to edit.
+
+    @param workflow_id  Optionally specify the workflow_id. If not specified, we will execute a query to find it.
+    
+    @param array        Name of an array in the caller's namespace with attributes to edit.
+
+    @param internal     Set this flag if you're calling this proc from within the corresponding proc 
+                        for a particular workflow model. Will cause this proc to not flush the cache 
+                        or call workflow::definition_changed_handler, which the caller must then do.
+
+    @return             role_id
+    
+    @see workflow::role::new
+
+    @author Peter Marklund
+    @author Lars Pind (lars@collaboraid.biz)
+} {        
+    upvar 1 $array row
+    foreach name [array names row] {
+        set missing_elm($name) 1
+    }
+
+    set set_clauses [list]
+
+    if { [empty_string_p $workflow_id] } {
+        set workflow_id [workflow::role::get_element \
+                             -role_id $role_id \
+                             -element workflow_id]
+    }
+
+    # Handle columns in the workflow_roles table
+    foreach attr { 
+        short_name pretty_name sort_order 
+    } {
+        if { [info exists row($attr)] } {
+            set varname attr_$attr
+            set $varname $row($attr)
+            lappend set_clauses "$attr = :$varname"
+            unset missing_elm($attr)
+        }
+    }
+    
+
+    db_transaction {
+
+        if { [info exists row(sort_order)] } {
+            workflow::role::update_sort_order \
+                -workflow_id $workflow_id \
+                -sort_order $row(sort_order)
+        }
+        
+        # Update role
+        if { [llength $set_clauses] > 0 } {
+            db_dml update_role "
+                update workflow_roles
+                set    [join $set_clauses ", "]
+                where  role_id = :role_id
+            "
+        }
+        
+        # Callbacks
+        if { [info exists row(callbacks)] } {
+            db_dml delete_callbacks {
+                delete from workflow_role_callbacks
+                where  role_id = :role_id
+            }
+            foreach callback_name $row(callbacks) {
+                workflow::role::callback_insert \
+                    -role_id $role_id \
+                    -name $callback_name
+            }
+            unset missing_elm(callbacks)
+        }
+
+        # Check that there are no unknown attributes
+        if { [llength [array names missing_elm]] > 0 } {
+            error "Trying to set illegal action attributes: [join [array names row] ", "]"
+        }
+
+        if { !$internal_p } {
+            workflow::definition_changed_handler -workflow_id $workflow_id
+        }
+    }
+
+    if { !$internal_p } {
+        workflow::role::flush_cache -workflow_id $workflow_id
+    }
 
     return $role_id
 }
@@ -111,6 +209,22 @@ ad_proc -public workflow::role::delete {
         delete from workflow_roles
         where role_id = :role_id
     }
+}
+
+ad_proc -public workflow::role::get_options {
+    {-workflow_id:required}
+} {
+    Get a list of roles in a workflow for use in the 'options' property of a form builder form element.
+
+    @author Lars Pind (lars@collaboraid.biz)
+} {
+    set result [list]
+    foreach role_id [workflow::get_roles -workflow_id $workflow_id] {
+        workflow::role::get -role_id $role_id -array row
+        lappend result [list $row(pretty_name) $row(short_name)]
+    }
+    # Order by label
+    return [lsort -index 0 $result]
 }
 
 ad_proc -public workflow::role::get_id {
@@ -451,4 +565,16 @@ ad_proc -private workflow::role::get_all_info_not_cached {
     set role_data(role_ids) $role_ids
 
     return [array get role_data]
+}
+
+ad_proc -private workflow::role::update_sort_order {
+    {-workflow_id:required}
+    {-sort_order:required}
+} {
+    Increase the sort_order of other roles, if the new sort_order is already taken.
+} { 
+    set sort_order_taken_p [db_string select_sort_order_p {}]
+    if { $sort_order_taken_p } {
+        db_dml update_sort_order {}
+    }
 }

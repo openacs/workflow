@@ -1,24 +1,6 @@
 <?xml version="1.0"?>
 <queryset>
 
-  <fullquery name="workflow::role::new.select_sort_order_p">
-    <querytext>
-        select count(*)
-        from   workflow_roles
-        where  workflow_id = :workflow_id
-        and    sort_order = :sort_order
-    </querytext>
-  </fullquery>
-
-  <fullquery name="workflow::role::new.update_sort_order">
-    <querytext>
-        update workflow_roles
-        set    sort_order = sort_order + 1
-        where  workflow_id = :workflow_id
-        and    sort_order >= :sort_order
-    </querytext>
-  </fullquery>
-
   <fullquery name="workflow::role::insert.do_insert">
     <querytext>
         insert into workflow_roles
@@ -78,6 +60,22 @@
     </querytext>
   </fullquery>
 
+  <fullquery name="workflow::role::update_sort_order.select_sort_order_p">
+    <querytext>
+        select count(*)
+        from   workflow_roles
+        where  workflow_id = :workflow_id
+        and    sort_order = :sort_order
+    </querytext>
+  </fullquery>
 
+  <fullquery name="workflow::role::update_sort_order.update_sort_order">
+    <querytext>
+        update workflow_roles
+        set    sort_order = sort_order + 1
+        where  workflow_id = :workflow_id
+        and    sort_order >= :sort_order
+    </querytext>
+  </fullquery>
 
 </queryset>
