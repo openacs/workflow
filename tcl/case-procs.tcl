@@ -1989,6 +1989,14 @@ ad_proc -public workflow::case::action::execute {
                 -action_id $action_id \
                 -entry_id $entry_id
         
+        # Scan for enabled actions
+        if { [string equal $parent_trigger_type "workflow"] } {
+            workflow::case::state_changed_handler \
+                -case_id $case_id \
+                -parent_enabled_action_id $parent_enabled_action_id \
+                -user_id $user_id
+        }
+
         # Notifications
         if { !$no_notification_p } {
             workflow::case::action::notify \
@@ -1999,14 +2007,6 @@ ad_proc -public workflow::case::action::execute {
                 -comment_mime_type $comment_mime_type
         }
         
-        # Scan for enabled actions
-        if { [string equal $parent_trigger_type "workflow"] } {
-            workflow::case::state_changed_handler \
-                -case_id $case_id \
-                -parent_enabled_action_id $parent_enabled_action_id \
-                -user_id $user_id
-        }
-
         # If there's a parent, alert the parent
         if { ![empty_string_p $parent_enabled_action_id] } {
             workflow::case::child_state_changed_handler \
