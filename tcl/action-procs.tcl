@@ -1353,11 +1353,8 @@ ad_proc -private workflow::action::get_all_info {
 
     @author Peter Marklund
 } {
-    return [workflow::action::get_all_info_not_cached \
-            -workflow_id $workflow_id]
-
     return [util_memoize [list workflow::action::get_all_info_not_cached \
-            -workflow_id $workflow_id] [workflow::cache_timeout]]
+                              -workflow_id $workflow_id] [workflow::cache_timeout]]
 }
 
 ad_proc -private workflow::action::get_all_info_not_cached {
@@ -1378,7 +1375,6 @@ ad_proc -private workflow::action::get_all_info_not_cached {
     array set action_data {}
     set action_ids [list]
     db_foreach action_info {} -column_array action_row {
-
         # Cache the mapping action_id -> workflow_id
         util_memoize_seed \
                 [list workflow::action::get_workflow_id_not_cached -action_id $action_row(action_id)] \

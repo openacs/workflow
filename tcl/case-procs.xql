@@ -14,9 +14,19 @@
   <fullquery name="workflow::case::insert.insert_case">
     <querytext>
       insert into workflow_cases (
-        case_id, workflow_id, object_id
+        case_id, workflow_id, object_id, top_case_id
       ) values (
-        :case_id, :workflow_id, :object_id
+        :case_id, :workflow_id, :object_id, :top_case_id
+      )      
+    </querytext>
+  </fullquery>
+
+  <fullquery name="workflow::case::insert.insert_case_parent_map">
+    <querytext>
+      insert into workflow_case_parent_action (
+        case_id, parent_enabled_action_id
+      ) values (
+        :case_id, :parent_enabled_action_id
       )      
     </querytext>
   </fullquery>

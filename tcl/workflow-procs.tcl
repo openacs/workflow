@@ -445,6 +445,8 @@ ad_proc -public workflow::definition_changed_handler {
     Should be called when the workflow definition has changed while there are active cases.
     Will update the record of enabled actions in each of the case, so they reflect the new workflow.
 } {
+    workflow::flush_cache -workflow_id $workflow_id
+
     set case_ids [db_list select_cases { select case_id from workflow_cases where workflow_id = :workflow_id }]
 
     foreach case_id $case_ids {

@@ -126,14 +126,6 @@ create table workflow_action_child_role_map(
                                 ('per_role','per_member','per_user'))
 );
 
-create table workflow_cases(
-  ...
-  parent_enabled_action_id  integer
-                            constraint workflow_cases_parent_fk
-                            references workflow_case_enabled_actions(enabled_action_id)
-  ...
-);
-
 create table workflow_case_enabled_actions(
   enabled_action_id         integer
                             constraint wf_case_enbl_act_case_id_pk
@@ -159,6 +151,19 @@ create table workflow_case_enabled_actions(
                             not null,
   constraint wf_case_ena_act_case_act_un
   primary key (case_id, action_id)
+);
+
+create table workflow_case_child_cases(
+  case_id                 integer 
+                          constraint wf_case_child_cases_case_fk
+                          references workflow_cases
+                          constraint wf_case_child_cases_case_pk
+                          primary key,
+  enabled_action_id       integer
+                          constraint wf_case_child_cases_en_act_fk
+                          references workflow_case_enabled_actions
+                          constraint wf_case_child_cases_en_act_nn
+                          not null
 );
 </pre>
 

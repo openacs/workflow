@@ -153,10 +153,12 @@ begin
     where  action_id = p_action_id;
 
     -- use case object as context_id
-    select object_id
+    select top.object_id
     into   v_case_object_id
-    from   workflow_cases
-    where  case_id = p_case_id;
+    from   workflow_cases c, 
+           workflow_cases top
+    where  top.case_id = c.top_case_id
+    and    c.case_id = p_case_id;
 
     -- build the unique name
     if p_item_id is not null then

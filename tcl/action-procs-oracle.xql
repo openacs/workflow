@@ -46,7 +46,8 @@
                a.description,
                a.description_mime_type,
                a.child_workflow_id,
-               (select short_name from workflows where workflow_id = a.child_workflow_id) as child_workflow
+               (select short_name from workflows where workflow_id = a.child_workflow_id) as child_workflow,
+               a.timeout_seconds
         from   workflow_actions a,
                workflow_fsm_actions fa
         where  a.workflow_id = :workflow_id

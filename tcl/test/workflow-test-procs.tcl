@@ -77,8 +77,6 @@ ad_proc workflow::test::assert_case_state {
     {-expect_current_state:required}
     {-expect_enabled_actions:required} 
     {-expect_user_actions:required} 
-    {-expect_user_roles:required}
-    
 } {
     Make assertions about what the current state should be and
     what actions are enabled etc.
@@ -525,8 +523,7 @@ ad_proc workflow::test::run_bug_tracker_test {
                 -case_id $case_id \
                 -expect_current_state open \
                 -expect_enabled_actions $expect_enabled_actions \
-                -expect_user_actions $expect_enabled_actions \
-                -expect_user_roles {}
+                -expect_user_actions $expect_enabled_actions
     
         # Resolve the bug
         workflow::case::action::execute \
@@ -543,8 +540,7 @@ ad_proc workflow::test::run_bug_tracker_test {
                 -case_id $case_id \
                 -expect_current_state resolved \
                 -expect_enabled_actions $expect_enabled_actions \
-                -expect_user_actions $expect_enabled_actions \
-                -expect_user_roles {}
+                -expect_user_actions $expect_enabled_actions
 
 
         #####
@@ -635,8 +631,7 @@ ad_proc workflow::test::run_bug_tracker_test {
                 -case_id $case_id \
                 -expect_current_state closed \
                 -expect_enabled_actions $expect_enabled_actions \
-                -expect_user_actions $expect_enabled_actions \
-                -expect_user_roles {}    
+                -expect_user_actions $expect_enabled_actions
     
     } 
 
@@ -815,7 +810,7 @@ aa_register_case workflow_automatic_action {
 
         # Old process: [open] -> (open) -> [auto] -> (closed)
         # New process: [open] -> (open) -> [auto] -> (closed) -> [reopen] -> (open)
-        
+
         set reopen_action_id [workflow::action::fsm::new \
                                   -workflow_id $workflow_id \
                                   -short_name "reopen" \
@@ -867,4 +862,248 @@ aa_register_case workflow_automatic_action {
         set workflow_id [workflow::get_id -package_key "acs-automated-testing" -short_name "test_automatic_ations"]
         workflow::delete -workflow_id $workflow_id
     }
+}
+
+
+aa_register_case recursive_workflow {
+    Testing a recursive workflow
+} {
+    aa_run_with_teardown -rollback -test_code {
+
+        #----------------------------------------------------------------------
+        # Create inner workflow
+        #----------------------------------------------------------------------
+        # [open] -> (open) -> [ask] -> (asked) -> [give] -> (done)
+
+        set inner_workflow_id [workflow::fsm::new_from_spec -package_key "acs-automated-testing" -spec {
+            recursive_workflow_inner {
+                pretty_name "Recursive Workflow Inner Workflow"
+                states {
+                    open {
+                        pretty_name Open
+                    }
+                    asked {
+                        pretty_name Asked
+                    }
+                    done {
+                        pretty_name Done
+                    }
+                }
+                roles {
+                    asker {
+                        pretty_name "Asker"
+                    }
+                    giver {
+                        pretty_name "Giver"
+                    }
+                }
+                actions {
+                    open {
+                        pretty_name "Open"
+                        pretty_past_tense "Opened"
+                        new_state "open"
+                        initial_action_p t
+                    }
+                    ask {
+                        pretty_name "Ask"
+                        pretty_past_tense "Asked"
+                        new_state "asked"
+                        enabled_states { open }
+                    }
+                    give {
+                        pretty_name "Give"
+                        pretty_past_tense "Given"
+                        new_state "done"
+                        enabled_states { asked }
+                    }
+                }
+            }
+        }]
+
+        aa_log "Inner workflow created"
+
+        #----------------------------------------------------------------------
+        # Create outer workflow
+        #----------------------------------------------------------------------
+        # [open] -> (open) -> [do] -> (done)
+
+        set outer_workflow_id [workflow::fsm::new_from_spec -package_key "acs-automated-testing" -spec {
+            recursive_workflow_outer {
+                pretty_name "Recursive Workflow Outer Workflow"
+                states {
+                    open {
+                        pretty_name Open
+                    }
+                    done {
+                        pretty_name Done
+                    }
+                }
+                roles {
+                    lawyer {
+                        pretty_name "Lawyer"
+                    }
+                    client {
+                        pretty_name "Client"
+                    }
+                }
+                actions {
+                    open {
+                        pretty_name "Open"
+                        pretty_past_tense "Opened"
+                        new_state "open"
+                        initial_action_p t
+                    }
+                    do {
+                        pretty_name "Do"
+                        pretty_past_tense "Done"
+                        new_state "done"
+                        child_workflow recursive_workflow_inner
+                        child_role_map {
+                            asker lawyer
+                            giver client
+                        }
+                        enabled_states { open }
+                    }
+                }
+            }
+        }]
+
+        aa_log "Outer workflow created"
+
+        #----------------------------------------------------------------------
+        # Test that it found the right inner workflow ID from the short_name
+        #----------------------------------------------------------------------
+
+        set action_with_child_id [workflow::action::get_id -workflow_id $outer_workflow_id -short_name do]
+        workflow::action::get -action_id $action_with_child_id -array action_with_child
+        
+        aa_equals "Child_workflow has the right ID" $action_with_child(child_workflow_id) $inner_workflow_id
+
+        #----------------------------------------------------------------------
+        # Start a case of the outer workflow
+        #----------------------------------------------------------------------
+
+        set outer_case_id [workflow::case::new \
+                               -workflow_id $outer_workflow_id \
+                               -object_id [workflow::test::workflow_object_id] \
+                               -user_id [workflow::test::admin_owner_id]]
+        
+        aa_log "Outer case started"
+
+        #----------------------------------------------------------------------
+        # Do should be enabled immediately
+        #----------------------------------------------------------------------
+
+        set enabled_actions [workflow::case::get_enabled_actions -case_id $outer_case_id]
+
+        if { [aa_equals "One enabled action" [llength $enabled_actions] 1] } {
+            
+            set enabled_action_short_name [workflow::action::get_element \
+                                               -action_id [lindex $enabled_actions 0] \
+                                               -element short_name]
+            aa_equals "And that is 'do'" $enabled_action_short_name "do"
+        } else {
+            aa_log "Parent case: [db_list_of_lists foo { select * from workflow_cases where case_id = :outer_case_id }]"
+            aa_log "Enabled actions outer: [db_list_of_lists foo { select * from workflow_case_enabled_actions where case_id = :outer_case_id }]"
+            aa_log "Child cases: [db_list_of_lists foo { select * from workflow_cases where top_case_id = :outer_case_id and case_id != top_case_id }]"
+        }
+
+        #----------------------------------------------------------------------
+        # Which means inner case should be created
+        #----------------------------------------------------------------------
+
+        set inner_case_ids [db_list foo { select case_id from workflow_cases where top_case_id = :outer_case_id and case_id != top_case_id }]
+        aa_equals "One child case" [llength $inner_case_ids] 1
+
+        set inner_case_id [lindex $inner_case_ids 0]
+        
+        aa_log "Child cases: $inner_case_ids"
+
+        #----------------------------------------------------------------------
+        # Which means 'ask' should be available
+        #----------------------------------------------------------------------
+        
+        set inner_enabled_actions [workflow::case::get_enabled_actions -case_id $inner_case_id]
+
+        if { [aa_equals "One enabled action" [llength $inner_enabled_actions] 1] } {
+            
+            set inner_enabled_action_id [lindex $inner_enabled_actions 0]
+
+            set inner_enabled_action_short_name [workflow::action::get_element \
+                                                     -action_id $inner_enabled_action_id \
+                                                     -element short_name]
+            aa_equals "And that is 'ask'" $inner_enabled_action_short_name "ask"
+        }
+
+        workflow::test::assert_case_state \
+            -workflow_id $inner_workflow_id \
+            -case_id $inner_case_id \
+            -expect_current_state "open" \
+            -expect_enabled_actions "ask" \
+            -expect_user_actions "ask"
+
+
+        #----------------------------------------------------------------------
+        # Execute 'ask'
+        #----------------------------------------------------------------------
+
+        workflow::case::action::execute \
+            -case_id $inner_case_id \
+            -action_id [workflow::action::get_id \
+                            -workflow_id $inner_workflow_id \
+                            -short_name "ask"] \
+            -comment "Asking" \
+            -comment_mime_type "text/plain" \
+            -user_id [workflow::test::admin_owner_id]
+
+        #----------------------------------------------------------------------
+        # Enabled action: 'give'
+        #----------------------------------------------------------------------
+        
+        workflow::test::assert_case_state \
+            -workflow_id $inner_workflow_id \
+            -case_id $inner_case_id \
+            -expect_current_state "asked" \
+            -expect_enabled_actions "give" \
+            -expect_user_actions "give"        
+
+        #----------------------------------------------------------------------
+        # Execute 'give'
+        #----------------------------------------------------------------------
+
+        workflow::case::action::execute \
+            -case_id $inner_case_id \
+            -action_id [workflow::action::get_id \
+                            -workflow_id $inner_workflow_id \
+                            -short_name "give"] \
+            -comment "Giving" \
+            -comment_mime_type "text/plain" \
+            -user_id [workflow::test::admin_owner_id]
+
+        #----------------------------------------------------------------------
+        # No enabled actions in inner workflow
+        #----------------------------------------------------------------------
+        
+        workflow::test::assert_case_state \
+            -workflow_id $inner_workflow_id \
+            -case_id $inner_case_id \
+            -expect_current_state "done" \
+            -expect_enabled_actions {} \
+            -expect_user_actions {}        
+
+        #----------------------------------------------------------------------
+        # No enabled actions in outer workflow
+        #----------------------------------------------------------------------
+        
+        workflow::test::assert_case_state \
+            -workflow_id $outer_workflow_id \
+            -case_id $outer_case_id \
+            -expect_current_state "done" \
+            -expect_enabled_actions {} \
+            -expect_user_actions {}        
+
+        
+        
+    }
+        
 }

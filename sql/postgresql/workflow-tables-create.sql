@@ -412,27 +412,28 @@ create table workflow_role_allowed_parties (
 create sequence workflow_cases_seq;
 
 create table workflow_cases (
-  case_id                 integer
-                          constraint workflow_cases_pk
-                          primary key,
-  workflow_id             integer
-                          constraint wf_cases_workflow_id_nn
-                          not null
-                          constraint wf_cases_workflow_id_fk
-                          references workflows(workflow_id)
-                          on delete cascade,
-  object_id               integer
-                          constraint wf_cases_object_id_nn
-                          not null
-                          constraint wf_cases_object_id_fk
-                          references acs_objects(object_id)
-                          on delete cascade
-                          constraint wf_cases_object_id_un
-                          unique
+  case_id                   integer
+                            constraint workflow_cases_pk
+                            primary key,
+  workflow_id               integer
+                            constraint wf_cases_workflow_id_nn
+                            not null
+                            constraint wf_cases_workflow_id_fk
+                            references workflows(workflow_id)
+                            on delete cascade,
+  object_id                 integer
+                            constraint wf_cases_object_id_fk
+                            references acs_objects(object_id)
+                            on delete cascade,
   -- the object which this case is about, e.g. the acs-object for a bug-tracker bug
+  top_case_id               integer
+                            constraint wf_cases_top_case_id_fk
+                            references workflow_cases(case_id)
+                            on delete cascade
 );
 
 create index workflow_cases_workflow_id on workflow_cases (workflow_id);
+create index workflow_cases_top_case_id on workflow_cases (top_case_id);
 
 create table workflow_case_role_party_map (
   case_id                 integer
@@ -489,6 +490,21 @@ create index wf_case_enbl_act_case_idx on workflow_case_enabled_actions(case_id)
 create index wf_case_enbl_act_action_idx on workflow_case_enabled_actions(action_id);
 create index wf_case_enbl_act_state_idx on workflow_case_enabled_actions(enabled_state);
 
+create table workflow_case_parent_action(
+  case_id                 integer 
+                          constraint wf_case_child_cases_case_fk
+                          references workflow_cases
+                          constraint wf_case_child_cases_case_pk
+                          primary key,
+  parent_enabled_action_id
+                          integer
+                          constraint wf_case_child_cases_en_act_fk
+                          references workflow_case_enabled_actions
+                          constraint wf_case_child_cases_en_act_nn
+                          not null
+);
+
+create index wf_cs_child_cs_en_act_idx on workflow_case_parent_action(parent_enabled_action_id);
 
 ---------------------------------
 -- Deputies

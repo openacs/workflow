@@ -5,17 +5,25 @@
   <fullquery name="workflow::case::fsm::get_info_not_cached.select_case_info">
     <querytext>
       select c.case_id,
+             c.top_case_id,
              c.workflow_id,
-             c.object_id,
+             top.object_id,
              s.state_id,
              s.short_name as state_short_name,
              s.pretty_name as pretty_state,
-             s.hide_fields as state_hide_fields
+             s.hide_fields as state_hide_fields,
+             parent.parent_enabled_action_id,
+             (select case_id
+              from   workflow_case_enabled_actions
+              where  enabled_action_id = parent.parent_enabled_action_id) as parent_case_id
       from   workflow_cases c,
+             workflow_cases top,
              workflow_case_fsm cfsm left outer join
-             workflow_fsm_states s on (s.state_id = cfsm.current_state)
+             workflow_fsm_states s on (s.state_id = cfsm.current_state) left outer join
+             workflow_case_parent_action parent using (case_id)
       where  c.case_id = :case_id
       and    cfsm.case_id = c.case_id
+      and    top.case_id = c.top_case_id
     </querytext>
   </fullquery>
 
@@ -63,8 +71,7 @@
 
   <fullquery name="workflow::case::state_changed_handler.select_enabled_actions">
     <querytext>
-      select a.action_id,
-             extract(seconds from a.timeout) as timeout_seconds
+      select a.action_id
       from   workflow_cases c,
              workflow_actions a
       where  c.case_id = :case_id
