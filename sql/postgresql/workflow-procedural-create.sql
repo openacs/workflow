@@ -181,7 +181,7 @@ begin
     v_item_id := content_item__new (
         v_item_id,                   -- item_id
         v_name,                      -- name
-        0,                           -- parent_id
+        v_case_object_id,            -- parent_id
         v_action_pretty_past_tense,  -- title
         now(),                       -- creation_date
         p_creation_user,             -- creation_user

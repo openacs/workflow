@@ -219,7 +219,7 @@ as
     v_item_id := content_item.new (
         item_id        => v_item_id,
         name            => v_name,
-        parent_id       => 0,
+        parent_id       => v_case_object_id,
         title           => v_action_pretty_past_tense,
         creation_date   => sysdate(),
         creation_user   => creation_user,
