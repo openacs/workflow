@@ -225,10 +225,14 @@ ad_proc -public workflow::action::edit {
                     set $varname [db_boolean [template::util::is_true $row($attr)]]
                 }
                 assigned_role {
-                    # Get role_id by short_name
-                    set $varname [workflow::role::get_id \
-                                      -workflow_id $workflow_id \
-                                      -short_name $row($attr)]
+                    if { [empty_string_p $row($attr)] } {
+                        set $varname [db_null]
+                    } else {
+                        # Get role_id by short_name
+                        set $varname [workflow::role::get_id \
+                                          -workflow_id $workflow_id \
+                                          -short_name $row($attr)]
+                    }
                 }
                 default {
                     set $varname $row($attr)
@@ -605,6 +609,7 @@ ad_proc -public workflow::action::fsm::new {
     {-enabled_state_ids {}}
     {-assigned_state_ids {}}
     {-new_state {}}
+    {-new_state_id {}}
     {-callbacks {}}
     {-always_enabled_p f}
     {-initial_action_p f}
@@ -649,11 +654,12 @@ ad_proc -public workflow::action::fsm::new {
 
         # Record whether the action changes state
         if { ![empty_string_p $new_state] } {
+            if { ![empty_string_p $new_state_id] } {
+                error "You cannot supply both new_state (takes short_name) and new_state_id (takes state_id)"
+            }
             set new_state_id [workflow::state::fsm::get_id \
                     -workflow_id $workflow_id \
                     -short_name $new_state]
-        } else {
-            set new_state_id [db_null]
         }
         db_dml insert_fsm_action {}
 
@@ -721,16 +727,25 @@ ad_proc -public workflow::action::fsm::edit {
 
         # Record whether the action changes state
         if { [info exists row(new_state)] } {
+            if { [info exists row(new_state_id)] } {
+                error "You cannot supply both new_state (takes short_name) and new_state_id (takes state_id)"
+            }
             if { ![empty_string_p $row(new_state)] } {
-                set new_state_id [workflow::state::fsm::get_id \
+                set row(new_state_id) [workflow::state::fsm::get_id \
                                       -workflow_id $workflow_id \
                                       -short_name $new_state]
             } else {
-                set new_state_id [db_null]
+                set row(new_state_id) [db_null]
             }
-            db_dml update_fsm_action {}
             unset row(new_state)
         }
+
+        if { [info exists row(new_state_id)] } {
+            set new_state_id $row(new_state_id)
+            db_dml update_fsm_action {}
+            unset row(new_state_id)
+        }
+
 
         # Record in which states the action is enabled but not assigned
         if { [info exists row(enabled_states)] } {
