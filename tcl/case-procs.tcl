@@ -1258,6 +1258,24 @@ ad_proc -public workflow::case::role::assignee_insert {
     workflow::case::role::flush_cache -case_id $case_id
 }
 
+ad_proc -public workflow::case::role::assignee_remove {
+    {-case_id:required}
+    {-role_id:required}
+    {-party_id:required}
+} {
+    Remove an assignee from this role
+    
+    @param case_id the ID of the case.
+    @param role_id the ID of the role to remove the assignee from.
+    @param party_id the ID of party to remove from the role
+
+    @author Peter Marklund
+} {
+    db_dml delete_assignee {}
+
+    workflow::case::role::flush_cache -case_id $case_id
+}
+
 ad_proc -public workflow::case::role::assign {
     {-case_id:required}
     {-array:required}

@@ -274,8 +274,13 @@ ad_proc -public workflow::role::delete {
 
 ad_proc -public workflow::role::get_options {
     {-workflow_id:required}
+    {-id_values:boolean}
 } {
     Get a list of roles in a workflow for use in the 'options' property of a form builder form element.
+
+    @param id_values Provide this switch if you want the values in the options list to be role id:s instead
+                   of short names.
+                   
 
     @author Lars Pind (lars@collaboraid.biz)
 } {
@@ -284,7 +289,11 @@ ad_proc -public workflow::role::get_options {
     # workflow::get_roles returns the roles in sort_order
     foreach role_id [workflow::get_roles -workflow_id $workflow_id] {
         workflow::role::get -role_id $role_id -array row
-        lappend result [list $row(pretty_name) $row(short_name)]
+        if { $id_values_p } {
+            lappend result [list $row(pretty_name) $role_id]
+        } else {
+            lappend result [list $row(pretty_name) $row(short_name)]
+        }
     }
     return $result
 }
