@@ -57,7 +57,6 @@ ad_proc -public workflow::case::new {
     {-comment_mime_type {}}
     -user_id
     -assignment
-    -package_id
 } {
     Start a new case for this workflow and object.
 
@@ -76,10 +75,6 @@ ad_proc -public workflow::case::new {
 } {
     if { ![exists_and_not_null user_id] } {
         set user_id [ad_conn user_id]
-    }
-
-    if { ![exists_and_not_null package_id] } {
-        set package_id [ad_conn package_id]
     }
     
     db_transaction {
@@ -144,7 +139,6 @@ ad_proc -public workflow::case::new {
             -comment $comment \
             -comment_mime_type $comment_mime_type \
             -user_id $user_id \
-            -package_id $package_id \
             -initial
     }
         
@@ -1849,7 +1843,6 @@ ad_proc -public workflow::case::action::execute {
     {-user_id}
     {-initial:boolean}
     {-entry_id {}}
-    {-package_id}
 } {
     Execute the action. Either provide (case_id, action_id, parent_enabled_action_id), or simply enabled_action_id.
 
@@ -1874,8 +1867,6 @@ ad_proc -public workflow::case::action::execute {
 
     @param no_perm_check      Set this switch if you do not want any permissions chcecking, e.g. for automatic actions.
 
-    @param package_id         The package_id the case object belongs to. This is optional but is useful if the case objects are not CR items.
-
     @return entry_id of the new log entry (will be a cr_item).
 
     @author Lars Pind (lars@collaboraid.biz)
@@ -1885,14 +1876,6 @@ ad_proc -public workflow::case::action::execute {
             set user_id 0
         } else {
             set user_id [ad_conn user_id]
-        }
-    }
-
-    if { ![exists_and_not_null package_id] } {
-        if { ![ad_conn isconnected] } {
-            set package_id {}
-        } else {
-            set package_id [ad_conn package_id]
         }
     }
 
@@ -1971,7 +1954,7 @@ ad_proc -public workflow::case::action::execute {
         set extra_vars [ns_set create]
         oacs_util::vars_to_ns_set \
                 -ns_set $extra_vars \
-                -var_list { entry_id case_id action_id comment comment_mime_type package_id}
+                -var_list { entry_id case_id action_id comment comment_mime_type }
         
         set entry_id [package_instantiate_object \
                 -creation_user $user_id \

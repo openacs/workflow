@@ -118,7 +118,7 @@ begin
 end;
 ' language 'plpgsql';
 
-select define_function_args ('workflow_case_log_entry__new','entry_id,content_type;workflow_case_log_entry,case_id,action_id,comment,comment_mime_type,creation_user,creation_ip,package_id');
+select define_function_args ('workflow_case_log_entry__new','entry_id,content_type;workflow_case_log_entry,case_id,action_id,comment,comment_mime_type,creation_user,creation_ip');
 
 create or replace function workflow_case_log_entry__new (
     integer,                  -- entry_id
@@ -128,8 +128,7 @@ create or replace function workflow_case_log_entry__new (
     varchar,                  -- comment
     varchar,                  -- comment_mime_type
     integer,                  -- creation_user
-    varchar,                  -- creation_ip
-    integer                   -- package_id
+    varchar                   -- creation_ip
 ) returns integer as '
 declare
     p_item_id           alias for $1;
@@ -140,7 +139,6 @@ declare
     p_comment_mime_type alias for $6;
     p_creation_user     alias for $7;
     p_creation_ip       alias for $8;
-    p_package_id        alias for $9;
         
     v_name                        varchar;
     v_action_short_name           varchar;
@@ -148,7 +146,6 @@ declare
     v_case_object_id              integer;
     v_item_id                     integer;
     v_revision_id                 integer;
-    v_package_id                  integer;
 begin
     select short_name, pretty_past_tense
     into   v_action_short_name, v_action_pretty_past_tense
@@ -171,15 +168,6 @@ begin
     end if;
     v_name := v_action_short_name || '' '' || v_item_id;
 
-    -- get the package_id
-    if p_package_id is not null then
-        v_package_id := p_package_id;
-    else
-        -- this will return null if the app stores the package_id
-        -- in a package-specific table instead of acs_objects
-        v_package_id := acs_object__package_id(v_case_object_id);
-    end if;
-
     v_item_id := content_item__new (
         v_item_id,                   -- item_id
         v_name,                      -- name
@@ -196,8 +184,7 @@ begin
         ''t'',                       -- security_inherit_p
         ''CR_FILES'',                -- storage_area_key
         ''content_item'',            -- item_subtype
-        p_content_type,              -- content_type
-        v_package_id                 -- package_id
+        p_content_type               -- content_type
     );
 
     -- insert the row into the single-column entry revision table
