@@ -24,13 +24,13 @@ ad_proc -private workflow::case::insert {
     {-object_id:required}
 } {
     Internal procedure that creates a new workflow case in the
-    database. Should not be used by applications.
+    database. Should not be used by applications. Use workflow::case::new instead.
 
     @param object_id The object_id which the case is about
     @param workflow_short_name The short_name of the workflow.
     @return The case_id of the case. Returns the empty string if no case could be found.
 
-    @see 
+    @see workflow::case::new
 
     @author Lars Pind (lars@collaboraid.biz)
 } {
@@ -145,6 +145,18 @@ ad_proc -public workflow::case::get_element {
 } {
     get -case_id $case_id -action_id $action_id -array row
     return $row($element)
+}
+
+ad_proc -public workflow::case::delete {
+    {-case_id:required}
+} {
+    Delete a workflow case.
+
+    @param case_id The case_id you wish to delete
+
+    @author Simon Carstensen (simon@collaboraid.biz)
+} {
+    db_exec_plsql delete_case {}
 }
 
 ad_proc -public workflow::case::get_user_roles {
@@ -262,7 +274,335 @@ ad_proc -private workflow::case::assign_roles {
     workflow::case::role::flush_cache $case_id
 }
 
+ad_proc -private workflow::case::get_activity_html { 
+    {-case_id:required}
+    {-action_id ""}
+} {
+    Get the activity log for a case as an HTML chunk.
+    If action_id is non-empty, it means that we're in 
+    the progress of executing that action, and the 
+    corresponding line for the current action will be appended.
 
+    @param case_id The case for which you want the activity log.
+    @param action_id optional action which is currently being executed.
+    @return Activity log as HTML
+
+    @author Lars Pind (lars@collaboraid.biz)
+} {
+    set log_html {}
+
+    set template {
+        <b>@creation_date_pretty@ @action_pretty_past_tense@ @log_title@ by @community_member_link@</b>
+        <blockquote>@comment_html@</blockquote>
+    }
+
+    # Compile and evaluate the template
+    set code [template::adp_compile -string $template]
+
+    foreach entry_arraylist [get_activity_log_info -case_id $case_id] {
+        foreach { var value } $entry_arraylist {
+            set $var $value
+        }
+
+        set comment_html [ad_html_text_convert -from $comment_mime_type -to "text/html" -- $comment] 
+        set community_member_link [acs_community_member_link -user_id $creation_user -label "$user_first_names $user_last_name"]
+
+        append log_html [template::adp_eval code]
+    }
+
+    if { ![empty_string_p $action_id] } {
+        set pretty_past_tense [workflow::action::get_element -action_id $action_id -element pretty_past_tense]
+
+        # sets first_names, last_name, email
+        ad_get_user_info
+
+        set now_pretty [clock format [clock seconds] -format "%m/%d/%Y"]
+        # Get rid of leading zeros
+        regsub {^0} $now_pretty {} now_pretty
+        regsub {/0} $now_pretty {/} now_pretty
+        
+        append log_html "<p><b>$now_pretty $pretty_past_tense by $first_names $last_name</b></p>"
+    }
+
+    return $log_html
+}
+
+ad_proc -private workflow::case::get_activity_text { 
+    {-case_id:required}
+} {
+    Get the activity log for a case as a text chunk
+
+    @author Lars Pind
+} {
+    set log_text {}
+
+    foreach entry_arraylist [get_activity_log_info -case_id $case_id] {
+        foreach { var value } $entry_arraylist {
+            set $var $value
+        }
+
+        set entry_text "$creation_date_pretty $action_pretty_past_tense [ad_decode $log_title "" "" "$log_title "]y $user_first_names $user_last_name ($user_email)"
+
+        if { ![empty_string_p $comment] } {
+            append entry_text ":\n\n    [join [split [ad_html_text_convert -from $comment_mime_type -to "text/plain" -maxlen 66 -- $comment] "\n"] "\n    "]"
+        }
+
+        lappend log_text $entry_text
+
+        
+    }
+    return [join $log_text "\n\n"]
+}
+
+ad_proc -private workflow::case::get_activity_log_info { 
+    {-case_id:required}
+} {
+    Get the data for the case activity log.
+
+    @return a list of array-lists with the following entries:    
+    comment comment_mime_type creation_date_pretty action_pretty_past_tense log_title 
+    user_first_names user_last_name user_email creation_user data_arraylist
+
+    @author Lars Pind
+} {
+    global __cache__workflow__case__get_activity_log_info
+    if { ![info exists __cache__workflow__case__get_activity_log_info] } {
+        set __cache__workflow__case__get_activity_log_info [get_activity_log_info_not_cached -case_id $case_id]
+    }
+    return $__cache__workflow__case__get_activity_log_info
+}
+
+ad_proc -private workflow::case::get_activity_log_info_not_cached { 
+    {-case_id:required}
+} {
+    Get the data for the case activity log. This version is cached for a single thread.
+
+    @return a list of array-lists with the following entries:    
+    comment comment_mime_type creation_date_pretty action_pretty_past_tense log_title 
+    user_first_names user_last_name user_email creation_user data_arraylist
+
+    @author Lars Pind
+} {
+    set workflow_id [workflow::case::get_element -case_id $case_id -element workflow_id]
+    set object_id [workflow::case::get_element -case_id $case_id -element object_id]
+    set contract_name [workflow::service_contract::activity_log_format_title]
+    
+    # Get the name of any title Tcl callback proc
+    set impl_names [workflow::get_callbacks \
+            -workflow_id $workflow_id \
+            -contract_name $contract_name]
+
+    # First, we build up a multirow so we have all the data in memory, which lets us peek ahead at the contents
+    db_multirow -extend {comment} -local entries select_log {} { set comment $comment_string }
+
+    
+    set rowcount [template::multirow -local size entries]
+    set counter 1
+
+    set last_entry_id {}
+    set data_arraylist [list]
+
+    # Then iterate over the multirow to build up the activity log HTML
+    # We need to peek ahead, because this is an outer join to get the rows in workflow_case_log_data
+
+    set entries [list]
+    template::multirow -local foreach entries {
+
+        if { ![empty_string_p $key] } {
+            lappend data_arraylist $key $value
+        }
+
+        if { $counter == $rowcount || ![string equal $last_entry_id [set "entries:[expr $counter + 1](entry_id)"]] } {
+            
+            set log_title_elements [list]
+            foreach impl_name $impl_names {
+                set result [acs_sc::invoke \
+                                -contract $contract_name \
+                                -operation "GetTitle" \
+                                -impl $impl_name \
+                                -call_args [list $case_id $object_id $action_id $entry_id $data_arraylist]]
+                if { ![empty_string_p $result] } {
+                    lappend log_title_elements $result
+                }
+            }
+            set log_title [ad_decode [llength $log_title_elements] 0 "" "([join $log_title_elements ", "])"]
+            
+            set row [list]
+            foreach var { 
+                comment comment_mime_type creation_date_pretty action_pretty_past_tense log_title 
+                user_first_names user_last_name user_email creation_user data_arraylist
+            } {
+                lappend row $var [set $var]
+            }
+            lappend entries $row
+
+            set data_arraylist [list]
+        }
+        set last_entry_id $entry_id
+        incr counter
+    }
+
+    return $entries
+}
+
+ad_proc workflow::case::get_notification_object {
+    {-type:required}
+    {-workflow_id ""}
+    {-case_id ""}
+} {
+    Get the relevant object for this notification type.
+
+    @param type Type is one of 'workflow_assignee', 'workflow_my_cases',
+    'workflow_case' (requires case_id), and 'workflow' (requires
+    workflow_id).
+} {
+    switch $type {
+        workflow_case {
+            if { ![exists_and_not_null case_id] } {
+                return {}
+            }
+            return [workflow::case::get_element -case_id $case_id -element object_id]
+        }
+        default {
+            if { ![exists_and_not_null workflow_id] } {
+                return {}
+            }
+            return [workflow::get_element -workflow_id $workflow_id -element object_id]
+        }
+    }
+}
+
+ad_proc workflow::case::get_notification_request_url {
+    {-type:required}
+    {-workflow_id ""}
+    {-case_id ""}
+    {-return_url ""}
+    {-pretty_name ""}
+} {
+    Get the URL to subscribe to notifications
+
+    @param type Type is one of 'workflow_assignee', 'workflow_my_cases',
+    'workflow_case' (requires case_id), and 'workflow' (requires
+    workflow_id).
+} {
+    if { [ad_conn user_id] == 0 } {
+        return {}
+    }
+    
+    set object_id [get_notification_object \
+            -type $type \
+            -workflow_id $workflow_id \
+            -case_id $case_id]
+
+    if { [empty_string_p $object_id] } {
+        return {}
+    }
+
+    if { ![exists_and_not_null return_url] } {
+        set return_url [ad_return_url]
+    }
+
+    set url [notification::display::subscribe_url \
+            -type $type \
+            -object_id  $object_id \
+            -url $return_url \
+            -user_id [ad_conn user_id] \
+            -pretty_name $pretty_name]
+    
+    return $url
+}
+
+ad_proc workflow::case::get_notification_requests_multirow {
+    {-multirow_name:required}
+    {-label ""}
+    {-workflow_id ""}
+    {-case_id ""}
+    {-return_url ""}
+} {
+    Returns a multirow with columns url, label, title, 
+    of the possible workflow notification types. Use this to present the user with a list of 
+    subscription links.
+} {
+    array set pretty {
+        workflow_assignee {my actions}
+        workflow_my_cases {my cases}
+        workflow_case {this case}
+        workflow {cases in this workflow}
+    }
+
+    template::multirow create $multirow_name url label title
+    foreach type { 
+        workflow_assignee workflow_my_cases workflow_case workflow
+    } {
+        set url [get_notification_request_url \
+                -type $type \
+                -workflow_id $workflow_id \
+                -case_id $case_id \
+                -return_url $return_url]
+
+        if { ![empty_string_p $url] } {
+            set title "Subscribe to $pretty($type)"
+            if { ![empty_string_p $label] } {
+                set row_label $label
+            } else {
+                set row_label $title
+            }
+            template::multirow append $multirow_name $url $row_label $title
+        }
+    }
+}
+
+ad_proc workflow::case::add_log_data {
+    {-entry_id:required}
+    {-key:required}
+    {-value:required}
+} {
+    Adds extra data information to a log entry, which can later
+    be retrieved using workflow::case::get_log_data_by_key.
+    Data are stored as simple key/value pairs.
+    
+    @param entry_id The ID of the log entry to which you want to attach data.
+    @param key The data key.
+    @param value The data value
+    
+    @see workflow::case::get_log_data_by_key
+    @see workflow::case::get_log_data
+    @author Lars Pind (lars@collaboraid.biz)
+} {
+    db_dml insert_log_data {}
+}
+
+ad_proc workflow::case::get_log_data_by_key {
+    {-entry_id:required}
+    {-key:required}
+} {
+    Retrieve extra data for a workflow log entry, previously stored using workflow::case::add_log_data.
+
+    @param entry_id The ID of the log entry to which the data you want are attached.
+    @param key The key of the data you're looking for.
+    @return The value, or the empty string if no such key exists for this entry.
+
+    @see workflow::case::add_log_data
+    @see workflow::case::get_log_data
+    @author Lars Pind (lars@collaboraid.biz)
+} {
+    db_string select_log_data {} -default {}
+}
+
+ad_proc workflow::case::get_log_data {
+    {-entry_id:required}
+} {
+    Retrieve extra data for a workflow log entry, previously stored using workflow::case::add_log_data.
+
+    @param entry_id The ID of the log entry to which the data you want are attached.
+    @return A tcl list of key/value pairs in array-list format, i.e. { key1 value1 key2 value2 ... }.
+
+    @see workflow::case::add_log_data
+    @see workflow::case::get_log_data_by_key
+    @author Lars Pind (lars@collaboraid.biz)
+} {
+    db_string select_log_data {} -default {}
+}
 
 
 
@@ -394,18 +734,11 @@ ad_proc -public workflow::case::role::get_search_query {
                 -impl $impl_name \
                 -call_args [list $case_id $object_id $role_id]]
 
-        ns_log Notice "LARS: $contract_name, $impl_name = $subquery"
-
         if { ![empty_string_p $subquery] } {
             # Return after the first non-empty list
             break
         }
     }
-
-    ns_log Notice "LARS: subquery = $subquery"
-
-    ns_log Notice "LARS: returning [db_map select_search_results]"
-
 
     return [db_map select_search_results]
 
@@ -432,8 +765,8 @@ ad_proc -public workflow::case::role::get_assignee_widget {
     set query [workflow::case::role::get_search_query -case_id $case_id -role_id $role_id]
     set picklist [workflow::case::role::get_picklist -case_id $case_id -role_id $role_id]
     
-    return [list "${element}:search(search)" [list label $role(pretty_name)] [list mode display] \
-            [list search_query $query] [list options $picklist] optional]
+    return [list "${element}:search(search),optional" [list label $role(pretty_name)] [list mode display] \
+            [list search_query $query] [list options $picklist]]
 }
 
 ad_proc -public workflow::case::role::add_assignee_widgets {
@@ -610,259 +943,6 @@ ad_proc -public workflow::case::role::assign {
     }
 }
 
-ad_proc -private workflow::case::get_activity_html { 
-    {-case_id:required}
-} {
-    Get the activity log for a case as an HTML chunk
-
-    @author Lars Pind
-} {
-    set log_html {}
-
-    set template {
-        <b>@creation_date_pretty@ @action_pretty_past_tense@ @log_title@ by @community_member_link@</b>
-        <blockquote>@comment_html@</blockquote>
-    }
-
-    # Compile and evaluate the template
-    set code [template::adp_compile -string $template]
-
-    foreach entry_arraylist [get_activity_log_info -case_id $case_id] {
-        foreach { var value } $entry_arraylist {
-            set $var $value
-        }
-
-        set comment_html [ad_html_text_convert -from $comment_mime_type -to "text/html" -- $comment] 
-        set community_member_link [acs_community_member_link -user_id $creation_user -label "$user_first_names $user_last_name"]
-
-        append log_html [template::adp_eval code]
-    }
-
-    return $log_html
-}
-
-ad_proc -private workflow::case::get_activity_text { 
-    {-case_id:required}
-} {
-    Get the activity log for a case as a text chunk
-
-    @author Lars Pind
-} {
-    set log_text {}
-
-    foreach entry_arraylist [get_activity_log_info -case_id $case_id] {
-        foreach { var value } $entry_arraylist {
-            set $var $value
-        }
-
-        set entry_text "$creation_date_pretty $action_pretty_past_tense $log_title by $user_first_names $user_last_name ($user_email)"
-
-        if { ![empty_string_p $comment] } {
-            append entry_text ":\n\n    [join [split [ad_html_text_convert -from $comment_mime_type -to "text/plain" -maxlen 66 -- $comment] "\n"] "\n    "]"
-        }
-
-        lappend log_text $entry_text
-
-        
-    }
-    return [join $log_text "\n\n"]
-}
-
-ad_proc -private workflow::case::get_activity_log_info { 
-    {-case_id:required}
-} {
-    Get the data for the case activity log.
-
-    @return a list of array-lists with the following entries:    
-    comment comment_mime_type creation_date_pretty action_pretty_past_tense log_title 
-    user_first_names user_last_name user_email creation_user data_arraylist
-
-    @author Lars Pind
-} {
-    global __cache__workflow__case__get_activity_log_info
-    if { ![info exists __cache__workflow__case__get_activity_log_info] } {
-        set __cache__workflow__case__get_activity_log_info [get_activity_log_info_not_cached -case_id $case_id]
-    }
-    return $__cache__workflow__case__get_activity_log_info
-}
-
-ad_proc -private workflow::case::get_activity_log_info_not_cached { 
-    {-case_id:required}
-} {
-    Get the data for the case activity log. This version is cached for a single thread.
-
-    @return a list of array-lists with the following entries:    
-    comment comment_mime_type creation_date_pretty action_pretty_past_tense log_title 
-    user_first_names user_last_name user_email creation_user data_arraylist
-
-    @author Lars Pind
-} {
-    set workflow_id [workflow::case::get_element -case_id $case_id -element workflow_id]
-    set object_id [workflow::case::get_element -case_id $case_id -element object_id]
-    set contract_name [workflow::service_contract::activity_log_format_title]
-    
-    # Get the name of any title Tcl callback proc
-    set impl_names [workflow::get_callbacks \
-            -workflow_id $workflow_id \
-            -contract_name $contract_name]
-
-    # First, we build up a multirow so we have all the data in memory, which lets us peek ahead at the contents
-    db_multirow -extend {comment} -local entries select_log {} { set comment $comment_string }
-
-    
-    set rowcount [template::multirow -local size entries]
-    set counter 1
-
-    set last_entry_id {}
-    set data_arraylist [list]
-
-    # Then iterate over the multirow to build up the activity log HTML
-    # We need to peek ahead, because this is an outer join to get the rows in workflow_case_log_data
-
-    set entries [list]
-    template::multirow -local foreach entries {
-
-        if { ![empty_string_p $key] } {
-            lappend data_arraylist $key $value
-        }
-
-        if { $counter == $rowcount || ![string equal $last_entry_id [set "entries:[expr $counter + 1](entry_id)"]] } {
-            
-            set log_title_elements [list]
-            foreach impl_name $impl_names {
-                set result [acs_sc::invoke \
-                                -contract $contract_name \
-                                -operation "GetTitle" \
-                                -impl $impl_name \
-                                -call_args [list $case_id $object_id $action_id $entry_id $data_arraylist]]
-                if { ![empty_string_p $result] } {
-                    lappend log_title_elements $result
-                }
-            }
-            set log_title [ad_decode [llength $log_title_elements] 0 "" "([join $log_title_elements ", "])"]
-            
-            set row [list]
-            foreach var { 
-                comment comment_mime_type creation_date_pretty action_pretty_past_tense log_title 
-                user_first_names user_last_name user_email creation_user data_arraylist
-            } {
-                lappend row $var [set $var]
-            }
-            lappend entries $row
-
-            set data_arraylist [list]
-        }
-        set last_entry_id $entry_id
-        incr counter
-    }
-
-    return $entries
-}
-
-ad_proc workflow::case::get_notification_object {
-    {-type:required}
-    {-workflow_id ""}
-    {-case_id ""}
-} {
-    Get the relevant object for this notification type.
-
-    @param type Type is one of 'workflow_assignee', 'workflow_my_cases',
-    'workflow_case' (requires case_id), and 'workflow' (requires
-    workflow_id).
-} {
-    switch $type {
-        workflow_case {
-            if { ![exists_and_not_null case_id] } {
-                return {}
-            }
-            return [workflow::case::get_element -case_id $case_id -element object_id]
-        }
-        default {
-            if { ![exists_and_not_null workflow_id] } {
-                return {}
-            }
-            return [workflow::get_element -workflow_id $workflow_id -element object_id]
-        }
-    }
-}
-
-ad_proc workflow::case::get_notification_request_url {
-    {-type:required}
-    {-workflow_id ""}
-    {-case_id ""}
-    {-return_url ""}
-    {-pretty_name ""}
-} {
-    Get the URL to subscribe to notifications
-
-    @param type Type is one of 'workflow_assignee', 'workflow_my_cases',
-    'workflow_case' (requires case_id), and 'workflow' (requires
-    workflow_id).
-} {
-    if { [ad_conn user_id] == 0 } {
-        return {}
-    }
-    
-    set object_id [get_notification_object \
-            -type $type \
-            -workflow_id $workflow_id \
-            -case_id $case_id]
-
-    if { [empty_string_p $object_id] } {
-        return {}
-    }
-
-    if { ![exists_and_not_null return_url] } {
-        set return_url [util_get_current_url]
-    }
-
-    set url [notification::display::subscribe_url \
-            -type $type \
-            -object_id  $object_id \
-            -url $return_url \
-            -user_id [ad_conn user_id] \
-            -pretty_name $pretty_name]
-    
-    return $url
-}
-
-ad_proc workflow::case::get_notification_requests_multirow {
-    {-multirow_name:required}
-    {-label ""}
-    {-workflow_id ""}
-    {-case_id ""}
-    {-return_url ""}
-} {
-
-} {
-    array set pretty {
-        workflow_assignee {my actions}
-        workflow_my_cases {my cases}
-        workflow_case {this case}
-        workflow {cases in this workflow}
-    }
-
-    template::multirow create $multirow_name url label title
-    foreach type { 
-        workflow_assignee workflow_my_cases workflow_case workflow
-    } {
-        set url [get_notification_request_url \
-                -type $type \
-                -workflow_id $workflow_id \
-                -case_id $case_id \
-                -return_url $return_url]
-
-        if { ![empty_string_p $url] } {
-            set title "Subscribe to $pretty($type)"
-            if { ![empty_string_p $label] } {
-                set row_label $label
-            } else {
-                set row_label $title
-            }
-            template::multirow append $multirow_name $url $row_label $title
-        }
-    }
-}
 
 
 
@@ -1139,17 +1219,18 @@ ad_proc -public workflow::case::action::execute {
                 -case_id $case_id \
                 -action_id $action_id \
                 -entry_id $entry_id
-
-        # Notifications
-        notify \
-            -case_id $case_id \
-            -action_id $action_id \
-            -entry_id $entry_id \
-            -comment $comment \
-            -comment_mime_type $comment_mime_type
+        
     }
 
     workflow::case::flush_cache $case_id
+
+    # Notifications
+    notify \
+        -case_id $case_id \
+        -action_id $action_id \
+        -entry_id $entry_id \
+        -comment $comment \
+        -comment_mime_type $comment_mime_type
     
     return $entry_id
 }
@@ -1206,23 +1287,23 @@ ad_proc -public workflow::case::action::notify {
 } {
     # Get workflow_id
     workflow::case::get \
-            -case_id $case_id \
-            -array case
-
+        -case_id $case_id \
+        -array case
+    
     workflow::get \
-            -workflow_id $case(workflow_id) \
-            -array workflow
-
+        -workflow_id $case(workflow_id) \
+        -array workflow
+    
     set hr [string repeat "=" 70]
-
+    
     array set latest_action [lindex [workflow::case::get_activity_log_info -case_id $case_id] end]
     
-    set latest_action_chunk "$latest_action(action_pretty_past_tense) $latest_action(log_title) by $latest_action(user_first_names) $latest_action(user_last_name) ($latest_action(user_email))"
+    set latest_action_chunk "$latest_action(action_pretty_past_tense) [ad_decode $latest_action(log_title) "" "" "$latest_action(log_title) "]by $latest_action(user_first_names) $latest_action(user_last_name) ($latest_action(user_email))"
     
     if { ![empty_string_p $latest_action(comment)] } {
         append latest_action_chunk ":\n\n    [join [split [ad_html_text_convert -from $latest_action(comment_mime_type) -to "text/plain" -maxlen 66 -- $latest_action(comment)] "\n"] "\n    "]"
     }
-
+    
     # Callback to get notification info 
     set contract_name [workflow::service_contract::notification_info]
     set impl_names [workflow::get_callbacks \
@@ -1230,14 +1311,14 @@ ad_proc -public workflow::case::action::notify {
                         -contract_name $contract_name]
     # We only use the first callback
     set impl_name [lindex $impl_names 0]
-
+    
     if { ![empty_string_p $impl_name] } {
         set notification_info [acs_sc::invoke \
                                    -contract $contract_name \
                                    -operation "GetNotificationInfo" \
                                    -impl $impl_name \
                                    -call_args [list $case_id $case(object_id)]]
-
+        
     }
 
     # Make sure the notification info list has at least 4 elements, so we can do below lindex's safely
@@ -1288,7 +1369,7 @@ ad_proc -public workflow::case::action::notify {
 
     set activity_log_chunk [workflow::case::get_activity_text -case_id $case_id]
 
-    set the_subject "[ad_decode $object_notification_tag "" "" "\[$object_notification_tag\] "]$object_one_line: $latest_action(action_pretty_past_tense) $latest_action(log_title) by $latest_action(user_first_names) $latest_action(user_last_name)"
+    set the_subject "[ad_decode $object_notification_tag "" "" "\[$object_notification_tag\] "]$object_one_line: $latest_action(action_pretty_past_tense) [ad_decode $latest_action(log_title) "" "" "$latest_action(log_title) "]by $latest_action(user_first_names) $latest_action(user_last_name)"
 
     # List of user_id's for people who are in the assigned_role to any enabled actions
     set assignee_list [db_list enabled_action_assignees {}]
@@ -1352,8 +1433,6 @@ $hr
                 -case_id $case_id]
 
         if { ![empty_string_p $object_id] } {
-
-            ns_log Notice "LARS: $body($type)"
 
             set notified_list [concat $notified_list [notification::new \
                     -type_id [notification::type::get_type_id -short_name $type] \

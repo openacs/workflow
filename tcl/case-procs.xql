@@ -84,6 +84,33 @@
     </querytext>
   </fullquery>
 
+  <fullquery name="workflow::case::add_log_data.insert_log_data">
+    <querytext>
+      insert into workflow_case_log_data
+        (entry_id, key, value)
+      values
+        (:entry_id, :key, :value)
+    </querytext>
+  </fullquery>
+
+  <fullquery name="workflow::case::get_log_data_by_key.select_log_data">
+    <querytext>
+      select value
+      from   workflow_case_log_data
+      where  entry_id = :entry_id
+      and    key = :key
+    </querytext>
+  </fullquery>
+
+  <fullquery name="workflow::case::get_log_data.select_log_data">
+    <querytext>
+      select key, value
+      from   workflow_case_log_data
+      where  entry_id = :entry_id
+      order  by key
+    </querytext>
+  </fullquery>
+
   <fullquery name="workflow::case::role::get_callbacks.select_callbacks">
     <querytext>
       select impl.impl_name

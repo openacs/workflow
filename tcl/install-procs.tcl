@@ -103,7 +103,7 @@ ad_proc -private workflow::install::create_default_assignees_service_contract {}
                 iscachable_p "t"
             }
             GetPrettyName {
-                description "Get the pretty name of this implementation. Will be localized, so i may contain #...#."
+                description "Get the pretty name of this implementation."
                 output { pretty_name:string }
                 iscachable_p "t"
             }
@@ -136,7 +136,7 @@ ad_proc -private workflow::install::create_assignee_pick_list_service_contract {
                 iscachable_p "t"
             }
             GetPrettyName {
-                description "Get the pretty name of this implementation. Will be localized, so i may contain #...#."
+                description "Get the pretty name of this implementation."
                 output { pretty_name:string }
                 iscachable_p "t"
             }
@@ -169,7 +169,7 @@ ad_proc -private workflow::install::create_assignee_subquery_service_contract {}
                 iscachable_p "t"
             }
             GetPrettyName {
-                description "Get the pretty name of this implementation. Will be localized, so it may contain #...#."
+                description "Get the pretty name of this implementation."
                 output { pretty_name:string }
                 iscachable_p "t"
             }
@@ -202,8 +202,8 @@ ad_proc -private workflow::install::create_action_side_effect_service_contract {
                 iscachable_p "t"
             }
             GetPrettyName { 
-                description "Get the pretty name of this implementation. Will be localized, so it may contain #...#."
-                output { object_type:string }
+                description "Get the pretty name of this implementation."
+                output { pretty_name:string }
                 iscachable_p "t"
             }
             DoSideEffect {
@@ -237,7 +237,7 @@ ad_proc -private workflow::install::create_activity_log_format_title_service_con
             }
             GetPrettyName {
                 description "Get the pretty name of this implementation. Will be localized, so it may contain #...#."
-                output { object_type:string }
+                output { pretty_name:string }
                 iscachable_p "t"
             }
             GetTitle {
@@ -275,7 +275,7 @@ ad_proc -private workflow::install::create_get_notification_info_service_contrac
             }
             GetPrettyName {
                 description "Get the pretty name of this implementation. Will be localized, so it may contain #...#."
-                output { object_type:string }
+                output { pretty_name:string }
                 iscachable_p "t"
             }
             GetNotificationInfo {
