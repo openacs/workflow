@@ -66,6 +66,8 @@ create table workflows (
                           constraint wfs_object_type_fk
                           references acs_object_types(object_type)
                           on delete cascade,
+  description             text,
+  description_mime_type   varchar(200) default 'text/plain',
   constraint wfs_oid_sn_un
   unique (package_key, object_id, short_name)
 );
