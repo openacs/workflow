@@ -753,8 +753,8 @@ ad_proc -public workflow::case::role::get_assignee_widget {
     set query [workflow::case::role::get_search_query -case_id $case_id -role_id $role_id]
     set picklist [workflow::case::role::get_picklist -case_id $case_id -role_id $role_id]
     
-    return [list "${element}:search(search)" [list label $role(pretty_name)] [list mode display] \
-            [list search_query $query] [list options $picklist] optional]
+    return [list "${element}:search(search),optional" [list label $role(pretty_name)] [list mode display] \
+            [list search_query $query] [list options $picklist]]
 }
 
 ad_proc -public workflow::case::role::add_assignee_widgets {
