@@ -495,12 +495,34 @@ ad_proc -public workflow::state::fsm::get_workflow_id {
             [list workflow::state::fsm::get_workflow_id_not_cached -state_id $state_id]]
 }
 
+ad_proc -public workflow::state::fsm::pretty_name_unique_p {
+    -workflow_id:required
+    -pretty_name:required
+    {-state_id {}}
+} {
+    Check if suggested pretty_name is unique. 
+    
+    @return 1 if unique, 0 if not unique.
+} {
+    set exists_p [db_string name_exists { 
+        select count(*) 
+        from   workflow_fsm_states
+        where  workflow_id = :workflow_id
+        and    pretty_name = :pretty_name
+        and    (:state_id is null or state_id != :state_id)
+    }]
+    return [expr !$exists_p]
+}
+
+
+
 #####
 # Private procs
 #####
 
 ad_proc -private workflow::state::fsm::get_ids {
     {-workflow_id:required}
+    {-parent_action_id {}}
 } {
     Get the state_id's of all the states in the workflow. 
     
@@ -511,8 +533,13 @@ ad_proc -private workflow::state::fsm::get_ids {
 } {
     # Use cached data
     array set state_data [workflow::state::fsm::get_all_info -workflow_id $workflow_id]
-
-    return $state_data(state_ids)
+    set state_ids [list]
+    foreach state_id $state_data(state_ids) {
+        if { [workflow::state::fsm::get_element -state_id $state_id -element parent_action_id] == $parent_action_id } {
+            lappend state_ids $state_id
+        }
+    }
+    return $state_ids
 }
 
 ad_proc -private workflow::state::fsm::get_workflow_id_not_cached {

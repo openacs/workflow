@@ -731,6 +731,39 @@ ad_proc -public workflow::action::get_ids {
     return $action_data(action_ids)
 }
 
+ad_proc -public workflow::action::get_options {
+    {-workflow_id:required}
+} {
+    Get an options list of actions for use with form builder.
+} {
+    set result [list]
+    foreach action_id [workflow::action::get_ids -workflow_id $workflow_id] {
+        workflow::action::get -action_id $action_id -array action
+        lappend result [list $action(pretty_name) $action_id]
+    }
+    return $result
+}
+
+ad_proc -public workflow::action::pretty_name_unique_p {
+    -workflow_id:required
+    -pretty_name:required
+    {-action_id {}}
+} {
+    Check if suggested pretty_name is unique. 
+    
+    @return 1 if unique, 0 if not unique.
+} {
+    set exists_p [db_string name_exists { 
+        select count(*) 
+        from   workflow_actions
+        where  workflow_id = :workflow_id
+        and    pretty_name = :pretty_name
+        and    (:action_id is null or action_id != :action_id)
+    }]
+    return [expr !$exists_p]
+}
+
+
 
 
 ######################################################################

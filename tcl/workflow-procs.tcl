@@ -1156,6 +1156,7 @@ ad_proc -public workflow::fsm::generate_spec {
 
 ad_proc -public workflow::fsm::get_states {
     {-workflow_id:required}
+    {-parent_action_id {}}
 } {
     Get the state_id's of all the states in the workflow. 
     
@@ -1164,7 +1165,7 @@ ad_proc -public workflow::fsm::get_states {
 
     @author Lars Pind (lars@collaboraid.biz)
 } {
-    return [workflow::state::fsm::get_ids -workflow_id $workflow_id]
+    return [workflow::state::fsm::get_ids -workflow_id $workflow_id -parent_action_id $parent_action_id]
 }
 
 ad_proc -public workflow::fsm::get_initial_state {
