@@ -1646,8 +1646,12 @@ ad_proc -public workflow::case::action::notify {
     
     # TODO: Get activity log for top-case
     array set latest_action [lindex [workflow::case::get_activity_log_info -case_id $case_id] end]
-    
-    set latest_action_chunk "$latest_action(action_pretty_past_tense) [ad_decode $latest_action(log_title) "" "" "$latest_action(log_title) "]by $latest_action(user_first_names) $latest_action(user_last_name) ($latest_action(user_email))"
+
+    # Variables used by I18N messages:
+    set action_past_tense "$latest_action(action_pretty_past_tense)[ad_decode $latest_action(log_title) "" "" " $latest_action(log_title)"]"
+    set user_name "$latest_action(user_first_names) $latest_action(user_last_name)"
+    set user_email $latest_action(user_email)
+    set latest_action_chunk [_ workflow.notification_email_latest_action_chunk]
     
     if { ![empty_string_p $latest_action(comment)] } {
         append latest_action_chunk ":\n\n    [join [split [ad_html_text_convert -from $latest_action(comment_mime_type) -to "text/plain" -maxlen 66 -- $latest_action(comment)] "\n"] "\n    "]"
@@ -1685,7 +1689,7 @@ ad_proc -public workflow::case::action::notify {
         set object_id $case(object_id)
         db_1row select_object_name {} -column_array case_object
 
-        set object_one_line "Case #$case_id: $case_object(name)"
+        set object_one_line "[_ workflow.Case] #$case_id: $case_object(name)"
     }
 
     # Roles and their current assignees
@@ -1739,13 +1743,13 @@ ad_proc -public workflow::case::action::notify {
     set object_id $workflow(object_id)
     db_1row select_object_name {} -column_array workflow_object
 
-    set next_action_chunk(workflow_assignee) "You are assigned to the next action."
+    set next_action_chunk(workflow_assignee) [_ workflow.lt_You_are_assigned_to_t]
 
-    set next_action_chunk(workflow_my_cases) "You are a participant in this $object_type(pretty_name)."
+    set next_action_chunk(workflow_my_cases) [_ workflow.lt_You_are_a_participant]
 
-    set next_action_chunk(workflow_case) "You have a watch on this $object_type(pretty_name)."
+    set next_action_chunk(workflow_case) [_ workflow.lt_You_have_a_watch_on_t]
 
-    set next_action_chunk(workflow) "You have requested to be notified about activity on all $object_type(pretty_plural) in $workflow_object(name)."
+    set next_action_chunk(workflow) [_ workflow.lt_You_have_requested_to]
 
     # Initialize stuff that depends on the notification type
     foreach type { 
@@ -1760,7 +1764,7 @@ $latest_action_chunk
 
 $hr
 
-$next_action_chunk($type)[ad_decode $object_url "" "" "\n\nPlease click here to visit this $object_type(pretty_name):\n\n$object_url"]
+$next_action_chunk($type)[ad_decode $object_url "" "" "\n\n[_ workflow.lt_Please_click_here_to_]\n\n$object_url"]
 
 $hr[ad_decode $object_details_chunk "" "" "\n$object_details_chunk\n$hr"]
 
