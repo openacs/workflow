@@ -17,7 +17,7 @@ declare
         row     record;
 begin
         for row in select object_id from acs_objects
-                          where object_type = ''workflow_new''
+                          where object_type = ''workflow_lite''
         loop
                 perform acs_object__delete(row.object_id);
         end loop;
@@ -31,7 +31,7 @@ drop function inline_0();
 create function inline_0 ()
 returns integer as '
 begin
-        perform acs_object_type__drop_type(''workflow_new'', ''t'');
+        perform acs_object_type__drop_type(''workflow_lite'', ''t'');
 
         return 1;
 end;' language 'plpgsql';
@@ -44,9 +44,9 @@ drop table workflow_case_role_party_map;
 drop table workflow_case_log_data;
 drop table workflow_case_log;
 drop table workflow_cases;
-drop table workflow_fsm;
 drop table workflow_fsm_action_enabled_in_states;
 drop table workflow_fsm_actions;
+drop table workflow_initial_action;
 drop table workflow_fsm_states;
 drop table workflow_action_side_effects;
 drop table workflow_action_privileges;
@@ -59,10 +59,9 @@ drop table workflow_roles;
 drop table workflow_side_effects;
 drop table workflows;
 
--- Drop all sequences and their views
-drop sequence t_wf_workflow_roles_seq;
-drop view wf_workflow_roles_seq;
-drop sequence t_wf_workflow_actions_seq;
-drop view wf_workflow_actions_seq;
-drop sequence t_wf_workflow_fsm_states_seq;
-drop view wf_workflow_fsm_states_seq;
+-- Drop sequences
+drop sequence workflow_roles_seq;
+drop sequence workflow_actions_seq;
+drop sequence workflow_fsm_states_seq;
+drop sequence workflow_cases_seq;
+drop sequence workflow_case_log_seq;

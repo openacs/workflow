@@ -16,4 +16,10 @@
     </querytext>
   </fullquery>
 
+  <fullquery name="workflow::delete.do_delete">
+    <querytext>
+        select acs_object__delete(:workflow_id);
+    </querytext>
+  </fullquery>
+
 </queryset>

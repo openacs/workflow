@@ -14,15 +14,15 @@
 ---------------------------------
 
 -- Create the workflow object type
--- We use workflow_new rather than just workflow
+-- We use workflow_lite rather than just workflow
 -- to avoid a clash with the old workflow package acs-workflow
 create function inline_0 ()
 returns integer as '
 begin
     PERFORM acs_object_type__create_type (
-	''workflow_new'',
-	''New Workflow'',
-	''New Workflows'',
+	''workflow_lite'',
+	''Workflow Lite'',
+	''Workflow Lites'',
 	''acs_object'',
 	''workflows'',
 	''workflow_id'',
@@ -37,6 +37,11 @@ end;' language 'plpgsql';
 select inline_0 ();
 drop function inline_0 ();
 
+-- A generic table for any kind of workflow implementation
+-- Currently, the table only holds FSM workflows but when 
+-- other types of workflows are added we will add a table
+-- to hold workflow_types and reference that table from
+-- this workflows table.
 create table workflows (
   workflow_id             integer
                           constraint workflows_pk
@@ -108,9 +113,7 @@ create table workflow_roles (
                           not null
 );
 
-create sequence t_wf_workflow_roles_seq;
-create view wf_workflow_roles_seq as
-select nextval('t_wf_workflow_roles_seq') as nextval;
+create sequence workflow_roles_seq;
 
 -- Static role-party map
 create table workflow_role_default_parties (
@@ -195,12 +198,11 @@ create table workflow_actions (
   assigned_role           integer
                           constraint workflow_actions_assigned_role_fk
                           references workflow_roles(role_id)
-                          on delete set null
+                          on delete set null,
+  always_enabled_p        bool default 'f'
 );
 
-create sequence t_wf_workflow_actions_seq;
-create view wf_workflow_actions_seq as
-select nextval('t_wf_workflow_actions_seq') as nextval;
+create sequence workflow_actions_seq;
 
 -- Determines which roles are allowed to take certain actions
 create table workflow_action_allowed_roles (
@@ -261,6 +263,20 @@ create table workflow_action_side_effects (
   primary key (action_id, acs_sc_impl_id)
 );
 
+create table workflow_initial_action (
+  workflow_id             integer
+                          constraint workflow_initial_action_pk
+                          primary key
+                          constraint workflow_initial_action_wf_fk
+                          references workflows(workflow_id)
+                          on delete cascade,
+  action_id               integer
+                          constraint workflow_initial_action_act_fk
+                          references workflow_actions(action_id)
+                          on delete cascade
+);
+
+
 ---------------------------------
 -- Workflow level, Finite State Machine Model
 ---------------------------------
@@ -278,6 +294,7 @@ create table workflow_fsm_states (
   sort_order              integer
                           constraint workflow_fsm_states_sort_order_nn
                           not null,
+  -- The state with the lowest sort order is the initial state
   short_name              varchar(100)
                           constraint workflow_fsm_states_short_name_nn
                           not null,
@@ -286,17 +303,12 @@ create table workflow_fsm_states (
                           not null
 );
 
-create sequence t_wf_workflow_fsm_states_seq;
-create view wf_workflow_fsm_states_seq as
-select nextval('t_wf_workflow_fsm_states_seq') as nextval;
+create sequence workflow_fsm_states_seq;
 
 create table workflow_fsm_actions (
   action_id               integer
                           constraint workflow_fsm_actions_pk
-                          primary key
-                          constraint workflow_fsm_actions_action_id_fk
-                          references workflow_actions(action_id)
-                          on delete cascade,
+                          primary key,
   new_state               integer
                           constraint workflow_fsm_actions_new_state_fk
                           references workflow_fsm_states(state_id)
@@ -304,6 +316,8 @@ create table workflow_fsm_actions (
   -- can be null
 );
 
+-- If an action is enabled in all states it won't have any entries in this table
+-- it is enabled in all states
 create table workflow_fsm_action_enabled_in_states (
   action_id               integer
                           constraint workflow_fsm_action_enabled_in_states_action_id_nn
@@ -319,23 +333,11 @@ create table workflow_fsm_action_enabled_in_states (
                           on delete cascade
 );
 
-create table workflow_fsm (
-  workflow_id             integer
-                          constraint workflow_fsm_pk
-                          primary key
-                          constraint workflow_fsm_workflow_id_fk
-                          references workflows(workflow_id)
-                          on delete cascade,
-  initial_state           integer
-                          constraint workflow_fsm_initial_state_nn
-                          not null
-                          constraint workflow_fsm_initial_state_fk
-                          references workflow_fsm_states(state_id)
-);
-
 ---------------------------------
 -- Case level, Generic Model
 ---------------------------------
+
+create sequence workflow_cases_seq;
 
 create table workflow_cases (
   case_id                 integer
@@ -360,6 +362,8 @@ create table workflow_cases (
                           unique
   -- the object which this case is about, e.g. the acs-object for a bug-tracker bug
 );
+
+create sequence workflow_case_log_seq;
 
 create table workflow_case_log (
   entry_id                integer
@@ -435,8 +439,6 @@ create table workflow_case_fsm (
                           references workflow_cases(case_id)
                           on delete cascade,
   current_state           integer
-                          constraint workflow_case_fsm_state_id_nn
-                          not null
                           constraint workflow_case_fsm_state_id_fk
                           references workflow_fsm_states(state_id)
                           on delete cascade

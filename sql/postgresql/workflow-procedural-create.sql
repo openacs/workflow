@@ -11,13 +11,24 @@
 -- Workflow level, Generic Model
 ---------------------------------
 
+create function workflow__delete (integer)
+returns integer as '
+declare
+  delete_workflow_id            alias for $1;
+begin
+  select acs_object__delete(delete_workflow_id);
+
+  return 0; 
+end;' language 'plpgsql';
+
+
 -- Function for creating a workflow
 create function workflow__new (varchar, -- short_name
                                varchar, -- pretty_name
                                integer, -- object_id
                                varchar, -- object_type
                                integer, -- creation_user
-                               integer, -- creation_ip
+                               varchar, -- creation_ip
                                integer  -- context_id
                               )
 returns integer as '
@@ -34,7 +45,7 @@ declare
 begin
         -- Instantiate the ACS Object super type with auditing info
         v_workflow_id  := acs_object__new(null,
-                                          ''workflow_new'',
+                                          ''workflow_lite'',
                                           now(),
                                           p_creation_user,
                                           p_creation_ip,
@@ -45,7 +56,9 @@ begin
         insert into workflows
                (workflow_id, short_name, pretty_name, object_id, object_type)
            values
-               (v_workflow_id, p_short_name, p_pretty_name, p_object_id, p_object_type)        
+               (v_workflow_id, p_short_name, p_pretty_name, p_object_id, p_object_type);
                 
+
+       return v_workflow_id;
 end;
 ' language 'plpgsql';

@@ -12,11 +12,12 @@
 ---------------------------------
 
 -- Drop all functions
-drop   function workflow__new (varchar, -- short_name
+drop function workflow__delete (integer);
+drop function workflow__new (varchar, -- short_name
                                varchar, -- pretty_name
                                integer, -- object_id
                                varchar, -- object_type
                                integer, -- creation_user
-                               integer, -- creation_ip
+                               varchar, -- creation_ip
                                integer  -- context_id
                               );

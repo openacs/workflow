@@ -8,26 +8,36 @@ ad_library {
     @cvs-id $Id$
 }
 
-namespace eval ::workflow::fsm {}
-    
-ad_proc -public ::workflow::fsm::set_initial_state {
-    {-workflow_id:required}
-    {-initial_state:required}
-} {
-    Set the initial state of an FSM (Finite State Machine) workflow.
+namespace eval workflow::fsm {}
+namespace eval workflow::fsm::state {}
+namespace eval workflow::fsm::action {}
 
-    @param workflow_id     The id of the workflow to set initial state for.
-    @param initial_state   The id of the initial state of the workflow
+#####
+#
+#  workflow::fsm namespace
+#
+#####
+    
+ad_proc -public workflow::fsm::delete {
+    {-workflow_id:required}
+} {
+    Delete an FSM workflow and all data attached to it (states, actions etc.).
+
+    @param workflow_id The id of the FSM workflow to delete.
 
     @author Peter Marklund
 } {
-    db_dml do_insert {}
+    # All FSM data hangs on the generic workflow data and will be deleted on cascade
+    workflow::delete $workflow_id
 }
 
+#####
+#
+#  workflow::fsm::state namespace
+#
+#####
 
-namespace eval ::workflow::fsm::state {}
-
-ad_proc -public ::workflow::fsm::state::add {
+ad_proc -public workflow::fsm::state::add {
     {-workflow_id:required}
     {-short_name:required}
     {-pretty_name:required}
@@ -41,26 +51,36 @@ ad_proc -public ::workflow::fsm::state::add {
     
     @author Peter Marklund
 } {        
-    set state_id [db_nextval "wf_workflow_fsm_states_seq"]
+    set state_id [db_nextval "workflow_fsm_states_seq"]
+
+    if { [empty_string_p $sort_order] } {
+        set sort_order [workflow::default_sort_order -workflow_id $workflow_id workflow_fsm_states]
+    }
 
     db_dml do_insert {}
 }
 
-ad_proc -public ::workflow::fsm::state::id_from_short_name {
-    short_name
+ad_proc -public workflow::fsm::state::get_id {
+    {-workflow_id:required}
+    {-short_name:required}
 } {
     Return the id of the state with given short name
 
+    @param workflow_id The id of the workflow the state belongs to.
     @param short_name The name of the state to return the id for.
 
     @author Peter Marklund
 } {
-    return [db_string id_from_name {}]
+    return [db_string select_id {}]
 }
 
-namespace eval ::workflow::fsm::action {}
+#####
+#
+#  workflow::fsm::action namespace
+#
+#####
 
-ad_proc -public ::workflow::fsm::action::add {
+ad_proc -public workflow::fsm::action::add {
     {-workflow_id:required}
     {-short_name:required}
     {-pretty_name:required}
@@ -78,7 +98,7 @@ ad_proc -public ::workflow::fsm::action::add {
 
     @param enabled_states         The short names of states in which the 
                                   action is enabled.
-    @param new_state              The state that a workflow case moves to 
+    @param new_state              The name of the state that a workflow case moves to 
                                   when the action is taken. Optional.
 
     @see workflow::action::add
@@ -88,22 +108,29 @@ ad_proc -public ::workflow::fsm::action::add {
 
     db_transaction {
         # Generic workflow data:
-        set action_id [workflow::action::add -workflow_id $workflow_id
-                                             -short_name $short_name
-                                             -pretty_name $pretty_name
-                                             -pretty_past_tense $pretty_past_tense 
-                                             -allowed_roles $allowed_roles 
-                                             -assigned_role $assigned_role 
+        set action_id [workflow::action::add -workflow_id $workflow_id \
+                                             -short_name $short_name \
+                                             -pretty_name $pretty_name \
+                                             -pretty_past_tense $pretty_past_tense \
+                                             -allowed_roles $allowed_roles \
+                                             -assigned_role $assigned_role \
                                              -privileges $privileges]
 
         # FSM specific data:
 
         # Record whether the action changes state
+        if { ![empty_string_p $new_state] } {
+            set new_state_id [workflow::fsm::state::get_id -workflow_id $workflow_id \
+                                                           -short_name $new_state]
+        } else {
+            set new_state_id [db_null]
+        }
         db_dml insert_fsm_action {}
 
         # Record in which states the action is enabled
         foreach state_short_name $enabled_states {
-            set enabled_state_id [workflow::fsm::state::id_from_short_name $state_short_name]
+            set enabled_state_id [workflow::fsm::state::get_id -workflow_id $workflow_id \
+                                                               -short_name $state_short_name]
             db_dml insert_enabled_state {}
         }
     }   

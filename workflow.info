@@ -30,12 +30,17 @@
             <file type="data_model" db_type="postgresql" path="sql/postgresql/workflow-tables-drop.sql"/>
             <file type="tcl_procs" path="tcl/action-procs.tcl"/>
             <file type="query_file" path="tcl/action-procs.xql"/>
+            <file type="query_file" db_type="postgresql" path="tcl/case-procs-postgresql.xql"/>
+            <file type="tcl_procs" path="tcl/case-procs.tcl"/>
+            <file type="query_file" path="tcl/case-procs.xql"/>
             <file type="tcl_procs" path="tcl/fsm-procs.tcl"/>
             <file type="query_file" path="tcl/fsm-procs.xql"/>
             <file type="tcl_procs" path="tcl/role-procs.tcl"/>
             <file type="query_file" path="tcl/role-procs.xql"/>
+            <file type="tcl_procs" path="tcl/test/workflow-test-procs.tcl"/>
             <file type="query_file" db_type="postgresql" path="tcl/workflow-procs-postgresql.xql"/>
             <file type="tcl_procs" path="tcl/workflow-procs.tcl"/>
+            <file type="query_file" path="tcl/workflow-procs.xql"/>
             <file type="package_spec" path="workflow.info"/>
         </files>
         <parameters>
