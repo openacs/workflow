@@ -209,3 +209,7 @@ begin
     -- return id of newly created item
     return v_item_id;
 end;' language 'plpgsql';
+
+-- Adding unique constraint on workflow fsm enabled in actions
+-- This could cause upgrades to fail, if there are in fact duplicates, so let's pray that there aren't
+alter table workflow_fsm_action_en_in_st add constraint workflow_fsm_action_en_in_st_pk primary key (action_id, state_id);

@@ -350,14 +350,15 @@ create table workflow_fsm_action_en_in_st (
                           constraint wf_fsm_acn_enb_in_st_st_id_fk
                           references workflow_fsm_states
                           on delete cascade,
-  assigned_p              boolean default 't'
+  assigned_p              boolean default 't',
   -- The users in the role assigned to an action are only assigned to take action
   -- in the enabled states that have the assigned_p flag
   -- set to true. For example, in Bug Tracker, the resolve action is enabled
   -- in both the open and resolved states but only has assigned_p set to true
   -- in the open state.
+  constraint workflow_fsm_action_en_in_st_pk
+  primary key (action_id, state_id)
 );
--- LARS TODO: Add unique constraint on (action_id, state_id)
 
 
 
