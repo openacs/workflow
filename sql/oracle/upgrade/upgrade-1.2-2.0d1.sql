@@ -74,38 +74,29 @@ alter table workflow_fsm_actions add
 
 -- Adding recursive actions
 -- TODO: Test these
-create table workflow_action_children(
-  child_id                  integer
-                            constraint wf_action_children_pk
-                            primary key,
-  action_id                 integer
-                            constraint wf_action_children_nn
-                            not null
-                            constraint wf_action_children_action_fk
-                            references workflow_actions(action_id)
-                            on delete cascade,
-  child_workflow            integer
-                            constraint wf_action_children_workflow_fk
-                            references workflows(workflow_id)
-                            on delete cascade
-);
+alter table workflow_actions add (
+  child_workflow_id       integer
+                          constraint wf_acns_child_workflow_fk
+                          references workflows(workflow_id)
+                          on delete cascade);
 
 create table workflow_action_child_role_map(
-  child_id                  integer
+  action_id                 integer
                             constraint wf_act_child_rl_map_child_fk
-                            references workflow_action_children(child_id),
-  parent_role               integer
-                            constraint wf_act_child_rl_map_prnt_rl_fk
-                            references workflow_roles(role_id),
-  child_role                integer
+                            references workflow_actions(action_id),
+  child_role_id             integer
                             constraint wf_act_child_rl_map_chld_rl_fk
+                            references workflow_roles(role_id),
+  parent_role_id            integer
+                            constraint wf_act_child_rl_map_prnt_rl_fk
                             references workflow_roles(role_id),
   mapping_type              char(40)
                             constraint wf_act_child_rl_map_type_ck
                             check (mapping_type in 
-                                ('per_role','per_user')),
+                                ('per_role','per_user'))
+                            default 'per_role',
   constraint wf_act_chld_rl_map_pk
-  primary key (child_id, parent_role)
+  primary key (action_id, child_role_id)
 );
 
 comment on column workflow_action_child_role_map.mapping_type is '

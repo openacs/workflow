@@ -143,6 +143,8 @@ ad_proc -public workflow::action::edit {
     allowed_roles
     initial_action_p
     callbacks
+    child_workflow_ids
+    child_role_map
     
     @param operation    insert, update, delete
 
@@ -223,6 +225,7 @@ ad_proc -public workflow::action::edit {
                 always_enabled_p
                 assigned_role
                 timeout_seconds
+                child_workflow_id
             } {
                 if { [info exists row($attr)] } {
                     set varname attr_$attr
@@ -380,6 +383,35 @@ ad_proc -public workflow::action::edit {
                     unset missing_elm(callbacks)
                 }
 
+                # Child role map
+                if { [info exists row(child_role_map)] } {
+                    if { ![exists_and_not_null row(child_workflow_id)] } {
+                        error "You cannot set child_role_map without also setting child_workflow_id."
+                    }
+
+                    db_dml delete_callbacks {
+                        delete from workflow_action_child_role_map
+                        where  action_id = :action_id
+                    }
+                    
+                    foreach { child_role_short_name spec } $row(child_role_map) {
+                        foreach { parent_role_short_name mapping_type } $spec {}
+
+                        set child_role_id [workflow::role::get_id \
+                                               -workflow_id $row(child_workflow_id) \
+                                               -short_name $child_role_short_name]
+                        set parent_role_id [workflow::role::get_id \
+                                                -workflow_id $workflow_id \
+                                                -short_name $parent_role_short_name]
+
+                        db_dml insert_child_role_map {
+                            insert into workflow_action_child_role_map (action_id, child_role_id, parent_role_id, mapping_type)
+                            values (:action_id, :child_role_id, :parent_role_id, :mapping_type)
+                        }
+                    }
+                    unset missing_elm(child_role_map)
+                }
+
                 # Check that there are no unknown attributes
                 if { [llength [array names missing_elm]] > 0 } {
                     error "Trying to set illegal action attributes: [join [array names missing_elm] ", "]"
@@ -500,7 +532,7 @@ ad_proc -public workflow::action::get {
             workflow_id, sort_order, short_name, pretty_name, 
             pretty_past_tense, assigned_role (short_name), assigned_role_id, 
             always_enabled_p, initial_action_p, description, 
-            description_mime_type column values for an action.
+            description_mime_type, child_workflow_id column values for an action.
 
     @see workflow::action::get_all_info
     @see workflow::action::get_all_info_not_cached
@@ -1284,6 +1316,9 @@ ad_proc -private workflow::action::get_all_info {
 
     @author Peter Marklund
 } {
+    return [workflow::action::get_all_info_not_cached \
+            -workflow_id $workflow_id]
+
     return [util_memoize [list workflow::action::get_all_info_not_cached \
             -workflow_id $workflow_id] [workflow::cache_timeout]]
 }
@@ -1368,12 +1403,31 @@ ad_proc -private workflow::action::get_all_info_not_cached {
         }
     }
 
+    # Build array of child_role_map for all actions
+    array set child_role_map [list]
+    db_foreach select_child_role_map {
+        select m.action_id,
+               m.child_role_id,
+               m.parent_role_id,
+               m.mapping_type,
+               (select short_name from workflow_roles where role_id = m.child_role_id) as child_role_short_name,
+               (select short_name from workflow_roles where role_id = m.parent_role_id) as parent_role_short_name
+        from   workflow_action_child_role_map m,
+               workflow_actions a
+        where  m.action_id = a.action_id
+        and    a.workflow_id = :workflow_id
+    } {
+        lappend child_role_map($action_id) $child_role_short_name [list $parent_role_short_name [string trim $mapping_type]]
+    }
+    
     # For each action_id, add to the array of that action the contents of the
     # sub arrays (callbacks, allowed_roles, allowed_role_ids, privileges)
     foreach action_id $action_ids {
         array set one_action $action_data($action_id)
-
-        foreach array_name { privileges enabled_states enabled_state_ids assigned_states assigned_state_ids callbacks allowed_roles allowed_role_ids } {
+        
+        foreach array_name { 
+            privileges enabled_states enabled_state_ids assigned_states assigned_state_ids callbacks allowed_roles allowed_role_ids
+        } {
             if { [info exists ${array_name}($action_id)] } {
                 set one_action(${array_name}) [set ${array_name}($action_id)]
             } else {
@@ -1393,6 +1447,12 @@ ad_proc -private workflow::action::get_all_info_not_cached {
             set one_action(callback_ids) $callback_ids_array($action_id)
         } else {
             set one_action(callback_ids) [list]
+        }
+
+        if { [info exists child_role_map($action_id)] } {
+            set one_action(child_role_map) $child_role_map($action_id)
+        } else {
+            set one_action(child_role_map) [list]
         }
 
         set action_data($action_id) [array get one_action]

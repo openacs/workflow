@@ -55,6 +55,7 @@ drop table workflow_fsm_action_en_in_st;
 drop table workflow_fsm_actions;
 drop table workflow_initial_action;
 drop table workflow_fsm_states;
+drop table workflow_action_child_role_map;
 drop table workflow_action_callbacks;
 drop table workflow_action_privileges;
 drop table workflow_action_allowed_roles;

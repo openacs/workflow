@@ -2,17 +2,6 @@
 <queryset>
   <rdbms><type>postgresql</type><version>7.2</version></rdbms>
 
-  <fullquery name="workflow::action::new.insert_action">
-    <querytext>
-        insert into workflow_actions
-            (action_id, workflow_id, sort_order, short_name, pretty_name, pretty_past_tense, 
-             edit_fields, assigned_role, always_enabled_p, description, description_mime_type, timeout)
-      values (:action_id, :workflow_id, :sort_order, :short_name, :pretty_name, :pretty_past_tense, 
-              :edit_fields, :assigned_role_id, :always_enabled_p, :description, :description_mime_type, 
-              [ad_decode $timeout_seconds "" "null" "interval '$timeout_seconds seconds'"])
-    </querytext>
-  </fullquery>
-
   <partialquery name="workflow::action::edit.update_timeout_seconds_name">
     <querytext>
       timeout
@@ -45,7 +34,8 @@
                fa.new_state as new_state_id,
                (select short_name from workflow_fsm_states where state_id = fa.new_state) as new_state,
                a.description,
-               a.description_mime_type
+               a.description_mime_type,
+               a.child_workflow_id
         from   workflow_actions a left outer join 
                workflow_fsm_actions fa on (a.action_id = fa.action_id) 
         where  a.workflow_id = :workflow_id
