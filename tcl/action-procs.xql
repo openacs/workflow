@@ -89,9 +89,10 @@
     </querytext>
   </fullquery>
 
-  <fullquery name="workflow::action::get_all_info_not_cached.action_enabled_short_name">
+  <fullquery name="workflow::action::get_all_info_not_cached.action_enabled_in_states">
     <querytext>
-        select s.short_name,
+        select s.state_id,
+               s.short_name,
                waeis.action_id,
                waeis.assigned_p
         from   workflow_fsm_action_en_in_st waeis,

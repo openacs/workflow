@@ -23,7 +23,7 @@ ad_proc -public workflow::action::new {
     {-workflow_id:required}
     {-action_id {}}
     {-sort_order {}}
-    {-short_name:required}
+    {-short_name {}}
     {-pretty_name:required}
     {-pretty_past_tense {}}
     {-edit_fields {}}
@@ -108,6 +108,11 @@ ad_proc -public workflow::action::new {
                 -sort_order $sort_order
         }
 
+        set short_name [workflow::action::generate_short_name \
+                            -workflow_id $workflow_id \
+                            -pretty_name $pretty_name \
+                            -short_name $short_name]
+
         if { [empty_string_p $action_id] } {
             set action_id [db_nextval "workflow_actions_seq"]
         }
@@ -145,7 +150,9 @@ ad_proc -public workflow::action::new {
     }
 
     if { !$internal_p } {
-        workflow::action::flush_cache -workflow_id $workflow_id
+        # Flush the workflow cache, as changing an action changes the entire workflow
+        # e.g. initial_action_p, enabled_in_states.
+        workflow::flush_cache -workflow_id $workflow_id
     }
     
     return $action_id
@@ -174,17 +181,20 @@ ad_proc -public workflow::action::edit {
     @see workflow::action::new
 } {
     upvar 1 $array row
+    if { ![array exists row] } {
+        error "Array $array does not exist or is not an array"
+    }
     foreach name [array names row] {
         set missing_elm($name) 1
     }
-
-    set set_clauses [list]
 
     if { [empty_string_p $workflow_id] } {
         set workflow_id [workflow::action::get_element \
                              -action_id $action_id \
                              -element workflow_id]
     }
+
+    set set_clauses [list]
 
     # Handle columns in the workflow_actions table
     foreach attr { 
@@ -197,6 +207,20 @@ ad_proc -public workflow::action::edit {
             set varname attr_$attr
             # Convert the Tcl value to something we can use in the query
             switch $attr {
+                short_name {
+                    if { ![exists_and_not_null row(pretty_name)] } {
+                        if { [empty_string_p $row(short_name)] } {
+                            error "You cannot edit with an empty short_name without also setting pretty_name"
+                        } else {
+                            set row(pretty_name) {}
+                        }
+                    }
+                        
+                    set $varname [workflow::action::generate_short_name \
+                                      -workflow_id $workflow_id \
+                                      -pretty_name $row(pretty_name) \
+                                      -short_name $row(short_name)]
+                }
                 always_enabled_p {
                     set $varname [db_boolean [template::util::is_true $row($attr)]]
                 }
@@ -291,7 +315,7 @@ ad_proc -public workflow::action::edit {
 
         # Check that there are no unknown attributes
         if { [llength [array names missing_elm]] > 0 } {
-            error "Trying to set illegal action attributes: [join [array names row] ", "]"
+            error "Trying to set illegal action attributes: [join [array names missing_elm] ", "]"
         }
 
         if { !$internal_p } {
@@ -300,7 +324,9 @@ ad_proc -public workflow::action::edit {
     }
 
     if { !$internal_p } {
-        workflow::action::flush_cache -workflow_id $workflow_id
+        # Flush the workflow cache, as changing an action changes the entire workflow
+        # e.g. initial_action_p, enabled_in_states.
+        workflow::flush_cache -workflow_id $workflow_id
     }
 
     return $action_id
@@ -496,6 +522,65 @@ ad_proc -private workflow::action::update_sort_order {
     }
 }
 
+ad_proc -public workflow::action::get_existing_short_names {
+    {-workflow_id:required}
+    {-ignore_action_id {}}
+} {
+    Returns a list of existing action short_names in this workflow.
+    Useful when you're trying to ensure a short_name is unique, 
+    or construct a new short_name that is guaranteed to be unique.
+
+    @param ignore_action_id   If specified, the short_name for the given action will not be included in the result set.
+} {
+    set result [list]
+
+    foreach action_id [workflow::get_actions -workflow_id $workflow_id] {
+        if { [empty_string_p $ignore_action_id] || ![string equal $ignore_action_id $action_id] } {
+            lappend result [workflow::action::get_element -action_id $action_id -element short_name]
+        }
+    }
+
+    return $result
+}
+
+ad_proc -public workflow::action::generate_short_name {
+    {-workflow_id:required}
+    {-pretty_name:required}
+    {-short_name {}}
+    {-action_id {}}
+} {
+    Generate a unique short_name from pretty_name.
+    
+    @param action_id    If you pass in this, we will allow that action's short_name to be reused.
+    
+} {
+    set existing_short_names [workflow::action::get_existing_short_names \
+                                  -workflow_id $workflow_id \
+                                  -ignore_action_id $action_id]
+    
+    if { [empty_string_p $short_name] } {
+        if { [empty_string_p $pretty_name] } {
+            error "Cannot have empty pretty_name when short_name is empty"
+        }
+        set short_name [util_text_to_url \
+                            -replacement "_" \
+                            -existing_urls $existing_short_names \
+                            -text $pretty_name]
+    } else {
+        # Make lowercase, remove illegal characters
+        set short_name [string tolower $short_name]
+        regsub -all {[- ]} $short_name {_} short_name
+        regsub -all {[^a-zA-Z_0-9]} $short_name {} short_name
+
+        if { [lsearch -exact $existing_short_names $short_name] != -1 } {
+            error "Action with short_name '$short_name' already exists in this workflow."
+        }
+    }
+
+    return $short_name
+}
+
+
 
 
 ######################################################################
@@ -508,7 +593,7 @@ ad_proc -public workflow::action::fsm::new {
     {-workflow_id:required}
     {-action_id {}}
     {-sort_order {}}
-    {-short_name:required}
+    {-short_name {}}
     {-pretty_name:required}
     {-pretty_past_tense {}}
     {-edit_fields {}}
@@ -517,6 +602,8 @@ ad_proc -public workflow::action::fsm::new {
     {-privileges {}}
     {-enabled_states {}}
     {-assigned_states {}}
+    {-enabled_state_ids {}}
+    {-assigned_state_ids {}}
     {-new_state {}}
     {-callbacks {}}
     {-always_enabled_p f}
@@ -571,8 +658,11 @@ ad_proc -public workflow::action::fsm::new {
         db_dml insert_fsm_action {}
 
         array set update_cols [list]
-        set update_cols(enabled_states) $enabled_states
-        set update_cols(assigned_states) $assigned_states
+        foreach col { enabled_states enabled_state_ids assigned_states assigned_state_ids } {
+            if { ![empty_string_p [set $col]] } {
+                set update_cols($col) [set $col]
+            }
+        }
 
         workflow::action::fsm::edit \
             -internal \
@@ -582,8 +672,10 @@ ad_proc -public workflow::action::fsm::new {
 
         workflow::definition_changed_handler -workflow_id $workflow_id
     }   
-
-    workflow::action::flush_cache -workflow_id $workflow_id
+    
+    # Flush the workflow cache, as changing an action changes the entire workflow
+    # e.g. initial_action_p, enabled_in_states.
+    workflow::flush_cache -workflow_id $workflow_id
 
     return $action_id
 }
@@ -611,8 +703,12 @@ ad_proc -public workflow::action::fsm::edit {
     @see workflow::action::fsm::new
 } {
     upvar 1 $array org_row
+    if { ![array exists org_row] } {
+        error "Array $array does not exist or is not an array"
+    }
 
-    # We make a copy here, so the check for illegal attributes in workflow::action::edit works properly
+    # We make a copy here and work on that, so the check for illegal attributes in workflow::action::edit works properly, 
+    # i.e. we delete from 'row' before calling workflow::action::edit, but we don't touch the caller's row
     array set row [array get org_row]
 
     if { [empty_string_p $workflow_id] } {
@@ -647,6 +743,13 @@ ad_proc -public workflow::action::fsm::edit {
                 db_dml insert_enabled_state {}
             }
             unset row(enabled_states)
+        } elseif { [info exists row(enabled_state_ids)] } {
+            set assigned_p "f"
+            db_dml delete_enabled_states {}
+            foreach enabled_state_id $row(enabled_state_ids) {
+                db_dml insert_enabled_state {}
+            }
+            unset row(enabled_state_ids)
         }
 
         # Record where the action is both enabled and assigned
@@ -660,8 +763,15 @@ ad_proc -public workflow::action::fsm::edit {
                 db_dml insert_enabled_state {}
             }
             unset row(assigned_states)
+        } elseif { [info exists row(assigned_state_ids)] } {
+            set assigned_p "t"
+            db_dml delete_enabled_states {}
+            foreach enabled_state_id $row(assigned_state_ids) {
+                db_dml insert_enabled_state {}
+            }
+            unset row(assigned_state_ids)
         }
-
+ 
         # This will error if there are attributes it doesn't know about, so we remove the attributes we know above
         workflow::action::edit \
             -internal \
@@ -675,7 +785,9 @@ ad_proc -public workflow::action::fsm::edit {
     }
 
     if { !$internal_p } {
-        workflow::action::flush_cache -workflow_id $workflow_id
+        # Flush the workflow cache, as changing an action changes the entire workflow
+        # e.g. initial_action_p, enabled_in_states.
+        workflow::flush_cache -workflow_id $workflow_id
     }
 }
 
@@ -882,7 +994,7 @@ ad_proc -private workflow::action::flush_cache {
     }
 
     # Flush the thread global cache
-    util_memoize_flush [list workflow::action::get_all_info_not_cached -workflow_id $workflow_id]    
+    util_memoize_flush [list workflow::action::get_all_info_not_cached -workflow_id $workflow_id]
 }
 
 ad_proc -private workflow::action::refresh_request_cache { workflow_id } {
@@ -1035,12 +1147,16 @@ ad_proc -private workflow::action::get_all_info_not_cached {
 
     # Build arrays of enabled and assigned state short names for all actions
     array set enabled_states {}
+    array set enabled_state_ids {}
     array set assigned_states {}
-    db_foreach action_enabled_short_name {} {
+    array set assigned_state_ids {}
+    db_foreach action_enabled_in_states {} {
         if { [string equal $assigned_p "t"] } {
             lappend assigned_states($action_id) $short_name
+            lappend assigned_state_ids($action_id) $state_id
         } else {
             lappend enabled_states($action_id) $short_name
+            lappend enabled_state_ids($action_id) $state_id
         }
     }
 
@@ -1049,7 +1165,7 @@ ad_proc -private workflow::action::get_all_info_not_cached {
     foreach action_id $action_ids {
         array set one_action $action_data($action_id)
 
-        foreach array_name { privileges enabled_states assigned_states callbacks allowed_roles allowed_role_ids } {
+        foreach array_name { privileges enabled_states enabled_state_ids assigned_states assigned_state_ids callbacks allowed_roles allowed_role_ids } {
             if { [info exists ${array_name}($action_id)] } {
                 set one_action(${array_name}) [set ${array_name}($action_id)]
             } else {

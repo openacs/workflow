@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <queryset>
 
-  <fullquery name="workflow::state::fsm::new.select_sort_order_p">
+  <fullquery name="workflow::state::fsm::update_sort_order.select_sort_order_p">
     <querytext>
         select count(*)
         from   workflow_fsm_states
@@ -10,7 +10,7 @@
     </querytext>
   </fullquery>
 
-  <fullquery name="workflow::state::fsm::new.update_sort_order">
+  <fullquery name="workflow::state::fsm::update_sort_order.update_sort_order">
     <querytext>
         update workflow_fsm_states
         set    sort_order = sort_order + 1
@@ -38,7 +38,8 @@
 
   <fullquery name="workflow::state::fsm::get_all_info_not_cached.select_states">
     <querytext>
-      select state_id,
+      select workflow_id,
+             state_id,
              sort_order,
              short_name,
              pretty_name,
