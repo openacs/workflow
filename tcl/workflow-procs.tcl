@@ -499,6 +499,7 @@ ad_proc -public workflow::fsm::new_from_spec {
     {-package_key {}}
     {-object_id {}}
     {-spec:required}
+    {-array {}}
 } {
     Create a new workflow from spec. Workflows must belong to either a package key or an object id.
 
@@ -511,23 +512,39 @@ ad_proc -public workflow::fsm::new_from_spec {
 
     @param spec          The workflow spec
 
+    @param array         The name of an array in the caller's namespace. Values in this array will 
+                         override workflow attributes of the workflow being cloned.
+
     @return The ID of the workflow created
 
     @author Lars Pind (lars@collaboraid.biz)
     @see workflow::new
 } {
     if { [llength $spec] != 2 } {
-        error "You can only create one workflow at a time"
+        error "A workflow spec must have exactly two elements, short_name and an array-list with details."
+    }
+
+    set short_name [lindex $spec 0]
+    array set workflow_array [lindex $spec 1]
+
+    # Override workflow attributes
+    if { ![empty_string_p $array] } {
+        upvar 1 $array row
+        foreach name [array names row] {
+            if { [string equal $name short_name] } {
+                set short_name $row($name)
+            } else {
+                set workflow_array($name) $row($name)
+            }
+        }
     }
 
     db_transaction {
-        foreach { short_name spec } $spec {
-            set workflow_id [workflow::fsm::parse_spec \
-                    -package_key $package_key \
-                    -object_id $object_id \
-                    -short_name $short_name \
-                    -spec $spec]
-        }
+        set workflow_id [workflow::fsm::parse_spec \
+                             -package_key $package_key \
+                             -object_id $object_id \
+                             -short_name $short_name \
+                             -spec [array get workflow_array]]
     }
 
     # The lookup proc might have cached that there is no workflow
@@ -548,8 +565,6 @@ ad_proc -public workflow::fsm::clone {
 
     @param pretty_name   A human readable name for the workflow for use in the UI.
 
-    @param short_name    For referring to the workflow from Tcl code. Use Tcl variable syntax.
-
     @param object_id     The id of an ACS Object indicating the scope the workflow. 
                          Typically this will be the id of a package type or a package instance
                          but it could also be some other type of ACS object within a package, for example
@@ -563,26 +578,16 @@ ad_proc -public workflow::fsm::clone {
     @author Lars Pind (lars@collaboraid.biz)
     @see workflow::new
 } {
-    set spec [generate_spec -workflow_id $workflow_id]
-    set short_name [lindex $spec 0]
-    array set workflow_array [lindex $spec 1]
-
-    # Override workflow attributes
     if { ![empty_string_p $array] } {
         upvar 1 $array row
-        foreach name [array names row] {
-            if { [string equal $name short_name] } {
-                set short_name $row($name)
-            } else {
-                set workflow_array($name) $row($name)
-            }
-        }
-    }
+        set array row
+    } 
 
     set workflow_id [new_from_spec \
                          -package_key $package_key \
                          -object_id $object_id \
-                         -spec [list $short_name [array get workflow_array]]]
+                         -spec [generate_spec -workflow_id $workflow_id] \
+                         -array $array]
 
     return $workflow_id
 }
