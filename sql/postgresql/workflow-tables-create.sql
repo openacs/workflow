@@ -533,7 +533,7 @@ select content_type__create_type (
 -- Useful views
 -----------------
 
-create or replace view workflow_case_assigned_actions as 
+create view workflow_case_assigned_actions as 
     select c.workflow_id,
            c.case_id, 
            c.object_id,
