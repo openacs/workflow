@@ -9,8 +9,7 @@ ad_library {
 }
 
 namespace eval workflow::fsm {}
-namespace eval workflow::fsm::state {}
-namespace eval workflow::fsm::action {}
+namespace eval workflow::state::fsm {}
 
 #####
 #
@@ -33,11 +32,11 @@ ad_proc -public workflow::fsm::delete {
 
 #####
 #
-#  workflow::fsm::state namespace
+#  workflow::state::fsm namespace
 #
 #####
 
-ad_proc -public workflow::fsm::state::add {
+ad_proc -public workflow::state::fsm::new {
     {-workflow_id:required}
     {-short_name:required}
     {-pretty_name:required}
@@ -60,7 +59,20 @@ ad_proc -public workflow::fsm::state::add {
     db_dml do_insert {}
 }
 
-ad_proc -public workflow::fsm::state::get_id {
+ad_proc -public workflow::state::fsm::get {
+    {-state_id:required}
+} {
+    Return workflow_id, sort_order, short_name, and pretty_name for a certain
+    FSM workflow state.
+
+    @author Peter Marklund
+} {
+    db_1row state_info {} -column_array state_info
+
+    return [array get state_info]
+}
+
+ad_proc -public workflow::state::fsm::get_id {
     {-workflow_id:required}
     {-short_name:required}
 } {
@@ -72,66 +84,4 @@ ad_proc -public workflow::fsm::state::get_id {
     @author Peter Marklund
 } {
     return [db_string select_id {}]
-}
-
-#####
-#
-#  workflow::fsm::action namespace
-#
-#####
-
-ad_proc -public workflow::fsm::action::add {
-    {-workflow_id:required}
-    {-short_name:required}
-    {-pretty_name:required}
-    {-pretty_past_tense {}}
-    {-allowed_roles {}}
-    {-assigned_role {}}
-    {-privileges {}}
-    {-enabled_states {}}
-    {-new_state {}}
-} {
-    Add an action to a certain FSM (Finite State Machine) workflow. This procedure
-    invokes the generic workflow::action::add procedures and does additional inserts
-    for FSM specific information. See the parameter
-    documentation for the proc workflow::action::add.
-
-    @param enabled_states         The short names of states in which the 
-                                  action is enabled.
-    @param new_state              The name of the state that a workflow case moves to 
-                                  when the action is taken. Optional.
-
-    @see workflow::action::add
-
-    @author Peter Marklund
-} {        
-
-    db_transaction {
-        # Generic workflow data:
-        set action_id [workflow::action::add -workflow_id $workflow_id \
-                                             -short_name $short_name \
-                                             -pretty_name $pretty_name \
-                                             -pretty_past_tense $pretty_past_tense \
-                                             -allowed_roles $allowed_roles \
-                                             -assigned_role $assigned_role \
-                                             -privileges $privileges]
-
-        # FSM specific data:
-
-        # Record whether the action changes state
-        if { ![empty_string_p $new_state] } {
-            set new_state_id [workflow::fsm::state::get_id -workflow_id $workflow_id \
-                                                           -short_name $new_state]
-        } else {
-            set new_state_id [db_null]
-        }
-        db_dml insert_fsm_action {}
-
-        # Record in which states the action is enabled
-        foreach state_short_name $enabled_states {
-            set enabled_state_id [workflow::fsm::state::get_id -workflow_id $workflow_id \
-                                                               -short_name $state_short_name]
-            db_dml insert_enabled_state {}
-        }
-    }   
 }

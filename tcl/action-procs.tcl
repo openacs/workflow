@@ -16,7 +16,8 @@ namespace eval workflow:::action::fsm {}
 #
 #####
 
-ad_proc -public workflow::action::add {
+ad_proc -public workflow::action::new {
+    -initial_action:boolean
     {-workflow_id:required}
     {-sort_order {}}
     {-short_name:required}
@@ -29,7 +30,7 @@ ad_proc -public workflow::action::add {
 } {
     This procedure is normally not invoked from application code. Instead
     a procedure for a certain workflow implementation, such as for example
-    workflow::fsm::action::add (for Finite State Machine workflows), is used.
+    workflow::fsm::action::new (for Finite State Machine workflows), is used.
 
     @param workflow_id            The id of the FSM workflow to add the action to
     @param short_name             Short name of the action for use in source code.
@@ -46,10 +47,15 @@ ad_proc -public workflow::action::add {
                                   treated by the workflow (i.e. a bug in the 
                                   Bug Tracker) will be allowed to take this 
                                   action.
+    @param initial_action         Use this switch to indicate that this is the initial
+                                  action that will fire whenever a case of the workflow
+                                  is created. The initial action is used to determine
+                                  the initial state of the worklow as well as any 
+                                  procedures that should be executed when the case created.
 
     @return The id of the created action
 
-    @see workflow::fsm::action::add
+    @see workflow::fsm::action::new
 
     @author Peter Marklund
 } {
@@ -75,6 +81,11 @@ ad_proc -public workflow::action::add {
         # Record which privileges enable the action
         foreach privilege $privileges {
             db_dml insert_privilege {}
+        }
+        
+        # Record if this is an initial action
+        if { $initial_action_p } {
+            db_dml insert_initial_action {}
         }
     }
 
@@ -124,6 +135,21 @@ ad_proc -public workflow::action::get_id {
     return [db_string select_action_id {} -default {}]
 }
 
+ad_proc -public workflow::action::get {
+    {-action_id:required}
+} {
+    Return information about an action with a given id.
+
+    @author Peter Marklund
+
+    @return An array list with workflow_id, sort_order, short_name, pretty_name, 
+            pretty_past_tense, assigned_role, and always_enabled_p column 
+            values for an action.
+} {
+    db_1row action_info {} -column_array action_info
+
+    return [array get action_info]
+}
 
 
 #####
@@ -131,6 +157,72 @@ ad_proc -public workflow::action::get_id {
 # workflow::action::fsm
 #
 #####
+
+#####
+#
+#  workflow::fsm::action namespace
+#
+#####
+
+ad_proc -public workflow::action::fsm::new {
+    -initial_action:boolean
+    {-workflow_id:required}
+    {-short_name:required}
+    {-pretty_name:required}
+    {-pretty_past_tense {}}
+    {-allowed_roles {}}
+    {-assigned_role {}}
+    {-privileges {}}
+    {-always_enabled_p f}
+    {-enabled_states {}}
+    {-new_state {}}
+} {
+    Add an action to a certain FSM (Finite State Machine) workflow. This procedure
+    invokes the generic workflow::action::new procedures and does additional inserts
+    for FSM specific information. See the parameter
+    documentation for the proc workflow::action::new.
+
+    @param enabled_states         The short names of states in which the 
+                                  action is enabled.
+    @param new_state              The name of the state that a workflow case moves to 
+                                  when the action is taken. Optional.
+
+    @see workflow::action::new
+
+    @author Peter Marklund
+} {        
+
+    db_transaction {
+        # Generic workflow data:
+        set action_id [workflow::action::new -initial_action=$initial_action_p \
+                                             -workflow_id $workflow_id \
+                                             -short_name $short_name \
+                                             -pretty_name $pretty_name \
+                                             -pretty_past_tense $pretty_past_tense \
+                                             -allowed_roles $allowed_roles \
+                                             -assigned_role $assigned_role \
+                                             -privileges $privileges \
+                                             -always_enabled_p $always_enabled_p]
+
+        # FSM specific data:
+
+        # Record whether the action changes state
+        if { ![empty_string_p $new_state] } {
+            set new_state_id [workflow::state::fsm::get_id -workflow_id $workflow_id \
+                                                           -short_name $new_state]
+        } else {
+            set new_state_id [db_null]
+        }
+        db_dml insert_fsm_action {}
+
+        # Record in which states the action is enabled
+        foreach state_short_name $enabled_states {
+            set enabled_state_id [workflow::state::fsm::get_id -workflow_id $workflow_id \
+                                                               -short_name $state_short_name]
+            db_dml insert_enabled_state {}
+        }
+    }   
+}
 
 ad_proc -public workflow::action::fsm::get_new_state {
     {-action_id:required}

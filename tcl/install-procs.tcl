@@ -1,32 +1,58 @@
-
-    # Array-list with list of lists style
-
-    set operations {
-        GetObjectType {
-            {operation_desc "Get the object type for which this operation is valid."}
-            {inputspec {}}
-            {outputspec {object_type:string}}
-            {nargs 0}
-            {iscachable_p "t"}
-        }
-        GetPrettyName {
-            {operation_desc "Get the pretty name. May contain #...#, so should be localized."}
-            {inputspec {}}
-            {outputspec {pretty_name:string}}
-            {nargs 0}
-            {iscachable_p "t"}
-        }
-        GetAssignees {
-            {operation_desc "Get the assignees as a Tcl list of party_ids, of the default assignees for this case, object, role"}
-            {inputspec {case_id:integer,object_id:integer,role_id:integer}}
-            {outputspec {party_ids:[integer]}}
-            {nargs 3}
-            {iscachable_p "f"}
-        }
-    }
+ad_library {
+    Procedures for initializing service contracts etc. for the
+    workflow package. Should only be executed once upon installation.
     
+    @creation-date 13 January 2003
+    @author Lars Pind (lars@collaboraid.biz)
+    @author Peter Marklund (peter@collaboraid.biz)
+    @cvs-id $Id$
+}
 
+namespace eval workflow::install {}
 
+# Array-list with list of lists style
+
+set operations {
+    GetObjectType {
+        {operation_desc "Get the object type for which this operation is valid."}
+        {inputspec {}}
+        {outputspec {object_type:string}}
+        {nargs 0}
+        {iscachable_p "t"}
+    }
+    GetPrettyName {
+        {operation_desc "Get the pretty name. May contain #...#, so should be localized."}
+        {inputspec {}}
+        {outputspec {pretty_name:string}}
+        {nargs 0}
+        {iscachable_p "t"}
+    }
+    GetAssignees {
+        {operation_desc "Get the assignees as a Tcl list of party_ids, of the default assignees for this case, object, role"}
+        {inputspec {case_id:integer,object_id:integer,role_id:integer}}
+        {outputspec {party_ids:[integer]}}
+        {nargs 3}
+        {iscachable_p "f"}
+    }
+}
+
+namespace eval acs_sc::contract {}
+namespace eval acs_sc::contract::define {}
+
+proc acs_sc::contract::new { contract_name {operations {}} } {
+    puts "New Contract: $contract_name"
+    if { ![string equal $operations ""] } {
+        puts "Operations:"
+        namespace eval ::acs_sc::contract::define variable contract_name $contract_name
+        namespace eval ::acs_sc::contract::define $operations
+    }
+}
+
+proc acs_sc::contract::define::operation { operation_name } {
+    variable contract_name
+    puts "Operation: ${contract_name}.${operation_name}"
+}
+    
 #####
 #
 # Style one: Lists of lists of lists with potentially unclear semantics
@@ -178,22 +204,5 @@ proc create_service_contracts {} {
     }
 }
 
-namespace eval acs_sc::contract {}
-namespace eval acs_sc::contract::define {}
-
-proc acs_sc::contract::new { contract_name {operations {}} } {
-    puts "New Contract: $contract_name"
-    if { ![string equal $operations ""] } {
-        puts "Operations:"
-        namespace eval ::acs_sc::contract::define variable contract_name $contract_name
-        namespace eval ::acs_sc::contract::define $operations
-    }
-}
-
-proc acs_sc::contract::define::operation { operation_name } {
-    variable contract_name
-    puts "Operation: ${contract_name}.${operation_name}"
-}
-
-create_service_contracts
+#create_service_contracts
 

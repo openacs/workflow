@@ -21,12 +21,12 @@
     </querytext>
   </fullquery>
 
-  <fullquery name="workflow::case::get_case_id.select_case_id">
+  <fullquery name="workflow::case::get_id.select_case_id">
     <querytext>
       select case_id
       from   workflow_cases c, 
              workflows w
-      where  c.object_id = :case_object_id
+      where  c.object_id = :object_id
       and    w.workflow_id = c.workflow_id
       and    w.short_name = :workflow_short_name
     </querytext>
@@ -60,7 +60,7 @@
                     workflow_fsm_action_enabled_in_states waeis
              where  c.case_id = :case_id
              and    cfsm.case_id = c.case_id
-             and    waeis.state_id = cfsm.state_id
+             and    waeis.state_id = cfsm.current_state
 
              union
 
@@ -70,7 +70,7 @@
              where  c.case_id = :case_id
              and    a.workflow_id = c.workflow_id
              and    a.always_enabled_p = 't'
-            )
+            ) enabled_actions
     </querytext>
   </fullquery>
 
@@ -131,13 +131,14 @@
       select 1
       from   workflow_actions a
       where  a.action_id = :action_id
-      and    a.always_enabled_p = 't' or 
+      and    (a.always_enabled_p = 't' or 
              exists (select 1 
-                     from   workflow_actions_enabled_in_states waeis,
-                            workflow_cases_fsm c_fsm,
+                     from   workflow_fsm_action_enabled_in_states waeis,
+                            workflow_case_fsm c_fsm
                      where  waeis.action_id = a.action_id
                      and    c_fsm.case_id = :case_id
                      and    waeis.state_id = c_fsm.current_state)
+             )
     </querytext>
   </fullquery>
 

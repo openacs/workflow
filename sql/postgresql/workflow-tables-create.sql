@@ -345,10 +345,7 @@ create sequence workflow_cases_seq;
 create table workflow_cases (
   case_id                 integer
                           constraint workflow_cases_pk
-                          primary key
-                          constraint workflow_cases_case_id_fk
-                          references acs_objects(object_id)
-                          on delete cascade,
+                          primary key,
   workflow_id             integer
                           constraint workflow_cases_workflow_id_nn
                           not null

@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <queryset>
 
-  <fullquery name="workflow::action::add.insert_allowed_role">
+  <fullquery name="workflow::action::new.insert_allowed_role">
     <querytext>
         insert into workflow_action_allowed_roles
         select :action_id,
@@ -12,11 +12,29 @@
     </querytext>
   </fullquery>
 
-  <fullquery name="workflow::action::add.insert_privilege">
+  <fullquery name="workflow::action::new.insert_privilege">
     <querytext>
         insert into workflow_action_privileges
                 (action_id, privilege)
          values (:action_id, :privilege)
+    </querytext>
+  </fullquery>
+
+  <fullquery name="workflow::action::new.insert_action">
+    <querytext>
+        insert into workflow_actions
+            (action_id, workflow_id, sort_order, short_name, pretty_name, pretty_past_tense, 
+             assigned_role, always_enabled_p)
+      values (:action_id, :workflow_id, :sort_order, :short_name, :pretty_name, :pretty_past_tense, 
+              :assigned_role_id, :always_enabled_p)
+    </querytext>
+  </fullquery>
+
+  <fullquery name="workflow::action::new.insert_initial_action">
+    <querytext> 
+        insert into workflow_initial_action
+                (workflow_id, action_id)
+         values (:workflow_id, :action_id)
     </querytext>
   </fullquery>
 
@@ -53,17 +71,34 @@
     </querytext>
   </fullquery>
 
-  <fullquery name="workflow::action::add.insert_action">
+  <fullquery name="workflow::action::get.action_info">
     <querytext>
-        insert into workflow_actions
-         select  :action_id,
-                 :workflow_id, 
-                 :sort_order, 
-                 :short_name, 
-                 :pretty_name, 
-                 :pretty_past_tense, 
-                 :assigned_role_id,
-                 :always_enabled_p
+        select workflow_id,
+               sort_order,
+               short_name,
+               pretty_name,
+               pretty_past_tense,
+               assigned_role,
+               always_enabled_p
+        from workflow_actions
+        where action_id = :action_id
+    </querytext>
+  </fullquery>
+
+  <fullquery name="workflow::action::fsm::new.insert_fsm_action">
+    <querytext>
+        insert into workflow_fsm_actions
+                (action_id, new_state)
+            values
+                (:action_id, :new_state_id)        
+    </querytext>
+  </fullquery>
+
+  <fullquery name="workflow::action::fsm::new.insert_enabled_state">
+    <querytext>
+        insert into workflow_fsm_action_enabled_in_states
+                (action_id, state_id)
+         values (:action_id, :enabled_state_id)
     </querytext>
   </fullquery>
 

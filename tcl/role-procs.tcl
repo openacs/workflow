@@ -15,7 +15,7 @@ namespace eval workflow::role {}
 #
 #####
 
-ad_proc -public workflow::role::add {
+ad_proc -public workflow::role::new {
     {-workflow_id:required}
     {-short_name:required}
     {-pretty_name:required}

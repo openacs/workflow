@@ -20,13 +20,14 @@ ad_proc -public workflow::package_key {} {
     return "workflow"
 }
 
-ad_proc -public workflow::add {
+ad_proc -public workflow::new {
     {-short_name:required}
     {-pretty_name:required}
     {-object_id:required}
     {-object_type "acs_object"}
 } {
-    Creates a new workflow.
+    Creates a new workflow. For each workflow you must create an initial action
+    (using the workflow::action::new proc) to be fired when a workflow case is opened.
 
     @param short_name  For referring to the workflow from Tcl code. Use Tcl variable syntax.
     @param pretty_name A human readable name for the workflow for use in the UI.
@@ -49,11 +50,14 @@ ad_proc -public workflow::add {
         set creation_ip ""
     }
 
-    # It makes sense that the workflow inherits permissions from the object (typically package type or package instance)
-    # that sets the scope of the workflow
+    # It makes sense that the workflow inherits permissions from the object 
+    # (typically package type or package instance) that sets the scope of the workflow
     set context_id $object_id
 
-    return [db_string do_insert {}]
+    # Insert the workflow
+    set workflow_id [db_string do_insert {}]
+
+    return $workflow_id
 }
 
 ad_proc -public workflow::delete {

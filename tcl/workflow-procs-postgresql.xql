@@ -2,7 +2,7 @@
 <queryset>
   <rdbms><type>postgresql</type><version>7.2</version></rdbms>
 
-  <fullquery name="workflow::add.do_insert">
+  <fullquery name="workflow::new.do_insert">
     <querytext>
         select workflow__new (:short_name,
                               :pretty_name,

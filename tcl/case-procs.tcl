@@ -10,6 +10,7 @@ ad_library {
 namespace eval workflow::case {}
 namespace eval workflow::case::fsm {}
 namespace eval workflow::case::action {}
+namespace eval workflow::case::role {}
 namespace eval workflow::case::action::fsm {}
 
 #####
@@ -18,15 +19,18 @@ namespace eval workflow::case::action::fsm {}
 #
 #####
 
-ad_proc -public workflow::case::insert {
+ad_proc -private workflow::case::insert {
     {-workflow_id:required}
     {-object_id:required}
 } {
-    Start a new case for this workflow and object
+    Internal procedure that creates a new workflow case in the
+    database. Should not be used by applications.
 
-    @param case_object_id The object_id which the case is about
+    @param object_id The object_id which the case is about
     @param workflow_short_name The short_name of the workflow.
     @return The case_id of the case. Returns the empty string if no case could be found.
+
+    @see 
 
     @author Lars Pind (lars@collaboraid.biz)
 } {
@@ -50,10 +54,11 @@ ad_proc -public workflow::case::new {
     {-comment_format:required}
     {-user_id}
 } {
-    Start a new case for this workflow and object
+    Start a new case for this workflow and object.
 
-    @param case_object_id The object_id which the case is about
+    @param object_id The object_id which the case is about
     @param workflow_short_name The short_name of the workflow.
+    @param comment_format html, plain or pre
     @return The case_id of the case. Returns the empty string if no case could be found.
 
     @author Lars Pind (lars@collaboraid.biz)
@@ -69,7 +74,7 @@ ad_proc -public workflow::case::new {
         # Execute the initial action
         workflow::case::action::execute \
                 -case_id $case_id \
-                -action_id [get_initial_action -workflow_id $workflow_id] \
+                -action_id [workflow::action::get_initial_action -workflow_id $workflow_id] \
                 -comment $comment \
                 -comment_format $comment_format \
                 -user_id $user_id \
@@ -79,14 +84,14 @@ ad_proc -public workflow::case::new {
     return $case_id
 }
 
-ad_proc -public workflow::case::get_case_id {
-    {-case_object_id:required}
+ad_proc -public workflow::case::get_id {
+    {-object_id:required}
     {-workflow_short_name:required}
 } {
     Gets the case_id from the object_id which the case is about, 
     along with the short_name of the workflow.
 
-    @param case_object_id The object_id which the case is about
+    @param object_id The object_id which the case is about
     @param workflow_short_name The short_name of the workflow.
     @return The case_id of the case. Returns the empty string if no case could be found.
 
@@ -137,12 +142,17 @@ ad_proc -public workflow::case::get_enabled_actions {
     Get the currently enabled actions, based on the state of the case
 
     @param case_id     The ID of the case.
-    @return A list of action_id's of the actions which are currently enabled
-
+    @return            A list of id:s of the actions which are currently 
+                       enabled
+                       
     @author Lars Pind (lars@collaboraid.biz)
 } {
-    set action_ids [db_list select_enabled_actions {}]
-    return $action_ids
+    set action_list [list]
+    db_foreach select_enabled_actions {} {
+        lappend action_list $action_id
+    }
+
+    return $action_list
 }
 
 ad_proc -public workflow::case::get_user_actions {
@@ -153,7 +163,8 @@ ad_proc -public workflow::case::get_user_actions {
     to execute.
 
     @param case_id     The ID of the case.
-    @return A list of action_id's of the actions which are currently enabled
+    @return            A list of id:s of the actions 
+                       which are currently enabled
 
     @author Lars Pind (lars@collaboraid.biz)
 } {
@@ -161,18 +172,18 @@ ad_proc -public workflow::case::get_user_actions {
         set user_id [ad_conn user_id]
     }
 
-    set action_ids [list]
+    set action_list [list]
 
     foreach action_id [get_enabled_actions -case_id $case_id] {
         if { [workflow::case::action::permission_p -case_id $case_id -action_id $action_id -user_id $user_id] } {
-            lappend action_ids $action_id
+            lappend action_list $action_id
         }
     }
 
-    return $action_ids
+    return $action_list
 }
 
-ad_proc -public workflow::case::assign_roles {
+ad_proc -private workflow::case::assign_roles {
     {-case_id:required}
 } {
     Find out which roles are assigned to currently enabled actions.
@@ -315,8 +326,8 @@ ad_proc -public workflow::case::action::permission_p {
         set user_id [ad_conn user_id]
     }
 
-    set object_id [get_object_id -case_id $case_id]
-    set user_role_ids [get_user_roles -case_id $case_id -user_id $user_id]
+    set object_id [workflow::case::get_object_id -case_id $case_id]
+    set user_role_ids [workflow::case::get_user_roles -case_id $case_id -user_id $user_id]
     
     set permission_p 0
 
@@ -407,8 +418,12 @@ ad_proc -public workflow::case::action::execute {
     @param case_id         The ID of the case.
     @param action_id       The ID of the action
     @param comment         Comment for the case activity log
-    @param comment_format  Format of the comment, according to OpenACS standard text formatting (HM!)
+    @param comment_format  Format of the comment (plain, text or html), according to 
+                           OpenACS standard text formatting (HM!)
     @param user_id         User_id
+    @param no_check        Use this switch to bypass a check of whether the action is
+                           enabled and the user is allowed to perform it. This 
+                           switch should normally not be used.
 
     @author Lars Pind (lars@collaboraid.biz)
 } {
@@ -457,7 +472,7 @@ ad_proc -public workflow::case::action::fsm::new_state {
     {-case_id:required}
     {-action_id:required}
 } {
-    The new state which the workflow will be in after this action.
+    Get the new state which the workflow will be in after a certain action.
 
     @param case_id     The ID of the case.
     @param action_id     The ID of the action
@@ -471,4 +486,3 @@ ad_proc -public workflow::case::action::fsm::new_state {
     }
     return $new_state
 }
-
