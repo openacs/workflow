@@ -272,8 +272,11 @@ ad_proc -private workflow::case::assign_roles {
 } {
     set role_ids [db_list select_unassigned_roles {
         select r.role_id
-        from   workflow_roles r
-        where  not exists (select 1
+        from   workflow_roles r,
+               workflow_cases c
+        where  c.case_id = :case_id
+        and    r.workflow_id = c.workflow_id
+        and    not exists (select 1
                            from   workflow_case_role_user_map m
                            where  m.role_id = r.role_id
                            and    m.case_id = :case_id)
