@@ -171,10 +171,9 @@ create table workflow_actions (
                            constraint wf_acns_parent_action_fk
                            references workflow_actions(action_id)
                            on delete cascade,
-  child_workflow_id       integer
-                          constraint wf_acns_child_workflow_fk
-                          references workflows(workflow_id)
-                          on delete cascade,
+  trigger_type             varchar(50) default 'user'
+                           constraint wf_acns_trigger_type_ck
+                           check (trigger_type in ('user','auto','init','time','message','parallel','workflow','dynamic')),
   constraint wf_actions_short_name_un
   unique (workflow_id, short_name),
   constraint wf_actions_pretty_name_un
@@ -295,7 +294,7 @@ create table workflow_fsm_action_en_in_st (
 			  constraint wf_fsm_acn_enb_in_st_acn_id_nn
                           not null
                           constraint wf_fsm_acn_enb_in_st_acn_id_fk
-                          references workflow_fsm_actions(action_id)
+                          references workflow_actions(action_id)
                           on delete cascade,
   state_id                integer
 			  constraint wf_fsm_acn_enb_in_st_st_id_nn
@@ -602,7 +601,9 @@ create or replace view workflow_user_deputy_map as
     from   users u,
            workflow_deputies dep
     where  u.user_id = dep.user_id (+)
-      and  (sysdate between dep.start_date and  dep.end_date);
+      and  ((dep.start_date is null and dep.end_date is null) or
+             (sysdate between dep.start_date and  dep.end_date)
+           );
 
 -- Answers the question: What are the enabled and assigned actions and which role are they assigned to?
 -- Useful for showing the task list for a particular user or role.

@@ -162,7 +162,9 @@ create or replace view workflow_user_deputy_map as
     from   users u,
            workflow_deputies dep
     where  u.user_id = dep.user_id (+)
-      and  (sysdate between dep.start_date and  dep.end_date);
+      and  ((dep.start_date is null and dep.end_date is null) or
+             (sysdate between dep.start_date and  dep.end_date)
+           );
 
 -- Answers the question: What are the enabled and assigned actions and which role are they assigned to?
 -- Useful for showing the task list for a particular user or role.
