@@ -16,26 +16,19 @@
 -- Create the workflow object type
 -- We use workflow_lite rather than just workflow
 -- to avoid a clash with the old workflow package acs-workflow
-create function inline_0 ()
-returns integer as '
-begin
-    PERFORM acs_object_type__create_type (
-	''workflow_lite'',
-	''Workflow Lite'',
-	''Workflow Lites'',
-	''acs_object'',
-	''workflows'',
-	''workflow_id'',
-	null,
-	''f'',
-	null,
-	null
-	);
+select acs_object_type__create_type (
+    'workflow_lite',
+    'Workflow Lite',
+    'Workflow Lites',
+    'acs_object',
+    'workflows',
+    'workflow_id',
+    null,
+    'f',
+    null,
+    null
+);
 
-    return 0;
-end;' language 'plpgsql';
-select inline_0 ();
-drop function inline_0 ();
 
 -- A generic table for any kind of workflow implementation
 -- Currently, the table only holds FSM workflows but when 
