@@ -285,6 +285,7 @@ ad_proc -private workflow::case::get_activity_html {
     {-case_id:required}
     {-action_id ""}
     {-max_n_actions ""}
+    {-style "activity-entry"}
 } {
     Get the activity log for a case as an HTML chunk.
     If action_id is non-empty, it means that we're in 
@@ -298,15 +299,16 @@ ad_proc -private workflow::case::get_activity_html {
 
     @author Lars Pind (lars@collaboraid.biz)
 } {
-    set log_html {}
-
-    set template {
-        <b>@creation_date_pretty@ @action_pretty_past_tense@ @log_title@ by @community_member_link;noquote@</b>
-        <blockquote>@comment_html;noquote@</blockquote>
+    set default_file_stub [file join [acs_package_root_dir "workflow"] lib activity-entry]
+    set file_stub [template::util::url_to_file $style $default_file_stub]
+    if { ![file exists "${file_stub}.adp"] } {
+        ns_log Warning "workflow::case::get_activity_html: Cannot find log entry template file $file_stub, reverting to default template."
+        # We always have a template named 'activity-entry'
+        set file_stub $default_file_stub
     }
-
-    # Compile and evaluate the template
-    set code [template::adp_compile -string $template]
+    
+    # ensure that the style template has been compiled and is up-to-date
+    template::adp_init adp $file_stub
 
     set activity_entry_list [get_activity_log_info_not_cached -case_id $case_id]
     set start_index 0
@@ -315,29 +317,41 @@ ad_proc -private workflow::case::get_activity_html {
 	set start_index [expr [llength $activity_entry_list] - $max_n_actions]
     } 
 
+    set log_html {}
+
     foreach entry_arraylist [lrange $activity_entry_list $start_index end] {
         foreach { var value } $entry_arraylist {
             set $var $value
         }
 
         set comment_html [ad_html_text_convert -from $comment_mime_type -to "text/html" -- $comment] 
-        set community_member_link [acs_community_member_link -user_id $creation_user -label "$user_first_names $user_last_name"]
+        set community_member_url [acs_community_member_url -user_id $creation_user]
 
-        append log_html [template::adp_eval code]
+        # The output of this procedure will be placed in __adp_output in this stack frame.
+        template::code::adp::$file_stub
+        append log_html $__adp_output
     }
 
     if { ![empty_string_p $action_id] } {
-        set pretty_past_tense [workflow::action::get_element -action_id $action_id -element pretty_past_tense]
+        set action_pretty_past_tense [workflow::action::get_element -action_id $action_id -element pretty_past_tense]
 
         # sets first_names, last_name, email
-        ad_get_user_info
+        acs_user::get -user_id [ad_conn untrusted_user_id] -array user
 
-        set now_pretty [clock format [clock seconds] -format "%m/%d/%Y"]
+        set creation_date_pretty [clock format [clock seconds] -format "%m/%d/%Y"]
         # Get rid of leading zeros
-        regsub {^0} $now_pretty {} now_pretty
-        regsub {/0} $now_pretty {/} now_pretty
+        regsub {^0} $creation_date_pretty {} creation_date_pretty
+        regsub {/0} $creation_date_pretty {/} creation_date_pretty
+
+        set comment_html {}
+        set user_first_names $user(first_names)
+        set user_last_name $user(last_name)
         
-        append log_html "<p><b>$now_pretty $pretty_past_tense by $first_names $last_name</b></p>"
+        set community_member_url [acs_community_member_url -user_id [ad_conn untrusted_user_id]]
+
+        # The output of this procedure will be placed in __adp_output in this stack frame.
+        template::code::adp::$file_stub
+        append log_html $__adp_output
     }
 
     return $log_html
