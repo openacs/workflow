@@ -162,7 +162,8 @@ as
     comment_mime_type in varchar,
     creation_user in integer,
     creation_ip in varchar,
-    content_type in varchar default 'workflow_case_log_entry'
+    content_type in varchar default 'workflow_case_log_entry',
+    package_id in integer    
     ) return integer;
   
 end workflow_case_log_entry;
@@ -179,7 +180,8 @@ as
     comment_mime_type in varchar,
     creation_user in integer,
     creation_ip in varchar,
-    content_type in varchar default 'workflow_case_log_entry'
+    content_type in varchar default 'workflow_case_log_entry',
+    package_id in integer
     ) return integer
   is
     v_name                        varchar2(4000); -- XXX aufflick fix this
@@ -188,6 +190,7 @@ as
     v_case_object_id              integer;
     v_item_id                     integer;
     v_revision_id                 integer;
+    v_package_id                  integer;
   begin
     select short_name, pretty_past_tense
     into   v_action_short_name, v_action_pretty_past_tense
@@ -208,6 +211,15 @@ as
     end if;
     v_name := v_action_short_name || ' ' || v_item_id;
 
+    -- get the package_id
+    if package_id is not null then
+        v_package_id := package_id;
+    else
+        -- this will return null if the app stores the package_id
+        -- in a package-specific table instead of acs_objects
+        v_package_id := acs_object__package_id(v_case_object_id);
+    end if;
+
     v_item_id := content_item.new (
         item_id        => v_item_id,
         name            => v_name,
@@ -222,7 +234,8 @@ as
         text            => comment,
         storage_type    => 'text',
         item_subtype    => 'content_item',
-        content_type    => content_type
+        content_type    => content_type,
+        package_id      => package_id
     );
 
     -- insert the row into the single-column entry revision table
