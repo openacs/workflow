@@ -219,7 +219,8 @@ ad_proc -public workflow::action::edit {
                     set $varname [workflow::action::generate_short_name \
                                       -workflow_id $workflow_id \
                                       -pretty_name $row(pretty_name) \
-                                      -short_name $row(short_name)]
+                                      -short_name $row(short_name) \
+                                      -action_id $action_id]
                 }
                 always_enabled_p {
                     set $varname [db_boolean [template::util::is_true $row($attr)]]
@@ -959,6 +960,8 @@ ad_proc -private workflow::action::fsm::generate_spec {
     array unset row callback_ids
     array unset row allowed_roles_array
     array unset row allowed_role_ids
+    array unset row enabled_state_ids
+    array unset row assigned_state_ids
 
     # Get rid of a few defaults
     array set defaults { initial_action_p f always_enabled_p f }
