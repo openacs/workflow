@@ -37,7 +37,6 @@ ad_proc workflow::test::workflow_object_id_2 {} {
 
 } {
     return [db_string some_object_id {select min(object_id) from acs_objects where object_type = 'apm_parameter'}]
-
 }
 
 ad_proc workflow::test::workflow_id {} {
@@ -74,36 +73,70 @@ ad_proc workflow::test::action_short_names { action_id_list } {
 ad_proc workflow::test::assert_case_state {
     {-workflow_id:required}
     {-case_id:required}
+    {-user_id {}}
     {-expect_current_state:required}
     {-expect_enabled_actions:required} 
-    {-expect_user_actions:required} 
+    -expect_user_actions
 } {
     Make assertions about what the current state should be and
     what actions are enabled etc.
 } {
+    set actual_states [list]
+    foreach elm [workflow::case::fsm::get_state_info -all -case_id $case_id] {
+        foreach { parent_action_id state_id } $elm {}
+        lappend actual_states [workflow::state::fsm::get_element -state_id $state_id -element short_name]
+    }
 
-    set user_roles \
-      [workflow::case::get_user_roles -case_id $case_id \
-                                      -user_id [workflow::test::admin_owner_id]]
+    if { ![aa_true "Current states should be: $expect_current_state" \
+               [util_sets_equal_p $expect_current_state $actual_states]] } {
+        aa_log "States are: $actual_states"
+    }
+
+
     set enabled_actions [workflow::test::action_short_names \
             [workflow::case::get_enabled_actions -case_id $case_id]]
+    
+    if { ![aa_true "Enabled actions should be: $expect_enabled_actions" \
+               [util_sets_equal_p $enabled_actions $expect_enabled_actions]] } {
+        aa_log "Enabled actions are: $enabled_actions"
+    }
 
-    workflow::state::fsm::get \
-            -state_id [workflow::case::fsm::get_current_state -case_id $case_id] \
-            -array state_info
+    if { [info exists expect_user_actions] } { 
+        if { [empty_string_p $user_id] } {
+            set user_id [workflow::test::admin_owner_id]
+        }
+        set user_actions [workflow::test::action_short_names \
+                              [workflow::case::get_available_actions \
+                                   -case_id $case_id \
+                                   -user_id $user_id]]
+        
+        if { ![aa_true "Available user actions for user $user_id should be: $expect_user_actions" \
+                   [util_sets_equal_p $user_actions $expect_user_actions]] } {
+            aa_log "Available user actions are: $user_actions"
+        }
+    }
+}
 
+ad_proc workflow::test::assert_user_actions {
+    {-workflow_id:required}
+    {-case_id:required}
+    {-user_id {}}
+    {-expect_user_actions {}}
+} {
+    Make assertions about user actions.
+} {
+    if { [empty_string_p $user_id] } {
+        set user_id [workflow::test::admin_owner_id]
+    }
     set user_actions [workflow::test::action_short_names \
-            [workflow::case::get_available_actions -case_id $case_id \
-                                                     -user_id [workflow::test::admin_owner_id]]]
-
-    aa_true "current state should be $expect_current_state" \
-            [string equal $state_info(short_name) $expect_current_state]
-    aa_true "checking enabled actions ($enabled_actions) in $expect_current_state state, expecting ($expect_enabled_actions)" \
-            [util_sets_equal_p $enabled_actions $expect_enabled_actions]
-    aa_true "checking user actions ($user_actions) in $expect_current_state state, expecting ($expect_user_actions)" \
-            [util_sets_equal_p $user_actions $expect_user_actions]
-    aa_true "user not assigned to any roles yet" \
-            [empty_string_p $user_roles]
+                          [workflow::case::get_available_actions \
+                               -case_id $case_id \
+                               -user_id $user_id]]
+    
+    if { ![aa_true "Available user actions for user $user_id should be: $expect_user_actions" \
+               [util_sets_equal_p $user_actions $expect_user_actions]] } {
+        aa_log "Available user actions are: $user_actions"
+    }
 }
 
 
@@ -128,7 +161,7 @@ ad_proc workflow::test::get_message_key_spec {} {
             foobar {
                 pretty_name "#acs-subsite.Confirm#"
                 pretty_past_tense "#acs-subsite.Confirm#"
-                initial_action_p t                
+                trigger_type init
             }
         }
     }
@@ -171,7 +204,7 @@ ad_proc workflow::test::workflow_get_array_style_spec {} {
                 pretty_name "Open"
                 pretty_past_tense "Opened"
                 new_state "open"
-                initial_action_p t
+                trigger_type init
             }
             comment {
                 pretty_name "Comment"
@@ -340,7 +373,7 @@ ad_proc workflow::test::workflow_setup {} {
     #####
 
     workflow::action::fsm::new \
-            -initial_action_p t \
+            -trigger_type init \
             -workflow_id $workflow_id \
             -short_name [workflow::test::initial_action_short_name] \
             -pretty_name "Open" \
@@ -618,20 +651,20 @@ ad_proc workflow::test::run_bug_tracker_test {
                                   
         # Close the bug
         workflow::case::action::execute \
-                -case_id $case_id \
-                -action_id [workflow::action::get_id -workflow_id $workflow_id \
-                -short_name "close"] \
-                -comment "Closing Bug" \
-                -comment_mime_type "text/plain" \
-                -user_id [workflow::test::admin_owner_id]
-    
+            -case_id $case_id \
+            -action_id [workflow::action::get_id -workflow_id $workflow_id \
+                            -short_name "close"] \
+            -comment "Closing Bug" \
+            -comment_mime_type "text/plain" \
+            -user_id [workflow::test::admin_owner_id]
+        
         set expect_enabled_actions [list comment edit reopen]
         workflow::test::assert_case_state \
-                -workflow_id $workflow_id \
-                -case_id $case_id \
-                -expect_current_state closed \
-                -expect_enabled_actions $expect_enabled_actions \
-                -expect_user_actions $expect_enabled_actions
+            -workflow_id $workflow_id \
+            -case_id $case_id \
+            -expect_current_state closed \
+            -expect_enabled_actions $expect_enabled_actions \
+            -expect_user_actions $expect_enabled_actions
     
     } 
 
@@ -751,7 +784,7 @@ aa_register_case workflow_automatic_action {
             -pretty_name "Closed"
 
         workflow::action::fsm::new \
-            -initial_action_p t \
+            -trigger_type init \
             -workflow_id $workflow_id \
             -short_name [ad_generate_random_string] \
             -pretty_name "Open" \
@@ -763,7 +796,7 @@ aa_register_case workflow_automatic_action {
                                 -pretty_name "Auto" \
                                 -enabled_states "open" \
                                 -new_state "closed" \
-                                -timeout_seconds 0]
+                                -trigger_type auto]
 
         # Start a case
 
@@ -781,6 +814,7 @@ aa_register_case workflow_automatic_action {
         # Change the action to be timed
 
         set update_cols(timeout_seconds) 1
+        set update_cols(trigger_type) "time"
         workflow::action::fsm::edit \
             -action_id $auto_action_id \
             -array update_cols
@@ -865,77 +899,69 @@ aa_register_case workflow_automatic_action {
 }
 
 
-aa_register_case recursive_workflow {
-    Testing a recursive workflow
+aa_register_case hierarchical_workflow {
+    Testing a hierarchical workflow
 } {
     aa_run_with_teardown -rollback -test_code {
 
         #----------------------------------------------------------------------
-        # Create inner workflow
+        # Create hierarchical workflow
         #----------------------------------------------------------------------
-        # [open] -> (open) -> [ask] -> (asked) -> [give] -> (done)
 
-        set inner_workflow_id [workflow::fsm::new_from_spec -package_key "acs-automated-testing" -spec {
-            recursive_workflow_inner {
-                pretty_name "Recursive Workflow Inner Workflow"
+        #  action_id                 | trigger  |ask_cl|ask_lwr|lac-ask|lac-give|cal-ask|cal-give
+        # ---------------------------+----------+------+-------+-------+--------+-------+---------
+        #  open                      | init     |      |       |       |        |       |
+        #  lawyer_asks_client        | workflow |  X   |       |       |        |       |
+        #    lawyer_asks_client_init | init     |      |       |       |        |       |
+        #    lawyer_asks_client_ask  | user     |      |       |   X   |        |       |
+        #    lawyer_asks_client_give | user     |      |       |       |   X    |       |
+        #  client_asks_lawyer        | workflow |      |   X   |       |        |       |
+        #    client_asks_lawyer_init | init     |      |       |       |        |       |
+        #    client_asks_lawyer_ask  | user     |      |       |       |        |   X   |
+        #    client_asks_lawyer_give | user     |      |       |       |        |       |   X
+
+        set workflow_id [workflow::fsm::new_from_spec -package_key "acs-automated-testing" -spec {
+            hierarchical_workflow {
+                pretty_name "Hierarchical Workflow"
                 states {
-                    open {
-                        pretty_name Open
+                    asking_client { 
+                        pretty_name "Asking Client" 
+                        enabled_actions { lawyer_asks_client } 
                     }
-                    asked {
-                        pretty_name Asked
+                    asking_lawyer { 
+                        pretty_name "Asking Lawyer" 
+                        enabled_actions { client_asks_lawyer } 
                     }
-                    done {
-                        pretty_name Done
+                    done { 
+                        pretty_name "Done" 
                     }
-                }
-                roles {
-                    asker {
-                        pretty_name "Asker"
+                    lawyer_asks_client_asking { 
+                        pretty_name "AC-Asking" 
+                        parent_action "lawyer_asks_client" 
+                        enabled_actions { lawyer_asks_client_ask }
                     }
-                    giver {
-                        pretty_name "Giver"
+                    lawyer_asks_client_giving { 
+                        pretty_name "AC-Giving" 
+                        parent_action "lawyer_asks_client" 
+                        enabled_actions { lawyer_asks_client_give }
                     }
-                }
-                actions {
-                    open {
-                        pretty_name "Open"
-                        pretty_past_tense "Opened"
-                        new_state "open"
-                        initial_action_p t
+                    lawyer_asks_client_done { 
+                        pretty_name "AC-Done" 
+                        parent_action "lawyer_asks_client" 
                     }
-                    ask {
-                        pretty_name "Ask"
-                        pretty_past_tense "Asked"
-                        new_state "asked"
-                        enabled_states { open }
+                    client_asks_lawyer_asking { 
+                        pretty_name "AL-Asking" 
+                        parent_action "client_asks_lawyer" 
+                        enabled_actions { client_asks_lawyer_ask }
                     }
-                    give {
-                        pretty_name "Give"
-                        pretty_past_tense "Given"
-                        new_state "done"
-                        enabled_states { asked }
+                    client_asks_lawyer_giving { 
+                        pretty_name "AL-Giving" 
+                        parent_action "client_asks_lawyer" 
+                        enabled_actions { client_asks_lawyer_give }
                     }
-                }
-            }
-        }]
-
-        aa_log "Inner workflow created"
-
-        #----------------------------------------------------------------------
-        # Create outer workflow
-        #----------------------------------------------------------------------
-        # [open] -> (open) -> [do] -> (done)
-
-        set outer_workflow_id [workflow::fsm::new_from_spec -package_key "acs-automated-testing" -spec {
-            recursive_workflow_outer {
-                pretty_name "Recursive Workflow Outer Workflow"
-                states {
-                    open {
-                        pretty_name Open
-                    }
-                    done {
-                        pretty_name Done
+                    client_asks_lawyer_done { 
+                        pretty_name "AL-Done" 
+                        parent_action "client_asks_lawyer" 
                     }
                 }
                 roles {
@@ -950,160 +976,618 @@ aa_register_case recursive_workflow {
                     open {
                         pretty_name "Open"
                         pretty_past_tense "Opened"
-                        new_state "open"
-                        initial_action_p t
+                        new_state "asking_client"
+                        trigger_type init
                     }
-                    do {
-                        pretty_name "Do"
-                        pretty_past_tense "Done"
+                    lawyer_asks_client {
+                        pretty_name "Lawyer asks client"
+                        pretty_past_tense "Lawyer asked client"
+                        new_state "asking_lawyer"
+                        trigger_type workflow
+                    }
+                    lawyer_asks_client_init {
+                        pretty_name "Lawyer asks client-Init"
+                        pretty_past_tense "Lawyer asked client-Init"
+                        trigger_type init
+                        parent_action "lawyer_asks_client"
+                        new_state "lawyer_asks_client_asking"
+                    }
+                    lawyer_asks_client_ask {
+                        pretty_name "Ask client"
+                        pretty_past_tense "Asked client"
+                        parent_action "lawyer_asks_client"
+                        new_state "lawyer_asks_client_giving"
+                        assigned_role "lawyer"
+                    }
+                    lawyer_asks_client_give {
+                        pretty_name "Respond to lawyer"
+                        pretty_past_tense "Responded to lawyer"
+                        parent_action "lawyer_asks_client"
+                        new_state "lawyer_asks_client_done"
+                        assigned_role "client"
+                    }
+                    client_asks_lawyer {
+                        pretty_name "Client asks lawyer"
+                        pretty_past_tense "Client asked lawyer"
+                        enabled_states { asking_lawyer }
                         new_state "done"
-                        child_workflow recursive_workflow_inner
-                        child_role_map {
-                            asker lawyer
-                            giver client
-                        }
-                        enabled_states { open }
+                        trigger_type workflow
+                    }
+                    client_asks_lawyer_init {
+                        pretty_name "Client asks lawyer-Init"
+                        pretty_past_tense "Client asked lawyer-Init"
+                        trigger_type init
+                        parent_action "client_asks_lawyer"
+                        new_state "client_asks_lawyer_asking"
+                    }
+                    client_asks_lawyer_ask {
+                        pretty_name "Ask lawyer"
+                        pretty_past_tense "Asked lawyer"
+                        parent_action "client_asks_lawyer"
+                        enabled_states { client_asks_lawyer_asking }
+                        new_state "client_asks_lawyer_giving"
+                        assigned_role "client"
+                    }
+                    client_asks_lawyer_give {
+                        pretty_name "Respond to client"
+                        pretty_past_tense "Responded to client"
+                        parent_action "client_asks_lawyer"
+                        enabled_states { client_asks_lawyer_giving }
+                        new_state "client_asks_lawyer_done"
+                        assigned_role "lawyer"
                     }
                 }
             }
         }]
 
-        aa_log "Outer workflow created"
-
         #----------------------------------------------------------------------
-        # Test that it found the right inner workflow ID from the short_name
+        # Test the state-action map
         #----------------------------------------------------------------------
 
-        set action_with_child_id [workflow::action::get_id -workflow_id $outer_workflow_id -short_name do]
-        workflow::action::get -action_id $action_with_child_id -array action_with_child
-        
-        aa_equals "Child_workflow has the right ID" $action_with_child(child_workflow_id) $inner_workflow_id
-
-        #----------------------------------------------------------------------
-        # Start a case of the outer workflow
-        #----------------------------------------------------------------------
-
-        set outer_case_id [workflow::case::new \
-                               -workflow_id $outer_workflow_id \
-                               -object_id [workflow::test::workflow_object_id] \
-                               -user_id [workflow::test::admin_owner_id]]
-        
-        aa_log "Outer case started"
-
-        #----------------------------------------------------------------------
-        # Do should be enabled immediately
-        #----------------------------------------------------------------------
-
-        set enabled_actions [workflow::case::get_enabled_actions -case_id $outer_case_id]
-
-        if { [aa_equals "One enabled action" [llength $enabled_actions] 1] } {
-            
-            set enabled_action_short_name [workflow::action::get_element \
-                                               -action_id [lindex $enabled_actions 0] \
-                                               -element short_name]
-            aa_equals "And that is 'do'" $enabled_action_short_name "do"
-        } else {
-            aa_log "Parent case: [db_list_of_lists foo { select * from workflow_cases where case_id = :outer_case_id }]"
-            aa_log "Enabled actions outer: [db_list_of_lists foo { select * from workflow_case_enabled_actions where case_id = :outer_case_id }]"
-            aa_log "Child cases: [db_list_of_lists foo { select * from workflow_cases where top_case_id = :outer_case_id and case_id != top_case_id }]"
+        array set state_action_map {
+            asking_client { lawyer_asks_client } 
+            asking_lawyer { client_asks_lawyer }
+            done {}
+            lawyer_asks_client_asking { lawyer_asks_client_ask }
+            lawyer_asks_client_giving { lawyer_asks_client_give }
+            lawyer_asks_client_done {}
+            client_asks_lawyer_asking { client_asks_lawyer_ask }
+            client_asks_lawyer_giving { client_asks_lawyer_give }
+            client_asks_lawyer_done {}
+        }
+        foreach state [array names state_action_map] {
+            set state_id [workflow::state::fsm::get_id -workflow_id $workflow_id -short_name $state]
+            set enabled_actions [workflow::state::fsm::get_element -state_id $state_id -element enabled_actions]
+            #aa_true "Enabled actions in state $state are $enabled_actions, should be $state_action_map($state)" \
+                [util_sets_equal_p $state_action_map($state) $enabled_actions]
         }
 
+
         #----------------------------------------------------------------------
-        # Which means inner case should be created
+        # Start a case of the workflow
         #----------------------------------------------------------------------
 
-        set inner_case_ids [db_list foo { select case_id from workflow_cases where top_case_id = :outer_case_id and case_id != top_case_id }]
-        aa_equals "One child case" [llength $inner_case_ids] 1
+        aa_log "Starting case."
 
-        set inner_case_id [lindex $inner_case_ids 0]
+        set case_id [workflow::case::new \
+                         -workflow_id $workflow_id \
+                         -object_id [workflow::test::workflow_object_id] \
+                         -user_id [workflow::test::admin_owner_id]]
         
-        aa_log "Child cases: $inner_case_ids"
-
         #----------------------------------------------------------------------
-        # Which means 'ask' should be available
+        # 'lawyer_asks_client_ask' should now be available
         #----------------------------------------------------------------------
         
-        set inner_enabled_actions [workflow::case::get_enabled_actions -case_id $inner_case_id]
-
-        if { [aa_equals "One enabled action" [llength $inner_enabled_actions] 1] } {
-            
-            set inner_enabled_action_id [lindex $inner_enabled_actions 0]
-
-            set inner_enabled_action_short_name [workflow::action::get_element \
-                                                     -action_id $inner_enabled_action_id \
-                                                     -element short_name]
-            aa_equals "And that is 'ask'" $inner_enabled_action_short_name "ask"
-        }
-
         workflow::test::assert_case_state \
-            -workflow_id $inner_workflow_id \
-            -case_id $inner_case_id \
-            -expect_current_state "open" \
-            -expect_enabled_actions "ask" \
-            -expect_user_actions "ask"
-
+            -workflow_id $workflow_id \
+            -case_id $case_id \
+            -expect_current_state { "asking_client" "lawyer_asks_client_asking" } \
+            -expect_enabled_actions "lawyer_asks_client_ask"
 
         #----------------------------------------------------------------------
-        # Execute 'ask'
+        # Execute 'lawyer_asks_client_ask'
         #----------------------------------------------------------------------
-
+        
+        aa_log "Executing: lawyer_asks_client_ask"
         workflow::case::action::execute \
-            -case_id $inner_case_id \
+            -case_id $case_id \
             -action_id [workflow::action::get_id \
-                            -workflow_id $inner_workflow_id \
-                            -short_name "ask"] \
-            -comment "Asking" \
+                            -workflow_id $workflow_id \
+                            -short_name "lawyer_asks_client_ask"] \
+            -comment "Lawyer asks" \
             -comment_mime_type "text/plain" \
             -user_id [workflow::test::admin_owner_id]
 
         #----------------------------------------------------------------------
-        # Enabled action: 'give'
+        # Enabled action: 'lawyer_asks_client_give'
         #----------------------------------------------------------------------
         
         workflow::test::assert_case_state \
-            -workflow_id $inner_workflow_id \
-            -case_id $inner_case_id \
-            -expect_current_state "asked" \
-            -expect_enabled_actions "give" \
-            -expect_user_actions "give"        
+            -workflow_id $workflow_id \
+            -case_id $case_id \
+            -expect_current_state { "asking_client" "lawyer_asks_client_giving" } \
+            -expect_enabled_actions "lawyer_asks_client_give"
 
         #----------------------------------------------------------------------
-        # Execute 'give'
+        # Execute 'lawyer_asks_client_give'
         #----------------------------------------------------------------------
 
+        aa_log "Executing: lawyer_asks_client_give"
         workflow::case::action::execute \
-            -case_id $inner_case_id \
+            -case_id $case_id \
             -action_id [workflow::action::get_id \
-                            -workflow_id $inner_workflow_id \
-                            -short_name "give"] \
-            -comment "Giving" \
+                            -workflow_id $workflow_id \
+                            -short_name "lawyer_asks_client_give"] \
+            -comment "Client responds" \
+            -comment_mime_type "text/plain" \
+            -user_id [workflow::test::admin_owner_id]
+
+
+        #----------------------------------------------------------------------
+        # 'client_asks_lawyer_ask' should now be available
+        #----------------------------------------------------------------------
+        
+        workflow::test::assert_case_state \
+            -workflow_id $workflow_id \
+            -case_id $case_id \
+            -expect_current_state { "asking_lawyer" "client_asks_lawyer_asking" } \
+            -expect_enabled_actions "client_asks_lawyer_ask"
+
+        
+        #----------------------------------------------------------------------
+        # Execute 'client_asks_lawyer_ask'
+        #----------------------------------------------------------------------
+
+        aa_log "Executing: client_asks_lawyer_ask"
+        workflow::case::action::execute \
+            -case_id $case_id \
+            -action_id [workflow::action::get_id \
+                            -workflow_id $workflow_id \
+                            -short_name "client_asks_lawyer_ask"] \
+            -comment "Client asks" \
             -comment_mime_type "text/plain" \
             -user_id [workflow::test::admin_owner_id]
 
         #----------------------------------------------------------------------
-        # No enabled actions in inner workflow
+        # Enabled action: 'client_asks_lawyer_give'
         #----------------------------------------------------------------------
         
         workflow::test::assert_case_state \
-            -workflow_id $inner_workflow_id \
-            -case_id $inner_case_id \
-            -expect_current_state "done" \
-            -expect_enabled_actions {} \
-            -expect_user_actions {}        
+            -workflow_id $workflow_id \
+            -case_id $case_id \
+            -expect_current_state { "asking_lawyer" "client_asks_lawyer_giving" } \
+            -expect_enabled_actions "client_asks_lawyer_give"
 
         #----------------------------------------------------------------------
-        # No enabled actions in outer workflow
+        # Execute 'client_asks_lawyer_give'
+        #----------------------------------------------------------------------
+
+        aa_log "Executing: client_asks_lawyer_give"
+        workflow::case::action::execute \
+            -case_id $case_id \
+            -action_id [workflow::action::get_id \
+                            -workflow_id $workflow_id \
+                            -short_name "client_asks_lawyer_give"] \
+            -comment "Lawyer responds" \
+            -comment_mime_type "text/plain" \
+            -user_id [workflow::test::admin_owner_id]
+
+        #----------------------------------------------------------------------
+        # 'done', Nothing enabled
         #----------------------------------------------------------------------
         
         workflow::test::assert_case_state \
-            -workflow_id $outer_workflow_id \
-            -case_id $outer_case_id \
-            -expect_current_state "done" \
-            -expect_enabled_actions {} \
-            -expect_user_actions {}        
+            -workflow_id $workflow_id \
+            -case_id $case_id \
+            -expect_current_state { "done" } \
+            -expect_enabled_actions [list]
+    }
+        
+}
 
+
+aa_register_case parallel_simple_workflow {
+    Testing a simple parallel workflow
+} {
+    aa_run_with_teardown -rollback -test_code {
+
+        #----------------------------------------------------------------------
+        # Create parallel workflow
+        #----------------------------------------------------------------------
+        #  action_id                 | trigger  |  s1  |  s2  | done  |
+        # ---------------------------+----------+------+------+-------+
+        #  inti                      | init     |      |      |       |
+        #  task_one                  | parallel |  X   |      |       |
+        #    para_a                  | user     |      |      |       |
+        #    para_b                  | user     |      |      |       |
+        #  task_two                  | user     |      |  X   |       |
+
+        set workflow_id [workflow::fsm::new_from_spec -package_key "acs-automated-testing" -spec {
+            parallel_simple {
+                pretty_name "Simple Parallel"
+                states {
+                    s1 {
+                        pretty_name "S1"
+                        enabled_actions { task_one } 
+                    }
+                    s2 { 
+                        pretty_name "S2" 
+                        enabled_actions { task_two }
+                    }
+                    done { 
+                        pretty_name "Done" 
+                    }
+                }
+                roles {
+                    role1 {
+                        pretty_name "Role1"
+                    }
+                    role2 {
+                        pretty_name "Role2"
+                    }
+                }
+                actions {
+                    init {
+                        pretty_name "Open"
+                        new_state "s1"
+                        trigger_type init
+                    }
+                    task_one {
+                        pretty_name "Task 1 (parallel)"
+                        new_state "s2"
+                        trigger_type parallel
+                    }
+                    para_a {
+                        pretty_name "Para A (user)"
+                        parent_action "task_one"
+                        assigned_role role1
+                    }
+                    para_b {
+                        pretty_name "Para B (user)"
+                        parent_action "task_one"
+                        assigned_role role2
+                    }
+                    task_two {
+                        pretty_name "Task 2 (user)"
+                        new_state "done"
+                        assigned_role role1
+                    }
+                }
+            }
+        }]
         
+        #----------------------------------------------------------------------
+        # Test the state-action map
+        #----------------------------------------------------------------------
+
+        array set state_action_map {
+            s1 { task_one } 
+            s2 { task_two }
+            done {}
+        }
+        foreach state [array names state_action_map] {
+            set state_id [workflow::state::fsm::get_id -workflow_id $workflow_id -short_name $state]
+            set enabled_actions [workflow::state::fsm::get_element -state_id $state_id -element enabled_actions]
+            aa_true "Enabled actions in state $state are $enabled_actions, should be $state_action_map($state)" \
+                [util_sets_equal_p $state_action_map($state) $enabled_actions]
+        }
+
+        #----------------------------------------------------------------------
+        # Start a case of the workflow
+        #----------------------------------------------------------------------
+
+        aa_log "Starting case."
+
+        set case_id [workflow::case::new \
+                         -workflow_id $workflow_id \
+                         -object_id [workflow::test::workflow_object_id] \
+                         -user_id [workflow::test::admin_owner_id]]
+    
+        workflow::test::assert_case_state \
+            -workflow_id $workflow_id \
+            -case_id $case_id \
+            -expect_current_state { "s1" } \
+            -expect_enabled_actions { "para_a" "para_b" }
+
+        #----------------------------------------------------------------------
+        # Execute 'para_b'
+        #----------------------------------------------------------------------
         
+        workflow::case::action::execute \
+            -case_id $case_id \
+            -action_id [workflow::action::get_id \
+                            -workflow_id $workflow_id \
+                            -short_name "para_b"] \
+            -user_id [workflow::test::admin_owner_id]
+
+        workflow::test::assert_case_state \
+            -workflow_id $workflow_id \
+            -case_id $case_id \
+            -expect_current_state { "s1" } \
+            -expect_enabled_actions "para_a"
+
+        #----------------------------------------------------------------------
+        # Execute 'para_a'
+        #----------------------------------------------------------------------
+
+        aa_log "Executing: para_a"
+        workflow::case::action::execute \
+            -case_id $case_id \
+            -action_id [workflow::action::get_id \
+                            -workflow_id $workflow_id \
+                            -short_name "para_a"] \
+            -user_id [workflow::test::admin_owner_id]
+
+
+        workflow::test::assert_case_state \
+            -workflow_id $workflow_id \
+            -case_id $case_id \
+            -expect_current_state { "s2" } \
+            -expect_enabled_actions "task_two"
+
+        #----------------------------------------------------------------------
+        # Execute 'task_two'
+        #----------------------------------------------------------------------
+
+        aa_log "Executing: task_two"
+        workflow::case::action::execute \
+            -case_id $case_id \
+            -action_id [workflow::action::get_id \
+                            -workflow_id $workflow_id \
+                            -short_name "task_two"] \
+            -user_id [workflow::test::admin_owner_id]
+
+        #----------------------------------------------------------------------
+        # 'done', Nothing enabled
+        #----------------------------------------------------------------------
+        
+        workflow::test::assert_case_state \
+            -workflow_id $workflow_id \
+            -case_id $case_id \
+            -expect_current_state { "done" } \
+            -expect_enabled_actions [list]
+    }
+        
+}
+
+
+aa_register_case dynamic_simple_workflow {
+    Testing a simple parallel workflow
+} {
+    aa_run_with_teardown -rollback -test_code {
+
+        #----------------------------------------------------------------------
+        # Create dynamic workflow
+        #----------------------------------------------------------------------
+        #  action_id                 | trigger  |  s1  |  s2  | done  |
+        # ---------------------------+----------+------+------+-------+
+        #  inti                      | init     |      |      |       |
+        #  task_one                  | dynamic  |  X   |      |       |
+        #    dyn                     | user     |      |      |       |
+        #  task_two                  | user     |      |  X   |       |
+
+        set workflow_id [workflow::fsm::new_from_spec -package_key "acs-automated-testing" -spec {
+            dynamic_simple {
+                pretty_name "Simple Dynamic Test Workflow"
+                states {
+                    s1 {
+                        pretty_name "S1"
+                        assigned_actions { task_one } 
+                    }
+                    s2 { 
+                        pretty_name "S2" 
+                        assigned_actions { task_two }
+                    }
+                    done { 
+                        pretty_name "Done" 
+                    }
+                }
+                roles {
+                    role1 {
+                        pretty_name "Role1"
+                    }
+                    role2 {
+                        pretty_name "Role2"
+                    }
+                }
+                actions {
+                    init {
+                        pretty_name "Open"
+                        new_state "s1"
+                        trigger_type init
+                    }
+                    task_one {
+                        pretty_name "Task 1 (dynamic)"
+                        new_state "s2"
+                        trigger_type dynamic
+                    }
+                    dyn {
+                        pretty_name "Dynamic (user)"
+                        parent_action "task_one"
+                        assigned_role role1
+                    }
+                    task_two {
+                        pretty_name "Task 2 (user)"
+                        new_state "done"
+                        assigned_role role2
+                    }
+                }
+            }
+        }]
+        
+        #----------------------------------------------------------------------
+        # Test the state-action map
+        #----------------------------------------------------------------------
+
+        array set state_action_map {
+            s1 { task_one } 
+            s2 { task_two }
+            done {}
+        }
+        foreach state [array names state_action_map] {
+            set state_id [workflow::state::fsm::get_id -workflow_id $workflow_id -short_name $state]
+            set enabled_actions [workflow::state::fsm::get_element -state_id $state_id -element enabled_actions]
+            aa_true "Enabled actions in state $state are $enabled_actions, should be $state_action_map($state)" \
+                [util_sets_equal_p $state_action_map($state) $enabled_actions]
+        }
+
+        #----------------------------------------------------------------------
+        # Create the required users
+        #----------------------------------------------------------------------
+        
+        array set r1u1_array [auth::create_user -username [ad_generate_random_string] -email "[ad_generate_random_string]@test.test" \
+                                  -first_names [ad_generate_random_string] -last_name [ad_generate_random_string]]
+        set r1u1 $r1u1_array(user_id)
+
+        array set r1u2_array [auth::create_user -username [ad_generate_random_string] -email "[ad_generate_random_string]@test.test" \
+                                  -first_names [ad_generate_random_string] -last_name [ad_generate_random_string]]
+        set r1u2 $r1u2_array(user_id)
+
+        array set r2u1_array [auth::create_user -username [ad_generate_random_string] -email "[ad_generate_random_string]@test.test" \
+                                  -first_names [ad_generate_random_string] -last_name [ad_generate_random_string]]
+        set r2u1 $r2u1_array(user_id)
+
+        #----------------------------------------------------------------------
+        # Start a case of the workflow
+        #----------------------------------------------------------------------
+
+        aa_log "Starting case."
+
+        set case_id [workflow::case::new \
+                         -workflow_id $workflow_id \
+                         -object_id [workflow::test::workflow_object_id] \
+                         -user_id [workflow::test::admin_owner_id] \
+                         -assignment [list role1 [list $r1u1 $r1u2] role2 [list $r2u1]]]
+    
+        workflow::test::assert_case_state \
+            -workflow_id $workflow_id \
+            -case_id $case_id \
+            -expect_current_state { s1 } \
+            -expect_enabled_actions { dyn dyn }
+
+        workflow::test::assert_user_actions \
+            -workflow_id $workflow_id \
+            -case_id $case_id \
+            -user_id $r1u1 \
+            -expect_user_actions { dyn }
+
+        workflow::test::assert_user_actions \
+            -workflow_id $workflow_id \
+            -case_id $case_id \
+            -user_id $r1u2 \
+            -expect_user_actions { dyn }
+
+        workflow::test::assert_user_actions \
+            -workflow_id $workflow_id \
+            -case_id $case_id \
+            -user_id $r2u1 \
+            -expect_user_actions { }
+
+        #----------------------------------------------------------------------
+        # Execute 'sub' as r1u2
+        #----------------------------------------------------------------------
+
+        set enabled_action_id [workflow::case::get_available_enabled_action_ids \
+                                   -case_id $case_id \
+                                   -user_id $r1u2]
+        
+        workflow::case::action::execute \
+            -case_id $case_id \
+            -enabled_action_id $enabled_action_id \
+            -user_id $r1u2
+
+        #----------------------------------------------------------------------
+        # Available should now be 'sub' as r1u1
+        #----------------------------------------------------------------------
+
+        workflow::test::assert_case_state \
+            -workflow_id $workflow_id \
+            -case_id $case_id \
+            -expect_current_state { s1 } \
+            -expect_enabled_actions { dyn }
+
+        workflow::test::assert_user_actions \
+            -workflow_id $workflow_id \
+            -case_id $case_id \
+            -user_id $r1u1 \
+            -expect_user_actions { dyn }
+
+        workflow::test::assert_user_actions \
+            -workflow_id $workflow_id \
+            -case_id $case_id \
+            -user_id $r1u2 \
+            -expect_user_actions { }
+
+        workflow::test::assert_user_actions \
+            -workflow_id $workflow_id \
+            -case_id $case_id \
+            -user_id $r2u1 \
+            -expect_user_actions { }
+
+        #----------------------------------------------------------------------
+        # Execute 'sub' as r1u1
+        #----------------------------------------------------------------------
+
+        set enabled_action_id [workflow::case::get_available_enabled_action_ids \
+                                   -case_id $case_id \
+                                   -user_id $r1u1]
+        
+        workflow::case::action::execute \
+            -case_id $case_id \
+            -enabled_action_id $enabled_action_id \
+            -user_id $r1u1
+
+        #----------------------------------------------------------------------
+        # Available should now be 'task_two' as r2u1
+        #----------------------------------------------------------------------
+
+        workflow::test::assert_case_state \
+            -workflow_id $workflow_id \
+            -case_id $case_id \
+            -expect_current_state { s2 } \
+            -expect_enabled_actions { task_two }
+
+        workflow::test::assert_user_actions \
+            -workflow_id $workflow_id \
+            -case_id $case_id \
+            -user_id $r1u1 \
+            -expect_user_actions { }
+
+        workflow::test::assert_user_actions \
+            -workflow_id $workflow_id \
+            -case_id $case_id \
+            -user_id $r1u2 \
+            -expect_user_actions { }
+
+        workflow::test::assert_user_actions \
+            -workflow_id $workflow_id \
+            -case_id $case_id \
+            -user_id $r2u1 \
+            -expect_user_actions { task_two }
+
+        #----------------------------------------------------------------------
+        # Execute 'task_two'
+        #----------------------------------------------------------------------
+
+        set enabled_action_id [workflow::case::get_available_enabled_action_ids \
+                                   -case_id $case_id \
+                                   -user_id $r2u1]
+        
+        workflow::case::action::execute \
+            -case_id $case_id \
+            -enabled_action_id $enabled_action_id \
+            -user_id $r2u1
+
+        #----------------------------------------------------------------------
+        # 'done', Nothing enabled
+        #----------------------------------------------------------------------
+        
+        workflow::test::assert_case_state \
+            -workflow_id $workflow_id \
+            -case_id $case_id \
+            -expect_current_state { done } \
+            -expect_enabled_actions { } \
+            -expect_user_actions { }
     }
         
 }

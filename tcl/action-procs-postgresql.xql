@@ -23,20 +23,16 @@
                a.pretty_name,
                a.pretty_past_tense,
                a.edit_fields,
+               a.trigger_type,
+               a.parent_action_id,
+               (select short_name from workflow_actions where action_id = a.parent_action_id) as parent_action,
                a.assigned_role as assigned_role_id,
                (select short_name from workflow_roles where role_id = a.assigned_role) as assigned_role,
                a.always_enabled_p,
-               (select case when count(*) = 1 then 't' else 'f' end 
-                from   workflow_initial_action 
-                where  workflow_id = a.workflow_id 
-                and    action_id = a.action_id
-               ) as initial_action_p,
                fa.new_state as new_state_id,
                (select short_name from workflow_fsm_states where state_id = fa.new_state) as new_state,
                a.description,
                a.description_mime_type,
-               a.child_workflow_id,
-               (select short_name from workflows where workflow_id = a.child_workflow_id) as child_workflow,
                extract(seconds from a.timeout) as timeout_seconds
         from   workflow_actions a left outer join 
                workflow_fsm_actions fa on (a.action_id = fa.action_id) 

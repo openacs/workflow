@@ -23,6 +23,7 @@ ad_proc -public workflow::state::fsm::new {
     {-pretty_name:required}
     {-hide_fields {}}
     {-sort_order {}}
+    {-parent_action {}}
 } {
     Creates a new state for a certain FSM (Finite State Machine) workflow.
     
@@ -38,6 +39,9 @@ ad_proc -public workflow::state::fsm::new {
     @param sort_order   The number which this state should be in the sort ordering sequence. 
                         Leave blank to add state at the end. If you provide a sort_order number
                         which already exists, existing states are pushed down one number.
+    
+    @param parent_action
+                        Which action with trigger_type 'workflow' does this state belong to.
 
     @param internal     Set this flag if you're calling this proc from within the corresponding proc 
                         for a particular workflow model. Will cause this proc to not flush the cache 
@@ -49,7 +53,7 @@ ad_proc -public workflow::state::fsm::new {
 } {        
     # Wrapper for workflow::state::fsm::edit
 
-    foreach elm { short_name pretty_name sort_order } {
+    foreach elm { short_name pretty_name sort_order parent_action } {
         set row($elm) [set $elm]
     }
 
@@ -67,15 +71,20 @@ ad_proc -public workflow::state::fsm::edit {
     {-workflow_id {}}
     {-array {}}
     {-internal:boolean}
+    {-no_complain:boolean}
 } {
     Edit a workflow state. 
 
     Attributes of the array are: 
 
-    short_name
-    pretty_name
-    sort_order
-    hide_fields
+    <ul>
+      <li>short_name
+      <li>pretty_name
+      <li>sort_order
+      <li>hide_fields
+      <li>parent_action
+
+    </ul>
 
     @param operation    insert, update, delete
 
@@ -87,6 +96,12 @@ ad_proc -public workflow::state::fsm::edit {
     
     @param array        For insert/update: Name of an array in the caller's namespace with attributes to insert/update.
 
+    @param internal     Set this flag if you're calling this proc from within the corresponding proc 
+                        for a particular workflow model. Will cause this proc to not flush the cache 
+                        or call workflow::definition_changed_handler, which the caller must then do.
+
+    @param no_complain  Silently ignore extra attributes that we don't know how to handle. 
+                        
     @return             state_id
     
     @see workflow::state::new
@@ -144,13 +159,30 @@ ad_proc -public workflow::state::fsm::edit {
     # Parse column values
     switch $operation {
         insert - update {
+            # Special-case: array entry parent_action (takes short_name) and parent_action_id (takes action_id) -- 
+            # DB column is parent_action_id (takes action_id_id)
+            if { [info exists row(parent_action)] } {
+                if { [info exists row(parent_action_id)] } {
+                    error "You cannot supply both parent_action (takes short_name) and parent_action_id (takes action_id)"
+                }
+                if { ![empty_string_p $row(parent_action)] } {
+                    set row(parent_action_id) [workflow::action::get_id \
+                                                    -workflow_id $workflow_id \
+                                                    -short_name $row(parent_action)]
+                } else {
+                    set row(parent_action_id) [db_null]
+                }
+                unset row(parent_action)
+                unset missing_elm(parent_action)
+            }
+
             set update_clauses [list]
             set insert_names [list]
             set insert_values [list]
 
             # Handle columns in the workflow_fsm_states table
             foreach attr { 
-                short_name pretty_name hide_fields sort_order
+                short_name pretty_name hide_fields sort_order parent_action_id
             } {
                 if { [info exists row($attr)] } {
                     set varname attr_$attr
@@ -186,6 +218,47 @@ ad_proc -public workflow::state::fsm::edit {
                     if { [info exists missing_elm($attr)] } {
                         unset missing_elm($attr)
                     }
+                }
+            }
+
+            # Auxilliary helper attributes (enabled_actions -> enabled_action_ids, assigned_actions -> assigned_action_ids)
+
+            # Enabled actions
+            if { [info exists row(enabled_actions)] } {
+                if { [info exists row(enabled_action_ids)] } {
+                    error "You cannot supply both enabled_actions and enabled_actions_ids"
+                }
+                set row(enabled_action_ids) [list]
+                foreach action_short_name $row(enabled_actions) {
+                    lappend row(enabled_action_ids) [workflow::action::get_id \
+                                                         -workflow_id $workflow_id \
+                                                         -short_name $action_short_name]
+                }
+                unset row(enabled_actions)
+            }
+            
+            # Assigend actions
+            if { [info exists row(assigned_actions)] } {
+                if { [info exists row(assigned_action_ids)] } {
+                    error "You cannot supply both assigned_actions and assigned_action_ids"
+                }
+                set row(assigned_action_ids) [list]
+                foreach action_short_name $row(assigned_actions) {
+                    lappend row(assigned_action_ids) [workflow::action::get_id \
+                                                        -workflow_id $workflow_id \
+                                                        -short_name $action_short_name]
+                }
+                unset row(assigned_actions)
+            }
+
+            # Handle auxillary rows
+            array set aux [list]
+            foreach attr { 
+                enabled_action_ids assigned_action_ids
+            } {
+                if { [info exists row($attr)] } {
+                    set aux($attr) $row($attr)
+                    unset row($attr)
                 }
             }
         }
@@ -238,10 +311,32 @@ ad_proc -public workflow::state::fsm::edit {
             }
         }
 
+        # Auxilliary rows
         switch $operation {
             insert - update {
+
+                # Record in which actions the action is enabled but not assigned
+                if { [info exists aux(enabled_action_ids)] } {
+                    set assigned_p "f"
+                    db_dml delete_enabled_actions {}
+                    foreach enabled_action_id $aux(enabled_action_ids) {
+                        db_dml insert_enabled_action {}
+                    }
+                    unset aux(enabled_action_ids)
+                }
+                
+                # Record where the action is both enabled and assigned
+                if { [info exists aux(assigned_action_ids)] } {
+                    set assigned_p "t"
+                    db_dml delete_enabled_actions {}
+                    foreach enabled_action_id $aux(assigned_action_ids) {
+                        db_dml insert_enabled_action {}
+                    }
+                    unset aux(assigned_action_ids)
+                }
+
                 # Check that there are no unknown attributes
-                if { [llength [array names missing_elm]] > 0 } {
+                if { [llength [array names missing_elm]] > 0 && !$no_complain_p } {
                     error "Trying to set illegal state attributes: [join [array names missing_elm] ", "]"
                 }
             }
@@ -453,14 +548,14 @@ ad_proc -private workflow::state::fsm::parse_spec {
     foreach { key value } $spec {
         set state($key) [string trim $value]
     }
+    set state(short_name) $short_name
 
     # Create the state
-    set state_id [workflow::state::fsm::new \
-            -workflow_id $workflow_id \
-            -short_name $short_name \
-            -pretty_name $state(pretty_name) \
-            -hide_fields $state(hide_fields) \
-            ]
+    set state_id [workflow::state::fsm::edit \
+                      -operation "insert" \
+                      -workflow_id $workflow_id \
+                      -array state]
+
 }
 
 ad_proc -private workflow::state::fsm::parse_states_spec {
@@ -515,6 +610,11 @@ ad_proc -private workflow::state::fsm::generate_spec {
     array unset row state_id
     array unset row workflow_id
     array unset row sort_order
+    array unset row parent_action_id
+    array unset row enabled_actions
+    array unset row enabled_action_ids
+    array unset row assigned_actions
+    array unset row assigned_action_ids
     
     set spec {}
     foreach name [lsort [array names row]] {
@@ -590,7 +690,19 @@ ad_proc -private workflow::state::fsm::get_all_info_not_cached {
 
     @author Peter Marklund
 } {
-    array set state_data {}
+    # state_data will be an array keyed by state_id
+    # state_data(123) = array-list with: hide_fields, pretty_name, short_name, state_id, sort_order, workflow_id,
+    #                                    enabled_actions, enabled_action_ids, assigned_actions, assigned_action_ids
+    # In addition:
+    # state_data(state_ids) = [list of state_ids in sort order]
+    array set state_data [list]
+
+    # state_array_$state_id is an internal datastructure. It's the array for each state_id entry
+    # but as a separate array making it easier to lappend to individual entries
+
+    #----------------------------------------------------------------------
+    # Get core state information from DB
+    #----------------------------------------------------------------------
 
     # Use a list to be able to retrieve states in sort order
     set state_ids [list]
@@ -600,10 +712,107 @@ ad_proc -private workflow::state::fsm::get_all_info_not_cached {
                 [list workflow::state::fsm::get_workflow_id_not_cached -state_id $state_row(state_id)] \
                 $workflow_id
 
-        set state_data($state_row(state_id)) [array get state_row]
-        lappend state_ids $state_row(state_id)
+        set state_id $state_row(state_id)
+
+        array set state_array_$state_id [array get state_row]
+        
+        lappend state_ids $state_id
     }
     set state_data(state_ids) $state_ids
 
-    return [array get state_data]
-}
+    array set action_short_name [list]
+
+    #----------------------------------------------------------------------
+    # Build state-action map
+    #----------------------------------------------------------------------
+
+    # Will be stored like this:
+    # assigned_p_${state_id}($action_id) = 1 if assigned, 0 if enabled, non-existent if neither
+
+    # In addition, we have a supporting structure of action information
+    #   action_info(${action_id},short_name)
+    #   action_info(${action_id},trigger_type)
+    #   action_info(${action_id},always_enabled_p)
+    #   action_info(${action_id},parent_action_id)
+    #   action_info(${action_id},child_action_ids)
+
+    # 1. Get action data: trigger_type, always_enabled, hierarchy
+    db_foreach always_enabled_actions {
+        select action_id, 
+               short_name, 
+               trigger_type, 
+               always_enabled_p, 
+               parent_action_id
+        from   workflow_actions
+        where  workflow_id = :workflow_id
+    } {
+        set action_info(${action_id},short_name) $short_name
+        set action_info(${action_id},trigger_type) [string trim $trigger_type]
+        set action_info(${action_id},parent_action_id) $parent_action_id
+        if { [template::util::is_true $always_enabled_p] && [lsearch { user auto message } $trigger_type] != -1 } {
+            set action_info(${action_id},always_enabled_p) 1
+        } else {
+            set action_info(${action_id},always_enabled_p) 0
+        }
+
+        # Store as a child of parent NOTE: Not needed any longer
+        if { ![empty_string_p $parent_action_id] } {
+            lappend action_info(${parent_action_id},child_action_ids) $action_id
+        }
+
+        # Mark enabled in all states that have the same parent as the action
+        if { $action_info(${action_id},always_enabled_p) } {
+            foreach state_id $state_ids {
+                if { [string equal $parent_action_id [set state_array_${state_id}(parent_action_id)]] } {
+                    set assigned_p_${state_id}($action_id) 0
+                }
+            }
+        }
+    }
+    
+    # 2. Get action-state map
+    db_foreach always_enabled_actions {
+        select e.action_id, 
+               e.state_id,  
+               e.assigned_p
+        from   workflow_actions a,
+               workflow_fsm_action_en_in_st e
+        where  a.workflow_id = :workflow_id
+        and    a.action_id = e.action_id
+    } {
+        set assigned_p_${state_id}($action_id) [template::util::is_true $assigned_p]
+    }
+    
+    # 3. Put stuff back into the output array
+    foreach state_id $state_ids {
+        set state_array_${state_id}(enabled_action_ids) [list]
+        set state_array_${state_id}(enabled_actions) [list]
+        set state_array_${state_id}(assigned_action_ids) [list]
+        set state_array_${state_id}(assigned_actions) [list]
+        
+        if { [info exists assigned_p_${state_id}] } {
+            foreach action_id [array names assigned_p_${state_id}] {
+                # Enabled
+                lappend state_array_${state_id}(enabled_action_ids) $action_id
+                lappend state_array_${state_id}(enabled_actions) $action_info(${action_id},short_name)
+                
+                # Assigned
+                if { [set assigned_p_${state_id}($action_id)] } {
+                    lappend state_array_${state_id}(assigned_action_ids) $action_id
+                    lappend state_array_${state_id}(assigned_actions) $action_info(${action_id},short_name)
+                }
+            }
+        }
+    }
+
+    #----------------------------------------------------------------------
+    # Final output
+    #----------------------------------------------------------------------
+
+    # Move over to normal array
+    foreach state_id $state_ids {
+        set state_data($state_id) [array get state_array_$state_id]
+    }
+
+    return [array get state_data]}
+

@@ -15,10 +15,9 @@
              a.short_name as initial_action,
              a.action_id as initial_action_id
       from   workflows w left outer join
-             workflow_initial_action wia 
-               on (w.workflow_id = wia.workflow_id) left outer join
-             workflow_actions a 
-               on (a.action_id = wia.action_id)
+             workflow_actions a on (a.workflow_id = w.workflow_id
+                                and a.parent_action_id is null
+                                and a.trigger_type = 'init')
       where  w.workflow_id = :workflow_id
     </querytext>
   </fullquery>

@@ -14,6 +14,9 @@
              w.description_mime_type,
              a.short_name as initial_action,
              a.action_id as initial_action_id
+
+       TODO: Changed, see PG version
+        
       from   workflows w,
              workflow_initial_action wia,
              workflow_actions a

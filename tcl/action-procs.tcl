@@ -32,7 +32,9 @@ ad_proc -public workflow::action::new {
     {-privileges {}}
     {-callbacks {}}
     {-always_enabled_p f}
-    {-initial_action_p f}
+    -initial_action_p
+    {-trigger_type user}
+    {-parent_action {}}
     {-description {}}
     {-description_mime_type {}}
     {-timeout_seconds {}}
@@ -75,7 +77,11 @@ ad_proc -public workflow::action::new {
     @param callbacks              List of names of service contract implementations of callbacks for the action in 
                                   impl_owner_name.impl_name format.
 
-    @param initial_action_p       Use this switch to indicate that this is the initial
+    @param trigger_type           user, auto, message, time, init, workflow, parallel, dynamic.
+
+    @param parent_action          Short_name of the action's parent action.
+
+    @param initial_action_p       Deprecated. Use this switch to indicate that this is the initial
                                   action that will fire whenever a case of the workflow
                                   is created. The initial action is used to determine
                                   the initial state of the worklow as well as any 
@@ -104,9 +110,11 @@ ad_proc -public workflow::action::new {
         initial_action_p sort_order short_name pretty_name
         pretty_past_tense edit_fields allowed_roles assigned_role 
         privileges callbacks always_enabled_p description description_mime_type 
-        timeout_seconds
+        timeout_seconds trigger_type parent_action
     } {
-        set row($col) [set $col]
+        if { [info exists $col] } {
+            set row($col) [set $col]
+        }
     }
 
     set action_id [workflow::action::edit \
@@ -124,28 +132,36 @@ ad_proc -public workflow::action::edit {
     {-workflow_id {}}
     {-array {}}
     {-internal:boolean}
+    {-no_complain:boolean}
 } {
     Edit an action. 
 
     Attributes of the array: 
 
-    short_name
-    pretty_name
-    pretty_past_tense
-    edit_fields
-    description 
-    description_mime_type
-    sort_order
-    always_enabled_p 
-    assigned_role
-    timeout_seconds
-    privileges
-    allowed_roles
-    initial_action_p
-    callbacks
-    child_workflow
-    child_workflow_id
-    child_role_map
+    <ul>
+      <li>short_name
+      <li>pretty_name
+      <li>pretty_past_tense
+      <li>edit_fields
+      <li>description 
+      <li>description_mime_type
+      <li>sort_order
+      <li>always_enabled_p 
+      <li>assigned_role
+      <li>timeout_seconds
+      <li>trigger_type
+      <li>parent_action
+      <li>parent_action_id
+      <li>privileges
+      <li>allowed_roles
+      <li>callbacks
+    </ul>
+
+    Deprecated but still supported:
+
+    <ul>
+      <li>initial_action_p
+    </ul>
     
     @param operation    insert, update, delete
 
@@ -161,6 +177,8 @@ ad_proc -public workflow::action::edit {
                         for a particular workflow model. Will cause this proc to not flush the cache 
                         or call workflow::definition_changed_handler, which the caller must then do.
 
+    @param no_complain  Silently ignore extra attributes that we don't know how to handle. 
+                        
     @return action_id
     
     @author Lars Pind (lars@collaboraid.biz)
@@ -217,31 +235,33 @@ ad_proc -public workflow::action::edit {
     # Parse column values
     switch $operation {
         insert - update {
-            # Special-case: array entry child_workflow (short_name) and child_workflow_id (state_id) -- 
-            # DB column is child_workflow_id (workflow_id)
-            if { [info exists row(child_workflow)] } {
-                if { [info exists row(child_worklfow_id)] } {
-                    error "You cannot supply both child_workflow (takes short_name) and child_workflow_id (workflow_id)"
+            # Special-case: array entry parent_action (takes short_name) and parent_action_id (takes action_id) -- 
+            # DB column is parent_action_id (takes action_id_id)
+            if { [info exists row(parent_action)] } {
+                if { [info exists row(parent_action_id)] } {
+                    error "You cannot supply both parent_action (takes short_name) and parent_action_id (takes action_id)"
                 }
-                if { ![empty_string_p $row(child_workflow)] } {
-                    workflow::get -workflow_id $workflow_id -array this_workflow
-                    # TODO: Think about what's appropriate - object_id/package_key ...
-
-                    set object_id $this_workflow(object_id)
-                    if { [empty_string_p $object_id] } {
-                        set package_key $this_workflow(package_key) 
-                    } else {
-                        set package_key {}
-                    }
-                    set row(child_workflow_id) [workflow::get_id \
-                                                    -object_id $object_id \
-                                                    -package_key $package_key \
-                                                    -short_name $row(child_workflow)]
+                if { ![empty_string_p $row(parent_action)] } {
+                    set row(parent_action_id) [workflow::action::get_id \
+                                                    -workflow_id $workflow_id \
+                                                    -short_name $row(parent_action)]
                 } else {
-                    set row(child_workflow_id) [db_null]
+                    set row(parent_action_id) [db_null]
                 }
-                unset row(child_workflow)
-                unset missing_elm(child_workflow)
+                unset row(parent_action)
+                unset missing_elm(parent_action)
+            }
+
+            # Record if this is an initial action (deprecated)
+            if { [info exists row(initial_action_p)] } {
+                if { [info exists row(trigger_type)] && ![string equal $row(trigger_type) "user"] } {
+                    error "You can't specify both initial_action_p (which is deprecated) and trigger_type (which has replaced it) at the same time. Stick to trigger_type."
+                }
+                if { [template::util::is_true $row(initial_action_p)] } {
+                    set row(trigger_type) "init"
+                }
+                unset row(initial_action_p)
+                unset missing_elm(initial_action_p)
             }
 
             set update_clauses [list]
@@ -249,11 +269,18 @@ ad_proc -public workflow::action::edit {
             set insert_values [list]
             # Handle columns in the workflow_actions table
             foreach attr { 
-                short_name pretty_name pretty_past_tense edit_fields description description_mime_type sort_order
+                short_name 
+                pretty_name
+                pretty_past_tense
+                edit_fields
+                description 
+                description_mime_type
+                sort_order
                 always_enabled_p
                 assigned_role
                 timeout_seconds
-                child_workflow_id
+                trigger_type
+                parent_action_id
             } {
                 if { [info exists row($attr)] } {
                     set varname attr_$attr
@@ -359,6 +386,7 @@ ad_proc -public workflow::action::edit {
             }
         }
         
+        # Auxilliary rows
         switch $operation {
             insert - update {
                 # Record which roles are allowed to take action
@@ -385,18 +413,6 @@ ad_proc -public workflow::action::edit {
                     unset missing_elm(privileges)
                 }
                      
-                # Record if this is an initial action
-                if { [info exists row(initial_action_p)] } {
-                    if { [template::util::is_true $row(initial_action_p)] } {
-                        db_dml delete_initial_action {
-                            delete from workflow_initial_action
-                            where  workflow_id = :workflow_id
-                        }
-                        db_dml insert_initial_action {}
-                    }
-                    unset missing_elm(initial_action_p)
-                }
-
                 # Callbacks
                 if { [info exists row(callbacks)] } {
                     db_dml delete_callbacks {
@@ -411,45 +427,8 @@ ad_proc -public workflow::action::edit {
                     unset missing_elm(callbacks)
                 }
 
-                # Child role map
-                if { [info exists row(child_role_map)] } {
-                    db_dml delete_callbacks {
-                        delete from workflow_action_child_role_map
-                        where  action_id = :action_id
-                    }
-                    
-                    if { [llength $row(child_role_map)] > 0 } { 
-                        if { ![exists_and_not_null row(child_workflow_id)] } {
-                            error "You cannot set child_role_map without also setting child_workflow_id."
-                        }
-
-                        foreach { child_role_short_name spec } $row(child_role_map) {
-                            # Allow simple list of short_name -> short_name
-                            if { [llength $spec] == 1 } {
-                                set parent_role_short_name $spec
-                                set mapping_type "per_role"
-                            } else {
-                                foreach { parent_role_short_name mapping_type } $spec {}
-                            }
-                            
-                            set child_role_id [workflow::role::get_id \
-                                                   -workflow_id $row(child_workflow_id) \
-                                                   -short_name $child_role_short_name]
-                            set parent_role_id [workflow::role::get_id \
-                                                    -workflow_id $workflow_id \
-                                                    -short_name $parent_role_short_name]
-                            
-                            db_dml insert_child_role_map {
-                                insert into workflow_action_child_role_map (action_id, child_role_id, parent_role_id, mapping_type)
-                                values (:action_id, :child_role_id, :parent_role_id, :mapping_type)
-                            }
-                        }
-                    }
-                    unset missing_elm(child_role_map)
-                }
-
                 # Check that there are no unknown attributes
-                if { [llength [array names missing_elm]] > 0 } {
+                if { [llength [array names missing_elm]] > 0 && !$no_complain_p } {
                     error "Trying to set illegal action attributes: [join [array names missing_elm] ", "]"
                 }
             }
@@ -524,7 +503,7 @@ ad_proc -public workflow::action::get_id {
         }
     }
 
-    error "workflow::action::get_id role with short_name $short_name not found for workflow $workflow_id"
+    error "workflow::action::get_id: Action with short_name $short_name not found for workflow $workflow_id"
 }
 
 ad_proc -public workflow::action::get_workflow_id {
@@ -561,8 +540,8 @@ ad_proc -public workflow::action::get {
     @return The array will contain the following entries: 
             workflow_id, sort_order, short_name, pretty_name, 
             pretty_past_tense, assigned_role (short_name), assigned_role_id, 
-            always_enabled_p, initial_action_p, description, 
-            description_mime_type, child_workflow_id column values for an action.
+            always_enabled_p, trigger_type, parent_action, parent_action_id, description, 
+            description_mime_type values for an action.
 
     @see workflow::action::get_all_info
     @see workflow::action::get_all_info_not_cached
@@ -778,8 +757,10 @@ ad_proc -public workflow::action::fsm::new {
     {-new_state {}}
     {-new_state_id {}}
     {-callbacks {}}
+    -initial_action_p
     {-always_enabled_p f}
-    {-initial_action_p f}
+    {-trigger_type user}
+    {-parent_action {}}
     {-description {}}
     {-description_mime_type {}}
     {-timeout_seconds {}}
@@ -802,9 +783,11 @@ ad_proc -public workflow::action::fsm::new {
         initial_action_p sort_order short_name pretty_name
         pretty_past_tense edit_fields allowed_roles assigned_role 
         privileges callbacks always_enabled_p description description_mime_type 
-        timeout_seconds 
+        timeout_seconds trigger_type parent_action
     } {
-        set row($col) [set $col]
+        if { [info exists $col] } {
+            set row($col) [set $col]
+        }
     }
     foreach elm { 
         new_state new_state_id
@@ -834,7 +817,7 @@ ad_proc -public workflow::action::fsm::edit {
 } {
     Edit an action. 
 
-    Attributes: new_state_id
+    Attributes: new_state_id, enabled_states, enabled_state_ids, enabled_actions, enabled_action_ids
 
 
     @param operation    insert, update, delete
@@ -991,6 +974,18 @@ ad_proc -public workflow::action::fsm::edit {
                            -workflow_id $workflow_id \
                            -array row]
 
+        # Verify insert/update
+        switch $operation {
+            insert - update {
+                set row_exists_p [db_string row_exists_p { select count(*) from workflow_fsm_actions where action_id = :action_id }]
+                if { $row_exists_p } {
+                    set operation "update"
+                } else {
+                    set operation "insert"
+                }
+            }
+        }
+
         # FSM action row
         switch $operation {
             insert {
@@ -1076,7 +1071,7 @@ ad_proc -public workflow::action::fsm::get {
     {-array:required}
 } {
     Return information about an action with a given id, including
-    FSM-related info such as 'enabled_states', and 'new_state'.
+    FSM-related info: enabled_states, enabled_state_ids, assigned_states, assigned_state_ids, new_state, new_state_id.
 
     @author Peter Marklund
     @author Lars Pind (lars@collaboraid.biz)
@@ -1210,7 +1205,8 @@ ad_proc -private workflow::action::fsm::parse_spec {
         enabled_states {} 
         assigned_states {}
         new_state {} 
-        initial_action_p f
+        trigger_type user
+        parent_action {}
         callbacks {}
     }
     
@@ -1218,24 +1214,13 @@ ad_proc -private workflow::action::fsm::parse_spec {
     foreach { key value } $spec {
         set action($key) [string trim $value]
     }
+    set action(short_name) $short_name
 
     # Create the action
-    set action_id [workflow::action::fsm::new \
+    set action_id [workflow::action::fsm::edit \
+                       -operation "insert" \
                        -workflow_id $workflow_id \
-                       -short_name $short_name \
-                       -pretty_name $action(pretty_name) \
-                       -pretty_past_tense $action(pretty_past_tense) \
-                       -edit_fields $action(edit_fields) \
-                       -allowed_roles $action(allowed_roles) \
-                       -assigned_role $action(assigned_role) \
-                       -privileges $action(privileges) \
-                       -always_enabled_p $action(always_enabled_p) \
-                       -enabled_states $action(enabled_states) \
-                       -assigned_states $action(assigned_states) \
-                       -new_state $action(new_state) \
-                       -callbacks $action(callbacks) \
-                       -initial_action_p $action(initial_action_p)
-                  ]
+                       -array action]
 }
 
 ad_proc -private workflow::action::fsm::parse_actions_spec {
@@ -1298,14 +1283,17 @@ ad_proc -private workflow::action::fsm::generate_spec {
     array unset row allowed_role_ids
     array unset row enabled_state_ids
     array unset row assigned_state_ids
-    array unset row child_workflow_id
+    array unset row parent_action_id
 
     if { ![exists_and_not_null row(description)] } {
         array unset row description_mime_type
     }
 
     # Get rid of a few defaults
-    array set defaults { initial_action_p f always_enabled_p f }
+    array set defaults { 
+        trigger_type user
+        always_enabled_p f 
+    }
 
     set spec [list]
     foreach name [lsort [array names row]] {
@@ -1427,6 +1415,7 @@ ad_proc -private workflow::action::get_all_info_not_cached {
                 [list workflow::action::get_workflow_id_not_cached -action_id $action_row(action_id)] \
                 $workflow_id
 
+        set action_row(trigger_type) [string trim $action_row(trigger_type)]
         set action_data($action_row(action_id)) [array get action_row]
         lappend action_ids $action_row(action_id)
     }
@@ -1483,29 +1472,6 @@ ad_proc -private workflow::action::get_all_info_not_cached {
         }
     }
 
-    # Build array of child_role_map for all actions
-    array set child_role_map [list]
-    db_foreach select_child_role_map {
-        select m.action_id,
-               m.child_role_id,
-               m.parent_role_id,
-               m.mapping_type,
-               (select short_name from workflow_roles where role_id = m.child_role_id) as child_role_short_name,
-               (select short_name from workflow_roles where role_id = m.parent_role_id) as parent_role_short_name
-        from   workflow_action_child_role_map m,
-               workflow_actions a
-        where  m.action_id = a.action_id
-        and    a.workflow_id = :workflow_id
-    } {
-        set mapping_type [string trim $mapping_type]
-        # Short-cut when mapping_type is per_role
-        if { [string equal $mapping_type "per_role"] } {
-            lappend child_role_map($action_id) $child_role_short_name $parent_role_short_name
-        } else {
-            lappend child_role_map($action_id) $child_role_short_name [list $parent_role_short_name $mapping_type]
-        }
-    }
-    
     # For each action_id, add to the array of that action the contents of the
     # sub arrays (callbacks, allowed_roles, allowed_role_ids, privileges)
     foreach action_id $action_ids {
@@ -1533,12 +1499,6 @@ ad_proc -private workflow::action::get_all_info_not_cached {
             set one_action(callback_ids) $callback_ids_array($action_id)
         } else {
             set one_action(callback_ids) [list]
-        }
-
-        if { [info exists child_role_map($action_id)] } {
-            set one_action(child_role_map) $child_role_map($action_id)
-        } else {
-            set one_action(child_role_map) [list]
         }
 
         set action_data($action_id) [array get one_action]

@@ -5,25 +5,45 @@
   <fullquery name="workflow::case::fsm::get_info_not_cached.select_case_info">
     <querytext>
       select c.case_id,
-             c.top_case_id,
              c.workflow_id,
-             top.object_id,
+             c.object_id,
              s.state_id,
              s.short_name as state_short_name,
              s.pretty_name as pretty_state,
-             s.hide_fields as state_hide_fields,
-             parent.parent_enabled_action_id,
-             (select case_id
-              from   workflow_case_enabled_actions
-              where  enabled_action_id = parent.parent_enabled_action_id) as parent_case_id
+             s.hide_fields as state_hide_fields
       from   workflow_cases c,
-             workflow_cases top,
              workflow_case_fsm cfsm left outer join
-             workflow_fsm_states s on (s.state_id = cfsm.current_state) left outer join
-             workflow_case_parent_action parent using (case_id)
+             workflow_fsm_states s on (s.state_id = cfsm.current_state) 
       where  c.case_id = :case_id
       and    cfsm.case_id = c.case_id
-      and    top.case_id = c.top_case_id
+      and    cfsm.parent_enabled_action_id = :parent_enabled_action_id
+    </querytext>
+  </fullquery>
+
+  <fullquery name="workflow::case::fsm::get_info_not_cached.select_case_info_null_parent_id">
+    <querytext>
+            select c.case_id,
+                   c.workflow_id,
+                   c.object_id,
+                   s.state_id,
+                   s.short_name as state_short_name,
+                   s.pretty_name as pretty_state,
+                   s.hide_fields as state_hide_fields
+            from   workflow_cases c,
+                   workflow_case_fsm cfsm left outer join
+                   workflow_fsm_states s on (s.state_id = cfsm.current_state) 
+            where  c.case_id = :case_id
+            and    cfsm.case_id = c.case_id
+            and    cfsm.parent_enabled_action_id is null
+    </querytext>
+  </fullquery>
+
+  <fullquery name="workflow::case::fsm::get_state_info_not_cached.select_state_info">
+    <querytext>
+      select cfsm.parent_enabled_action_id,
+             cfsm.current_state as current_state_id
+      from   workflow_case_fsm cfsm 
+      where  cfsm.case_id = :case_id
     </querytext>
   </fullquery>
 
@@ -69,35 +89,12 @@
     </querytext>
   </fullquery>
 
-  <fullquery name="workflow::case::state_changed_handler.select_enabled_actions">
-    <querytext>
-      select a.action_id
-      from   workflow_cases c,
-             workflow_actions a
-      where  c.case_id = :case_id
-      and    a.workflow_id = c.workflow_id
-      and    not exists (select 1 
-                         from   workflow_initial_action wia
-                         where  wia.workflow_id = c.workflow_id
-                         and    wia.action_id = a.action_id)
-      and    (a.always_enabled_p = 't' 
-             or exists (select 1 
-                        from   workflow_case_fsm cfsm,
-                               workflow_fsm_action_en_in_st waeis
-                        where  cfsm.case_id = c.case_id
-                        and    waeis.state_id = cfsm.current_state
-                        and    waeis.action_id = a.action_id))
-      order by a.sort_order
-    </querytext>
-  </fullquery>
-
   <fullquery name="workflow::case::timed_actions_sweeper.select_timed_out_actions">
     <querytext>
-        select case_id, 
-               action_id
+        select enabled_action_id
         from   workflow_case_enabled_actions
         where  execution_time <= current_timestamp
-        and   enabled_state = 'enabled'
+        and    completed_p = 'f'
     </querytext>
   </fullquery>
 
@@ -131,24 +128,34 @@
     </querytext>
   </fullquery>
 
-  <fullquery name="workflow::case::action::execute.set_completed">
-    <querytext>
-       update workflow_case_enabled_actions
-       set    enabled_state = 'completed',
-              executed_date = current_timestamp
-       where  case_id = :case_id
-       and    action_id = :action_id
-       and    enabled_state = 'enabled'
-    </querytext>
-  </fullquery>
-
   <fullquery name="workflow::case::action::enable.insert_enabled">
     <querytext>
         insert into workflow_case_enabled_actions
-        (enabled_action_id, case_id, action_id, enabled_state, execution_time)
-        select :enabled_action_id, :case_id, a.action_id, 'enabled', current_timestamp + a.timeout
+              (enabled_action_id, 
+               case_id, 
+               action_id, 
+               parent_enabled_action_id, 
+               assigned_p, 
+               execution_time)
+        select :enabled_action_id, 
+               :case_id, 
+               :action_id, 
+               :parent_enabled_action_id, 
+               :db_assigned_p, 
+               current_timestamp + a.timeout
         from   workflow_actions a
         where  a.action_id = :action_id
+    </querytext>
+  </fullquery>
+
+  <fullquery name="workflow::case::action::enabled_p.select_enabled_p">
+    <querytext>
+      select 1
+      from   workflow_case_enabled_actions ean
+      where  ean.action_id = :action_id
+      and    ean.case_id = :case_id
+      and    completed_p = 'f'
+      limit 1
     </querytext>
   </fullquery>
 

@@ -58,6 +58,7 @@ ad_proc -public workflow::role::edit {
     {-workflow_id {}}
     {-array {}}
     {-internal:boolean}
+    {-no_complain:boolean}
 } {
     Edit a workflow role. 
 
@@ -78,6 +79,12 @@ ad_proc -public workflow::role::edit {
     
     @param array        For insert/update: Name of an array in the caller's namespace with attributes to insert/update.
 
+    @param internal     Set this flag if you're calling this proc from within the corresponding proc 
+                        for a particular workflow model. Will cause this proc to not flush the cache 
+                        or call workflow::definition_changed_handler, which the caller must then do.
+
+    @param no_complain  Silently ignore extra attributes that we don't know how to handle. 
+                        
     @return             role_id
     
     @see workflow::role::new
@@ -246,7 +253,7 @@ ad_proc -public workflow::role::edit {
                 }
 
                 # Check that there are no unknown attributes
-                if { [llength [array names missing_elm]] > 0 } {
+                if { [llength [array names missing_elm]] > 0 && !$no_complain } {
                     error "Trying to set illegal role attributes: [join [array names missing_elm] ", "]"
                 }
             }

@@ -14,19 +14,9 @@
   <fullquery name="workflow::case::insert.insert_case">
     <querytext>
       insert into workflow_cases (
-        case_id, workflow_id, object_id, top_case_id
+        case_id, workflow_id, object_id
       ) values (
-        :case_id, :workflow_id, :object_id, :top_case_id
-      )      
-    </querytext>
-  </fullquery>
-
-  <fullquery name="workflow::case::insert.insert_case_parent_map">
-    <querytext>
-      insert into workflow_case_parent_action (
-        case_id, parent_enabled_action_id
-      ) values (
-        :case_id, :parent_enabled_action_id
+        :case_id, :workflow_id, :object_id
       )      
     </querytext>
   </fullquery>
@@ -34,9 +24,9 @@
   <fullquery name="workflow::case::insert.insert_case_fsm">
     <querytext>
       insert into workflow_case_fsm (
-        case_id, current_state
+        case_id, parent_enabled_action_id, current_state
       ) values (
-        :case_id, null
+        :case_id, null, null
       )
     </querytext>
   </fullquery>
@@ -68,7 +58,8 @@
              workflow_actions a
       where  ena.case_id = :case_id
       and    a.action_id = ena.action_id
-      and    enabled_state = 'enabled'
+      and    ena.completed_p = 'f'
+      and    a.trigger_type = 'user'
       order by a.sort_order
     </querytext>
   </fullquery>
@@ -112,14 +103,21 @@
 
   <fullquery name="workflow::case::state_changed_handler.select_previously_enabled_actions">
     <querytext>
-      select a.action_id,
+      select ena.action_id,
              ena.enabled_action_id
-      from   workflow_case_enabled_actions ena,
-             workflow_actions a
+      from   workflow_case_enabled_actions ena
       where  ena.case_id = :case_id
-      and    a.action_id = ena.action_id
-      and    enabled_state = 'enabled'
-      order by a.sort_order
+      and    parent_enabled_action_id = :parent_enabled_action_id
+    </querytext>
+  </fullquery>
+
+  <fullquery name="workflow::case::state_changed_handler.select_previously_enabled_actions_null_parent">
+    <querytext>
+      select ena.action_id,
+             ena.enabled_action_id
+      from   workflow_case_enabled_actions ena
+      where  ena.case_id = :case_id
+      and    parent_enabled_action_id is null
     </querytext>
   </fullquery>
 
@@ -180,6 +178,7 @@
       select current_state
       from   workflow_case_fsm c
       where  c.case_id = :case_id
+      and    c.parent_enabled_action_id is null
     </querytext>
   </fullquery>
 
@@ -195,29 +194,14 @@
       from   workflow_cases c,
              workflow_case_fsm cfsm,
              workflow_fsm_states s,
-             workflow_fsm_actions a
+             workflow_fsm_actions afsm,
+             workflow_case_enabled_actions ena
       where  c.case_id = :case_id
       and    cfsm.case_id = c.case_id
-      and    a.action_id = :action_id
-      and    ((a.new_state is null and s.state_id = cfsm.current_state)  or (s.state_id = a.new_state))
-    </querytext>
-  </fullquery>
-
-  <fullquery name="workflow::case::action::enabled_p.select_enabled_p">
-    <querytext>
-      select 1
-      from   workflow_case_enabled_actions ean
-      where  ean.action_id = :action_id
-      and    ean.case_id = :case_id
-      and    enabled_state = 'enabled'
-    </querytext>
-  </fullquery>
-
-  <fullquery name="workflow::case::action::fsm::execute_state_change.update_fsm_state">
-    <querytext>
-      update workflow_case_fsm
-      set    current_state = :new_state_id
-      where  case_id = :case_id
+      and    cfsm.parent_enabled_action_id = :parent_enabled_action_id
+      and    ena.enabled_action_id = :enabled_action_id
+      and    afsm.action_id = ena.action_id
+      and    ((afsm.new_state is null and s.state_id = cfsm.current_state)  or (s.state_id = afsm.new_state))
     </querytext>
   </fullquery>
 

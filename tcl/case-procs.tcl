@@ -22,8 +22,6 @@ namespace eval workflow::case::action::fsm {}
 ad_proc -private workflow::case::insert {
     {-workflow_id:required}
     {-object_id:required}
-    {-parent_enabled_action_id {}}
-    {-top_case_id {}}
 } {
     Internal procedure that creates a new workflow case in the
     database. Should not be used by applications. Use workflow::case::new instead.
@@ -31,12 +29,6 @@ ad_proc -private workflow::case::insert {
     @param object_id           The object_id which the case is about
 
     @param workflow_id         The ID of the workflow.
-
-    @param parent_enabled_action_id  
-                               The ID of an enabled_action in the parent, if this is a child case
-    
-    @param top_case_id         If this is a child case, this must be the ID of the case at the top
-                               of the tree.
 
     @return                    The case_id of the case. Returns the empty string if no case could be found.
 
@@ -47,20 +39,8 @@ ad_proc -private workflow::case::insert {
     db_transaction {
         set case_id [db_nextval "workflow_cases_seq"]
         
-        if { [empty_string_p $top_case_id] } {
-            if { ![empty_string_p $parent_enabled_action_id] } {
-                error "You cannot create a child case without specifying the top_case_id."
-            }
-            set top_case_id $case_id
-        }
-
         # Create the case
         db_dml insert_case {}
-
-        # Create the mapping
-        if { [exists_and_not_null parent_enabled_action_id] } {
-            db_dml insert_case_parent_map {}
-        }
 
         # Initialize the FSM state to NULL
         db_dml insert_case_fsm {}
@@ -73,8 +53,6 @@ ad_proc -public workflow::case::new {
     {-no_notification:boolean}
     -workflow_id:required
     {-object_id {}}
-    {-parent_enabled_action_id {}}
-    {-top_case_id {}}
     {-comment {}}
     {-comment_mime_type {}}
     -user_id
@@ -91,12 +69,6 @@ ad_proc -public workflow::case::new {
     @param assignment          Array-list of role_short_name and list of party_ids to assign 
                                to roles before starting.
 
-    @param parent_enabled_action_id  
-                               The ID of an enabled_action in the parent, if this is a child case
-
-    @param top_case_id         If this is a child case, this must be the ID of the case at the top
-                               of the tree.
-
     @return                    The case_id of the case.
 
     @author Lars Pind (lars@collaboraid.biz)
@@ -107,20 +79,17 @@ ad_proc -public workflow::case::new {
     
     db_transaction {
 
-        # If there is no initial-action, we create one now
-        # TODO: Should we do this here, or throw an error like we used to?
-        
         # Initial action
         set initial_action_id [workflow::get_element -workflow_id $workflow_id -element initial_action_id]
-        
 
         if { [empty_string_p $initial_action_id] } {
-            # TODO: This is the old error message, if we want to throw it still, maybe make it optional
-            # error "The workflow must have an initial action."
+            # If there is no initial-action, we create one now
+            # TODO: Should we do this here, or throw an error like we used to?
+            # If we change this, we should throw an error instead
 
             set action_row(pretty_name) "Start"
             set action_row(pretty_past_tense) "Started"
-            set action_row(initial_action_p) "t"
+            set action_row(trigger_type) "init"
 
             set states [workflow::fsm::get_states -workflow_id $workflow_id]
             
@@ -134,19 +103,19 @@ ad_proc -public workflow::case::new {
                                        -workflow_id $workflow_id]
         } else {
             # NOTE: FSM-specific check here
-            set new_state [workflow::action::fsm::get_element -action_id $initial_action_id -element new_state]
             
+            workflow::action::fsm::get -action_id $initial_action_id -array initial_action
+            set new_state $initial_action(new_state)
+
             if { [empty_string_p $new_state] } {
-                error "Initial action must change state."
+                error "Initial action with short_name \"$initial_action(short_name)\" does not have any new_state. In order to be an initial state, it must have new_state set."
             }
         }
 
         # Insert the case
         set case_id [insert \
                          -workflow_id $workflow_id \
-                         -object_id $object_id \
-                         -parent_enabled_action_id $parent_enabled_action_id \
-                         -top_case_id $top_case_id]
+                         -object_id $object_id]
 
         # Assign roles
         if { [exists_and_not_null assignment] } {
@@ -195,7 +164,8 @@ ad_proc -public workflow::case::get {
     {-array:required}
     {-action_id {}}
 } {
-    Get information about a case
+    Get information about a case. Implemented by workflow::case::fsm::get, because we do not yet 
+    support multiple workflow engines.
 
     @param case_id     The case ID
     @param array       The name of an array in which information will be returned.
@@ -203,6 +173,8 @@ ad_proc -public workflow::case::get {
                        This is useful for presenting forms for actions that do not take place until the user hits OK.
 
     @author Lars Pind (lars@collaboraid.biz)
+
+    @see workflow::case::fsm::get
 } {
     # Select the info into the upvar'ed Tcl Array
     upvar $array row
@@ -290,35 +262,120 @@ ad_proc -private workflow::case::get_user_roles_not_cached { case_id user_id } {
     return [db_list select_user_roles {}]
 }
 
-ad_proc -public workflow::case::get_enabled_actions {
+ad_proc -public -deprecated workflow::case::get_enabled_actions {
     {-case_id:required}
 } {
-    Get the currently enabled actions, based on the state of the case
+    Get the currently enabled user actions, based on the state of the case
 
     @param case_id     The ID of the case.
-    @return            A list of id's of the actions which are currently 
+
+    @return            A list of action_id's of the actions which are currently 
                        enabled
                        
     @author Lars Pind (lars@collaboraid.biz)
+
+    @see workflow::case::get_enabled_action_ids
 } {
     return [util_memoize [list workflow::case::get_enabled_actions_not_cached $case_id] \
                 [workflow::case::cache_timeout]]
 }
 
-ad_proc -public workflow::case::get_enabled_actions_not_cached { case_id } {
-    Used internally by the workflow API only. Goes to the databaes to
+ad_proc -private -deprecated workflow::case::get_enabled_actions_not_cached { case_id } {
+    Used internally by the workflow API only. Goes to the database to
     get the enabled actions for the case.
 } {
     return [db_list select_enabled_actions {}]
 }
 
-ad_proc -public workflow::case::get_available_actions {
+ad_proc -public workflow::case::get_enabled_action_ids {
+    {-case_id:required}
+    {-trigger_type {user}}
+} {
+    Get the currently enabled_action_id's of enabled user actions in the case.
+
+    Note, that this is different from get_enabled_actions, which only returns 
+    the action_id, which will not work for dynamic actions.
+
+    @param case_id       The ID of the case.
+    
+    @param trigger_type  You can limit to e.g. user actions here. Defaults to user actions. 
+                         Specify the empty string if you want all actions.
+
+    @return              A list of currently available enabled_action_id's. 
+
+                       
+    @author Lars Pind (lars@collaboraid.biz)
+} {
+    return [util_memoize [list workflow::case::get_enabled_action_ids_not_cached $case_id $trigger_type] \
+                [workflow::case::cache_timeout]]
+}
+
+ad_proc -public workflow::case::get_enabled_action_ids_not_cached { 
+    case_id
+    {trigger_type {}} 
+} {
+    Used internally by the workflow API only. Goes to the database to
+    get the enabled actions for the case.
+} {
+    if { [empty_string_p $trigger_type] } {
+        return [db_list select_enabled_actions {
+            select ena.enabled_action_id
+            from   workflow_case_enabled_actions ena
+            where  ena.case_id = :case_id
+            and    ena.completed_p = 'f'
+        }]
+    } else {
+        return [db_list select_enabled_actions {
+            select ena.enabled_action_id
+            from   workflow_case_enabled_actions ena,
+                   workflow_actions a
+            where  ena.case_id = :case_id
+            and    a.action_id = ena.action_id
+            and    ena.completed_p = 'f'
+            and    a.trigger_type = 'user'
+            order  by a.sort_order
+        }]
+    }
+}
+
+ad_proc -public -deprecated workflow::case::get_available_actions {
     {-case_id:required}
     -user_id
 } {
     Get the actions which are enabled and which the current user have permission to execute.
 
     @param case_id     The ID of the case.
+    @return            A list of ID's of the available actions.
+
+    @author Lars Pind (lars@collaboraid.biz)
+
+    @see workflow::case::get_available_enabled_action_ids
+} {
+    if { ![exists_and_not_null user_id] } {
+        set user_id [ad_conn user_id]
+    }
+
+    set action_list [list]
+
+    foreach enabled_action_id [workflow::case::get_enabled_action_ids -case_id $case_id] {
+        if { [workflow::case::action::permission_p -enabled_action_id $enabled_action_id -user_id $user_id] } {
+            lappend action_list [workflow::case::enabled_action_get_element \
+                                     -enabled_action_id $enabled_action_id \
+                                     -element action_id]
+        }
+    }
+
+    return $action_list
+}
+
+ad_proc -public workflow::case::get_available_enabled_action_ids {
+    {-case_id:required}
+    -user_id
+} {
+    Get the enabled_action_id's of the actions available to the given user.
+
+    @param case_id     The ID of the case.
+
     @return            A list of ID's of the available actions.
 
     @author Lars Pind (lars@collaboraid.biz)
@@ -329,9 +386,9 @@ ad_proc -public workflow::case::get_available_actions {
 
     set action_list [list]
 
-    foreach action_id [get_enabled_actions -case_id $case_id] {
-        if { [workflow::case::action::permission_p -case_id $case_id -action_id $action_id -user_id $user_id] } {
-            lappend action_list $action_id
+    foreach enabled_action_id [get_enabled_action_ids -case_id $case_id] {
+        if { [workflow::case::action::permission_p -enabled_action_id $enabled_action_id -user_id $user_id] } {
+            lappend action_list $enabled_action_id
         }
     }
 
@@ -360,7 +417,7 @@ ad_proc -private workflow::case::assign_roles {
         where  c.case_id = :case_id
         and    r.workflow_id = c.workflow_id
         and    not exists (select 1
-                           from   workflow_case_role_user_map m
+                           from   workflow_case_role_party_map m
                            where  m.role_id = r.role_id
                            and    m.case_id = :case_id)
     }]
@@ -752,6 +809,7 @@ ad_proc -private workflow::case::flush_cache {
         workflow::case::fsm::get_info_not_cached
         workflow::case::get_user_roles_not_cached
         workflow::case::get_enabled_actions_not_cached
+        workflow::case::get_enabled_action_ids_not_cached
     } {
         util_memoize_flush_regexp "^$proc_name [ad_decode $case_id "" {\.*} $case_id]"
     }
@@ -762,149 +820,16 @@ ad_proc -private workflow::case::flush_cache {
     workflow::case::role::flush_cache -case_id $case_id
 }
 
-ad_proc -private workflow::case::state_changed_handler {
-    {-case_id:required}
-    {-user_id {}}
-} {
-    Scans for newly enabled actions, as well as actions which were 
-    enabled but are now no longer enabled. Does not flush the cache. 
-    Should only be called indirectly through the workflow API.
-
-    @author Lars Pind (lars@collaboraid.biz)
-} {
-    db_transaction {
-        # DB query to get actually enabled actions
-        set enabled_action_ids [db_list select_enabled_actions {}]
-
-        # This array, keyed by action_id, will store the enabled_action_id for previously enabled actions
-        array set action_enabled [list]
-        db_foreach select_previously_enabled_actions {} {
-            set action_enabled($action_id) $enabled_action_id
-        }
-        
-        # Loop over currently enabled actions and find out which ones are new
-        array set newly_enabled_action [list]
-        foreach action_id $enabled_action_ids {
-            if { [info exists action_enabled($action_id)] } {
-                # Action was already enabled. Unset the array entry, so what remains will be 
-                # previously but no longer enabled actions
-                unset action_enabled($action_id)
-            } else {
-                # Newly enabled action
-                set newly_enabled_action($action_id) 1
-            }
-        }
-        
-        # First, unenable the previously but no longer enabled actions
-        foreach action_id [array names action_enabled] {
-            workflow::case::action::unenable \
-                -enabled_action_id $action_enabled($action_id)
-        }
-
-        # Second, enable the newly enabled actions
-        foreach action_id $enabled_action_ids {
-            if { [info exists newly_enabled_action($action_id)] } {
-                workflow::case::action::enable \
-                    -case_id $case_id \
-                    -action_id $action_id \
-                    -user_id $user_id
-            }
-        }
-
-        # Flush cache, now that things have changed
-        workflow::case::flush_cache -case_id $case_id
-
-        # Make sure roles are assigned, if possible
-        workflow::case::assign_roles -all -case_id $case_id
-
-        # Call parent child-state-changed handler
-        workflow::case::get -case_id $case_id -array case
-        if { $case(top_case_id) != $case_id } {
-            workflow::case::child_state_changed_handler \
-                -parent_case_id $case(parent_case_id) \
-                -parent_enabled_action_id $case(parent_enabled_action_id) \
-                -child_case_id $case_id \
-                -user_id $user_id 
-        }
-    }
-}
-
-ad_proc -private workflow::case::child_state_changed_handler {
-    {-parent_case_id:required}
-    {-parent_enabled_action_id:required}
-    {-child_case_id:required}
-    {-user_id {}}
-} {
-    Check if all child cases of this enabled action are complete, and if so
-    cause this action to execute
-} {
-    db_transaction {
-
-      #----------------------------------------------------------------------
-      # 1. Check if this child-case is inactive
-      #----------------------------------------------------------------------
-      if { [workflow::case::active_p -case_id $child_case_id] } {
-          # Child still running
-          return
-      }
-
-      #----------------------------------------------------------------------
-      # 2. Check if all child-cases of this enabled_action_id are done
-      #----------------------------------------------------------------------
-      set child_case_ids [workflow::case::get_child_cases -enabled_action_id $parent_enabled_action_id]
-      foreach one_child $child_case_ids {
-
-          # No reason to check this child again
-          if { $one_child != $child_case_id } {
-              if { [workflow::case::active_p -case_id $one_child] } {
-                  # Other child still running
-                  return
-              }
-          }
-      }
-
-      #----------------------------------------------------------------------
-      # 3. If all are complete, execute the action
-      #----------------------------------------------------------------------
-
-      # TODO: API to get action_id from enabled_action_id
-      set action_id [db_string select_action_id { 
-          select action_id 
-          from   workflow_case_enabled_actions 
-          where  enabled_action_id = :parent_enabled_action_id
-      }]
-
-      workflow::case::action::execute \
-          -no_notification \
-          -no_perm_check \
-          -case_id $parent_case_id \
-          -action_id $action_id \
-          -user_id $user_id
-  }
-}
-
-
-ad_proc -private workflow::case::get_child_cases {
-    -enabled_action_id:required
-} {
-} {
-    return [db_list child_cases { 
-        select case_id 
-        from   workflow_case_parent_action
-        where  parent_enabled_action_id = :enabled_action_id
-    }]
-}
 
 ad_proc -public workflow::case::timed_actions_sweeper {} {
     Sweep for timed actions ready to fire.
 } {
-    db_multirow -local actions select_timed_out_actions {}
+    set enabled_action_ids [db_list select_timed_out_actions {}]
     
-    template::multirow -local foreach actions {
+    foreach enabled_action_id $enabled_action_ids {
         workflow::case::action::execute \
             -no_perm_check \
-            -case_id $case_id \
-            -action_id $action_id
+            -enabled_action_id $enabled_action_id
     }
 }
 
@@ -925,11 +850,16 @@ ad_proc -public workflow::case::enabled_action_get {
         select enabled_action_id,
                case_id,
                action_id,
-               enabled_date,
-               executed_date,
-               enabled_state,
-               execution_time
-        from   workflow_case_enabled_actions
+               assigned_p,
+               completed_p,
+               parent_enabled_action_id,
+               to_char(execution_time, 'YYYY-MM-DD HH24:MI:SS') as execution_time_ansi,
+               coalesce((select a2.trigger_type
+                from   workflow_case_enabled_actions e2,
+                       workflow_actions a2
+                where  e2.enabled_action_id = e.parent_enabled_action_id
+                and    a2.action_id = e2.action_id), 'workflow') as parent_trigger_type
+        from   workflow_case_enabled_actions e
         where  enabled_action_id = :enabled_action_id
     } -column_array row
 }
@@ -1295,16 +1225,16 @@ ad_proc -public workflow::case::role::assign {
     
     db_transaction {
         foreach name [array names assignees] {
-
-            set role_id [workflow::role::get_id \
-                    -workflow_id $workflow_id \
-                    -short_name $name]
             
-            assignee_insert \
-                    -replace=$replace_p \
-                    -case_id $case_id \
-                    -role_id $role_id \
-                    -party_ids $assignees($name)
+            set role_id [workflow::role::get_id \
+                             -workflow_id $workflow_id \
+                             -short_name $name]
+            
+            workflow::case::role::assignee_insert \
+                -replace=$replace_p \
+                -case_id $case_id \
+                -role_id $role_id \
+                -party_ids $assignees($name)
         }
     }
 }
@@ -1328,29 +1258,51 @@ ad_proc -public workflow::case::fsm::get_current_state {
 
     @author Lars Pind (lars@collaboraid.biz)
 } {
-    #return [db_string select_current_state {}]
     return [workflow::case::fsm::get_element -case_id $case_id -element state_id]
 }
 
 ad_proc -public workflow::case::fsm::get {
     {-case_id:required}
     {-array:required}
+    {-parent_enabled_action_id {}}
     {-action_id {}}
+    {-enabled_action_id {}}
 } {
-    Get information about an FSM case set as values in your array.
+    Get information about an FSM case set as values in your array. 
+    case_id state_short_name pretty_state state_hide_fields state_id parent_enabled_action_id parent_case_id 
+    entry_id top_case_id workflow_id object_id
 
     @param case_id     The ID of the case
+
     @param array       The name of an array in which information will be returned.
-    @param action_id   If specified, will return the case information as if the given action had already been executed. 
-                       This is useful for presenting forms for actions that do not take place until the user hits OK.
+
+    @param parent_enabled_action_id   
+                       If specified, will return the sub-case information for the given action.
+
+    @param action_id   Deprecated. Same effect as enabled_action_id, but will not work for dynamic workflows.
+
+    @param enabled_action_id 
+                       If specified, will return the case information as if the given action had already
+                       been executed. This is useful for presenting forms for actions that do not take place
+                       until the user hits OK.
 
     @author Lars Pind (lars@collaboraid.biz)
 } {
     # Select the info into the upvar'ed Tcl Array
     upvar $array row
 
-    if { [empty_string_p $action_id] } {
-        array set row [util_memoize [list workflow::case::fsm::get_info_not_cached $case_id] \
+    if { ![empty_string_p $action_id] } {
+        if { ![empty_string_p $enabled_action_id] } {
+            error "You cannot specify both action_id and enabled_action_id. enabled_action_id is preferred."
+        }
+        set enabled_action_id [workflow::case::action::get_enabled_action_id \
+                                   -case_id $case_id \
+                                   -action_id $action_id \
+                                   -any_parent]
+    }
+
+    if { [empty_string_p $enabled_action_id] } {
+        array set row [util_memoize [list workflow::case::fsm::get_info_not_cached $case_id $parent_enabled_action_id] \
                            [workflow::case::cache_timeout]]
         set row(entry_id) {}
     } else {
@@ -1363,6 +1315,7 @@ ad_proc -public workflow::case::fsm::get {
 ad_proc -public workflow::case::fsm::get_element {
     {-case_id:required}
     {-element:required}
+    {-parent_enabled_action_id {}}
     {-action_id {}}
 } {
     Return a single element from the information about a case.
@@ -1376,21 +1329,71 @@ ad_proc -public workflow::case::fsm::get_element {
 
     @author Lars Pind (lars@collaboraid.biz)
 } {
-    get -case_id $case_id -action_id $action_id -array row
+    get -case_id $case_id -parent_enabled_action_id $parent_enabled_action_id -action_id $action_id -array row
     return $row($element)
 }
 
-ad_proc -private workflow::case::fsm::get_info_not_cached { case_id } {
+ad_proc -private workflow::case::fsm::get_info_not_cached { case_id { parent_enabled_action_id "" } } {
     Used internally by the workflow id to get FSM case info from the
     database.
 
     @author Peter Marklund
 } {
-    db_1row select_case_info {} -column_array row
+    if { [empty_string_p $parent_enabled_action_id] } {
+        db_1row select_case_info_null_parent_id {} -column_array row
+    } else {
+        db_1row select_case_info {} -column_array row
+    }
 
     return [array get row]
 }
 
+ad_proc -private workflow::case::fsm::get_state_info { 
+    -case_id:required
+    {-parent_enabled_action_id {}}
+    {-all:boolean}
+ } {
+    Gets all state info from the database, include sub-action state.
+
+    @return a list of (action_id, current_state) tuples. 
+    The top-level state is the one that has action_id empty.
+} {
+    # TODO: Cache and flush
+    return [workflow::case::fsm::get_state_info_not_cached $case_id $parent_enabled_action_id $all_p]
+}
+
+ad_proc -private workflow::case::fsm::get_state_info_not_cached { 
+    case_id 
+    parent_enabled_action_id
+    all_p
+} {
+    Gets all state info from the database, include sub-action state.
+
+    @return a list of (action_id, current_state) tuples. 
+    The top-level state is the one that has action_id empty.
+
+    @see workflow::case::fsm::get_state_info
+} {
+    if { $all_p  } {
+        return [db_list_of_lists select_state_info {}]
+    } else {
+        if { [empty_string_p $parent_enabled_action_id] } {
+            return [db_string null_parent {
+                select current_state
+                from   workflow_case_fsm
+                where  case_id = :case_id
+                and    parent_enabled_action_id is null
+            }]
+        } else {
+            return [db_string null_parent {
+                select current_state
+                from   workflow_case_fsm
+                where  case_id = :case_id
+                and    parent_enabled_action_id = :parent_enabled_action_id
+            }]
+        }
+    }
+}
 
 
 #####
@@ -1400,16 +1403,22 @@ ad_proc -private workflow::case::fsm::get_info_not_cached { case_id } {
 #####
 
 ad_proc -public workflow::case::action::permission_p {
-    {-case_id:required}
-    {-action_id:required}
+    {-enabled_action_id {}}
+    {-case_id {}}
+    {-action_id {}}
     {-user_id}
 } {
     Does the user have permission to perform this action. Doesn't
     check whether the action is enabled.
 
-    @param case_id       The ID of the case.
-    @param action_id     The ID of the action
-    @param user_id       The user.
+    @param enabled_action_id  The enabled action you want to test for permission on.
+
+    @param case_id            Deprecated. The ID of the case.
+
+    @param action_id          Deprecated. The ID of the action
+
+    @param user_id            The user.
+
     @return true or false.
 
     @author Lars Pind (lars@collaboraid.biz)
@@ -1418,25 +1427,40 @@ ad_proc -public workflow::case::action::permission_p {
         set user_id [ad_conn user_id]
     }
 
+    if { ![empty_string_p $enabled_action_id] } {
+        workflow::case::enabled_action_get -enabled_action_id $enabled_action_id -array enabled_action
+        set case_id $enabled_action(case_id)
+        set action_id $enabled_action(action_id)
+    } else {
+        set enabled_action_id [workflow::case::action::get_enabled_action_id \
+                                   -any_parent \
+                                   -case_id $case_id \
+                                   -action_id $action_id]
+    }
+
     set object_id [workflow::case::get_element -case_id $case_id -element object_id]
     set user_role_ids [workflow::case::get_user_roles -case_id $case_id -user_id $user_id]
 
     set permission_p 0
 
+    set assigned_p [db_string assigned_p {
+        select 1 
+        from   workflow_case_assigned_user_actions
+        where  enabled_action_id = :enabled_action_id
+        and    user_id = :user_id
+    } -default 0]
+    
+    if { $assigned_p } {
+        return 1
+    }
+
     foreach role_id $user_role_ids {
 
-        # Is this an assigned role for this action?
-        set assigned_role_id [workflow::action::get_assigned_role -action_id $action_id]
-        if { $assigned_role_id == $role_id } {
-            set permission_p 1
-            break
-        }
 
         # Is this an allowed role for this action?
         set allowed_roles [workflow::action::get_allowed_roles -action_id $action_id]
         if { [lsearch $allowed_roles $role_id] != -1 } {
-            set permission_p 1
-            break
+            return 1
         }
     }
 
@@ -1444,13 +1468,12 @@ ad_proc -public workflow::case::action::permission_p {
         set privileges [concat "admin" [workflow::action::get_privileges -action_id $action_id]]
         foreach privilege $privileges {
             if { [permission::permission_p -object_id $object_id -privilege $privilege -party_id $user_id] } {
-                set permission_p 1
-                break
+                return 1
             }
         }
     }
 
-    return $permission_p
+    return 0
 }
 
 ad_proc -public workflow::case::action::enabled_p {
@@ -1459,8 +1482,10 @@ ad_proc -public workflow::case::action::enabled_p {
 } {
     Is this action currently enabled.
 
-    @param case_id     The ID of the case.
-    @param action_id     The ID of the action
+    @param case_id            The ID of the case.
+
+    @param action_id          The ID of the action
+
     @return true or false.
 
     @author Lars Pind (lars@collaboraid.biz)
@@ -1469,250 +1494,102 @@ ad_proc -public workflow::case::action::enabled_p {
 }
 
 ad_proc -public workflow::case::action::available_p {
-    {-case_id:required}
-    {-action_id:required}
-    {-user_id}
+    {-enabled_action_id {}}
+    {-case_id {}}
+    {-action_id {}}
+    {-user_id {}}
 } {
     Is this action currently enabled and does the user have permission to perform it?
 
-    @param case_id     The ID of the case.
-    @param action_id     The ID of the action
-    @param user_id       The user.
+    @param enabled_action_id  The enabled action you want to test for permission on.
+
+    @param case_id            Deprecated. The ID of the case.
+
+    @param action_id          Deprecated. The ID of the action
+
+    @param user_id            The user.
+
     @return true or false.
 
     @author Lars Pind (lars@collaboraid.biz)
 } {
     # Always permit the no-op
-    if { [empty_string_p $action_id] } {
+    if { [empty_string_p $action_id] && [empty_string_p $enabled_action_id] } {
         return 1
     }
 
-    if { ![exists_and_not_null user_id] } {
-        set user_id [ad_conn user_id]
+    if { ![empty_string_p $enabled_action_id] } {
+        workflow::case::enabled_action_get -enabled_action_id $enabled_action_id -array enabled_action
+        set case_id $enabled_action(case_id)
+        set action_id $enabled_action(action_id)
+    } else {
+        set enabled_action_id [workflow::case::action::get_enabled_action_id \
+                                   -any_parent \
+                                   -case_id $case_id \
+                                   -action_id $action_id]
     }
-    
-    if { 
-        [enabled_p -case_id $case_id -action_id $action_id] 
-        && 
-        [permission_p -case_id $case_id -action_id $action_id -user_id $user_id] 
-    } {
+
+    if { [workflow::case::action::enabled_p -case_id $case_id -action_id $action_id] &&
+         [workflow::case::action::permission_p -enabled_action_id $enabled_action_id -user_id $user_id] } {
         return 1
     } else {
         return 0
     }
 }
 
-ad_proc -public workflow::case::action::execute {
-    {-no_notification:boolean}
-    {-no_perm_check:boolean}
+
+ad_proc -private workflow::case::action::get_enabled_action_id {
     {-case_id:required}
     {-action_id:required}
-    {-comment ""}
-    {-comment_mime_type "text/plain"}
-    {-user_id}
-    {-initial:boolean}
-    {-entry_id {}}
+    {-parent_enabled_action_id {}}
+    {-all:boolean}
+    {-any_parent:boolean}
 } {
-    Execute the action
+    Get the enabled_action_id from case_id and action_id. Doesn't find completed enabled actions.
+    Provided for backwards compatibility. Doesn't work properly for dynamic actions.
 
-    @param case_id            The ID of the case.
+    @param all If specified, will return all if more than one is found. Otherwise returns just the first.
 
-    @param action_id          The ID of the action
-
-    @param comment            Comment for the case activity log
-
-    @param comment_mime_type  MIME Type of the comment, according to 
-                              OpenACS standard text formatting
-
-    @param user_id            The user who's executing the action
-
-    @param initial            Use this switch to signal that this is the initial action. This causes 
-                              permissions/enabled checks to be bypasssed, and causes all roles to get assigned.
-
-    @param entry_id           Optional item_id for double-click protection. If you call workflow::case::fsm::get
-                              with a non-empty action_id, it will generate a new entry_id for you, which you can pass in here.
-
-    @param no_perm_check      Set this switch if you do not want any permissions chcecking, e.g. for automatic actions.
-
-    @return entry_id of the new log entry (will be a cr_item).
-
-    @author Lars Pind (lars@collaboraid.biz)
+    @return enabled_action_id. Returns blank if no enabled action exists. 
 } {
-    if { ![exists_and_not_null user_id] } {
-        set user_id [ad_conn user_id]
-    }
-    
-    if { !$initial_p } {
-        if { ![enabled_p -case_id $case_id -action_id $action_id] } {
-            error "This action is not enabled at this time."
+    if { $any_parent_p } {
+        set result [db_list select_enabled_action_id {
+            select enabled_action_id
+            from   workflow_case_enabled_actions
+            where  case_id = :case_id
+            and    action_id = :action_id
+            and    completed_p = 'f'
+        }]
+    } else {
+        if { [empty_string_p $parent_enabled_action_id] } {
+            set result [db_list select_enabled_action_id {
+                select enabled_action_id
+                from   workflow_case_enabled_actions
+                where  case_id = :case_id
+                and    action_id = :action_id
+                and    completed_p = 'f'
+                and    parent_enabled_action_id = :parent_enabled_action_id
+            }]
+        } else {
+            set result [db_list select_enabled_action_id {
+                select enabled_action_id
+                from   workflow_case_enabled_actions
+                where  case_id = :case_id
+                and    action_id = :action_id
+                and    completed_p = 'f'
+                and    parent_enabled_action_id is null
+            }]
         }
-
-        if { !$no_perm_check_p } {
-            if { ![permission_p -case_id $case_id -action_id $action_id -user_id $user_id] } {
-                error "This user is not allowed to perform this action at this time."
-            } 
-        }
-    }
-
-    if { [empty_string_p $comment] } {
-        set comment { }
-    }
-
-    # We can't have empty comment_mime_type, default to text/plain
-    if { [empty_string_p $comment_mime_type] } {
-        set comment_mime_type "text/plain"
-    }
-
-    db_transaction {
-
-        # Update the case workflow state
-        workflow::case::action::fsm::execute_state_change \
-            -case_id $case_id \
-            -action_id $action_id
-
-        # Update workflow_case_enabled_transactions
-        db_dml set_completed {}
-
-        # Double-click protection
-        if { ![empty_string_p $entry_id] } {
-            if {  [db_string log_entry_exists_p {}] } {
-                return $entry_id
-            }
-        }
-        
-        # Insert activity log entry
-        set extra_vars [ns_set create]
-        oacs_util::vars_to_ns_set \
-                -ns_set $extra_vars \
-                -var_list { entry_id case_id action_id comment comment_mime_type }
-        
-        # ns_set put $extra_vars parent_id $object_id
-
-        set entry_id [package_instantiate_object \
-                -creation_user $user_id \
-                -extra_vars $extra_vars \
-                -package_name "workflow_case_log_entry" \
-                "workflow_case_log_entry"]
-
-        # Fire side-effects
-        do_side_effects \
-                -case_id $case_id \
-                -action_id $action_id \
-                -entry_id $entry_id
-        
-        # Notifications
-        if { !$no_notification_p } {
-            workflow::case::action::notify \
-                -case_id $case_id \
-                -action_id $action_id \
-                -entry_id $entry_id \
-                -comment $comment \
-                -comment_mime_type $comment_mime_type
-        }
-        
-        # Scan for enabled actions
-        workflow::case::state_changed_handler \
-            -case_id $case_id \
-            -user_id $user_id
     }
 
-    workflow::case::flush_cache -case_id $case_id
-
-    return $entry_id
-}
-
-ad_proc -private workflow::case::action::unenable {
-    {-enabled_action_id:required}
-} {
-    Update the workflow_case_enabled_actions table to say that the 
-    previously enabled actions are no longer enabled.
-    Does not flush the cache. 
-    Should only be called indirectly through the workflow API.
-
-    @author Lars Pind (lars@collaboraid.biz)
-} {
-    db_transaction {
-        db_dml set_canceled {
-            update workflow_case_enabled_actions
-            set    enabled_state = 'canceled'
-            where  enabled_action_id = :enabled_action_id
-        }
+    if { $all_p } {
+        return $result
+    } else {
+        return [lindex $result 0]
     }
 }
 
-ad_proc -private workflow::case::action::enable {
-    {-case_id:required}
-    {-action_id:required}
-    {-user_id {}}
-} {
-    Update the workflow_case_enabled_actions table to say that the 
-    action is now enabled. Will automatically fire an automatic action.
-    Does not flush the cache. 
-    Should only be called indirectly through the workflow API.
 
-    @author Lars Pind (lars@collaboraid.biz)
-} {
-    workflow::action::get -action_id $action_id -array action
-
-    db_transaction {
-        set enabled_action_id [db_nextval workflow_case_enbl_act_seq]
-
-        db_dml insert_enabled {}
-
-        # Spawn child workflows
-        if { ![empty_string_p $action(child_workflow_id)] } {
-            
-            # NOTE: Role is mapped at spawn time. 
-            # Changes made after that are not synchronized from parent to child or vice versa.
-
-            # Assignment will be a list of { role_short_name { party_id party_id ... } ... }
-            set assignment [list]
-            foreach { child_role_short_name spec } $action(child_role_map) {
-                lappend assignment $child_role_short_name
-
-                # Allow simple list of short_name -> short_name
-                if { [llength $spec] == 1 } {
-                    set parent_role_short_name $spec
-                    set mapping_type "per_role"
-                } else {
-                    foreach { parent_role_short_name mapping_type } $spec {}
-                }
-                
-                if { [string equal $mapping_type "per_user"] } {
-                    # TODO: Handle per_user role mapping
-                    error "child_role_map mapping_type of per_user not implemented."
-                } else {
-                    set parent_role_id [workflow::role::get_id \
-                                            -workflow_id $action(workflow_id) \
-                                            -short_name $parent_role_short_name]
-                    set top_case_id [workflow::case::get_element \
-                                         -case_id $case_id \
-                                         -element top_case_id]
-                    lappend assignment [workflow::case::role::get_assignees \
-                                            -case_id $case_id \
-                                            -role_id $parent_role_id]
-                }
-            }
-
-            workflow::case::new \
-                -no_notification \
-                -workflow_id $action(child_workflow_id) \
-                -parent_enabled_action_id $enabled_action_id \
-                -user_id $user_id \
-                -top_case_id $top_case_id \
-                -assignment $assignment
-        } 
-        
-        # Automatic actions execute immediately
-        if { $action(timeout_seconds) == 0 } {
-            workflow::case::action::execute \
-                -no_perm_check \
-                -case_id $case_id \
-                -action_id $action_id \
-                -user_id $user_id
-        } 
-    }
-}
 
 ad_proc -public workflow::case::action::do_side_effects {
     {-case_id:required}
@@ -1854,6 +1731,8 @@ ad_proc -public workflow::case::action::notify {
 
     # List of user_id's for people who are in the assigned_role to any enabled actions
     # This takes deputies into account
+
+#XXXXX Verify this ... probably wrong
     set assignee_list [db_list enabled_action_assignees {}]
 
     # List of users who play some role in this case
@@ -1933,50 +1812,622 @@ $hr
 
 
 
+#######################################################################
+#
+# WORKFLOW ENGINE PROCS
+#
+#######################################################################
+
+# Below are all the procs that drive the workflow engine, 
+# the logic to change state and determine which actions
+# are availble given the current state.
+
 #####
 #
-# workflow::case::action::fsm
+# Causing changes to state
 #
 #####
 
-ad_proc -public workflow::case::action::fsm::new_state {
-    {-case_id:required}
-    {-action_id:required}
+ad_proc -public workflow::case::action::execute {
+    {-no_notification:boolean}
+    {-no_perm_check:boolean}
+    {-enabled_action_id {}}
+    {-case_id {}}
+    {-action_id {}}
+    {-parent_enabled_action_id {}}
+    {-comment ""}
+    {-comment_mime_type "text/plain"}
+    {-user_id}
+    {-initial:boolean}
+    {-entry_id {}}
 } {
-    Get the ID of the new state which the workflow will be in after a certain action.
+    Execute the action. Either provide (case_id, action_id, parent_enabled_action_id), or simply enabled_action_id.
 
-    @param case_id     The ID of the case.
-    @param action_id     The ID of the action
-    @return The state_id of the new state which the workflow will be in after this action
+    @param enabled_action_id  The ID of the enabled action to execute. Alternatively, you can specify the case_id/action_id pair.
+
+    @param case_id            The ID of the case.
+
+    @param action_id          The ID of the action
+
+    @param comment            Comment for the case activity log
+
+    @param comment_mime_type  MIME Type of the comment, according to 
+                              OpenACS standard text formatting
+
+    @param user_id            The user who's executing the action
+
+    @param initial            Use this switch to signal that this is the initial action. This causes 
+                              permissions/enabled checks to be bypasssed, and causes all roles to get assigned.
+
+    @param entry_id           Optional item_id for double-click protection. If you call workflow::case::fsm::get
+                              with a non-empty action_id, it will generate a new entry_id for you, which you can pass in here.
+
+    @param no_perm_check      Set this switch if you do not want any permissions chcecking, e.g. for automatic actions.
+
+    @return entry_id of the new log entry (will be a cr_item).
 
     @author Lars Pind (lars@collaboraid.biz)
 } {
-    set new_state_id [workflow::action::fsm::get_new_state -action_id $action_id]
-    if { [empty_string_p $new_state_id] } {
-        set new_state_id [workflow::case::fsm::get_current_state -case_id $case_id]
+    if { ![exists_and_not_null user_id] } {
+        set user_id [ad_conn user_id]
     }
-    return $new_state_id
+
+    if { [empty_string_p $case_id] || [empty_string_p $action_id] } {
+        if { [empty_string_p $enabled_action_id] } {
+            error "You must supply either case_id and action_id, or enabled_action_id"
+        }
+    }
+    if { [empty_string_p $enabled_action_id] } {
+        if { $initial_p } {
+            set enabled_action_id {}
+        } else {
+            # This will not work with dynamic actions
+            # This is provided for backwards-compatibility, so we hope there's no dynamicism
+            # TODO: Figure out a better solution to this problem
+            set enabled_action_id [workflow::case::action::get_enabled_action_id \
+                                       -any_parent \
+                                       -case_id $case_id \
+                                       -action_id $action_id]
+            if { [empty_string_p $enabled_action_id] } {
+                error "This action is not enabled at this time."
+            }
+        }
+    }
+    if { ![empty_string_p $enabled_action_id] } {
+        workflow::case::enabled_action_get -enabled_action_id $enabled_action_id -array enabled_action
+        set case_id $enabled_action(case_id)
+        set action_id $enabled_action(action_id)
+        set parent_enabled_action_id $enabled_action(parent_enabled_action_id)
+        set parent_trigger_type $enabled_action(parent_trigger_type)
+    } else {
+        set parent_trigger_type "workflow"
+    }
+
+    if { !$initial_p && !$no_perm_check_p } {
+        if { ![workflow::case::action::permission_p -enabled_action_id $enabled_action_id -user_id $user_id] } {
+            error "This user ($user_id) is not allowed to perform this action ($action_id) at this time."
+        }
+    }
+
+    if { [empty_string_p $comment] } {
+        # single-space comment
+        set comment { }
+    }
+
+    # We can't have empty comment_mime_type, default to text/plain
+    if { [empty_string_p $comment_mime_type] } {
+        set comment_mime_type "text/plain"
+    }
+
+    db_transaction {
+
+        # Double-click protection
+        if { ![empty_string_p $entry_id] } {
+            if {  [db_string log_entry_exists_p {}] } {
+                return $entry_id
+            }
+        }
+        
+        # Update the case workflow state
+        workflow::case::action::fsm::execute_state_change \
+            -initial=$initial_p \
+            -enabled_action_id $enabled_action_id \
+            -case_id $case_id \
+            -action_id $action_id \
+            -parent_enabled_action_id $parent_enabled_action_id
+
+        # Mark the action completed
+        if { ![empty_string_p $enabled_action_id] } {
+            workflow::case::action::complete \
+                -enabled_action_id $enabled_action_id \
+                -user_id $user_id
+        }
+
+        # Insert activity log entry
+        set extra_vars [ns_set create]
+        oacs_util::vars_to_ns_set \
+                -ns_set $extra_vars \
+                -var_list { entry_id case_id action_id comment comment_mime_type }
+        
+        set entry_id [package_instantiate_object \
+                -creation_user $user_id \
+                -extra_vars $extra_vars \
+                -package_name "workflow_case_log_entry" \
+                "workflow_case_log_entry"]
+
+        # Fire side-effects
+        workflow::case::action::do_side_effects \
+                -case_id $case_id \
+                -action_id $action_id \
+                -entry_id $entry_id
+        
+        # Notifications
+        if { !$no_notification_p } {
+            workflow::case::action::notify \
+                -case_id $case_id \
+                -action_id $action_id \
+                -entry_id $entry_id \
+                -comment $comment \
+                -comment_mime_type $comment_mime_type
+        }
+        
+        # Scan for enabled actions
+        if { [string equal $parent_trigger_type "workflow"] } {
+            workflow::case::state_changed_handler \
+                -case_id $case_id \
+                -parent_enabled_action_id $parent_enabled_action_id \
+                -user_id $user_id
+        }
+
+        # If there's a parent, alert the parent
+        if { ![empty_string_p $parent_enabled_action_id] } {
+            workflow::case::child_state_changed_handler \
+                -parent_enabled_action_id $parent_enabled_action_id \
+                -user_id $user_id
+        }
+    }
+    
+    workflow::case::flush_cache -case_id $case_id
+
+    return $entry_id
 }
 
 
-ad_proc -public workflow::case::action::fsm::execute_state_change {
-    {-case_id:required}
-    {-action_id:required}
-} {
-    Modify the state of the case as required when executing the given action.
 
-    @param case_id       The ID of the case.
-    @param action_id     The ID of the action
+
+
+
+#####
+#
+# Handling changes to state
+#
+####
+
+ad_proc -private workflow::case::state_changed_handler {
+    {-case_id:required}
+    {-parent_enabled_action_id {}}
+    {-user_id {}}
+} {
+    Scans for newly enabled actions, as well as actions which were 
+    enabled but are now no longer enabled. Does not flush the cache. 
+    Should only be called indirectly through the workflow API.
 
     @author Lars Pind (lars@collaboraid.biz)
 } {
-    # We wrap this in a transaction, which will be the same transaction as the parent one inside 
-    # workflow::case::action::execute
+    db_transaction {
+
+        #----------------------------------------------------------------------
+        # 1. Find the actually enabled actions, based on the current state(s) of the case
+        #----------------------------------------------------------------------
+
+        workflow::case::get_actual_state \
+            -case_id $case_id \
+            -parent_enabled_action_id $parent_enabled_action_id \
+            -array assigned_p
+
+        # assigned_p($action_id): 1 = assigned, 0 = enabled, nonexistent = not available ...
+
+        #----------------------------------------------------------------------
+        # 2. Output data structure
+        #----------------------------------------------------------------------
+
+        # Array with a key entry per action to enable
+        array set enable_action_ids [array get assigned_p]
+        
+        # List of enabled_action_id's of actions that are no longer enabled
+        set unenable_enabled_action_ids [list]
+
+        #----------------------------------------------------------------------
+        # 2. Get the rows in workflow_case_enabled_actions
+        #----------------------------------------------------------------------
+        if { [empty_string_p $parent_enabled_action_id] } {
+            set db_rows [db_list_of_lists select_previously_enabled_actions_null_parent {}]
+        } else {
+            set db_rows [db_list_of_lists select_previously_enabled_actions {}]
+        }
+
+        foreach elm $db_rows {
+            foreach { action_id enabled_action_id } $elm {}
+            
+            if { [info exists assigned_p($action_id)] } {
+                # This action is enabled, and should be enabled => ignore
+                unset enable_action_ids($action_id)
+            } else {
+                # This action is enabled, and shouldn't be, kill it
+                lappend unenable_enabled_action_ids $enabled_action_id
+            }
+        }
+        
+        #----------------------------------------------------------------------
+        # 3. Unenable the no-longer-enabled actions
+        #----------------------------------------------------------------------
+        foreach enabled_action_id $unenable_enabled_action_ids {
+            workflow::case::action::unenable \
+                -enabled_action_id $enabled_action_id
+        }
+
+        #----------------------------------------------------------------------
+        # 4. Enabled the newly enabled actions
+        #----------------------------------------------------------------------
+
+        foreach action_id [array names enable_action_ids] {
+            workflow::case::action::enable \
+                -case_id $case_id \
+                -action_id $action_id \
+                -parent_enabled_action_id $parent_enabled_action_id \
+                -user_id $user_id \
+                -assigned=[exists_and_equal assigned_p($action_id) 1]
+        }
+
+        #----------------------------------------------------------------------
+        # 6. Flush cache, assign roles
+        #----------------------------------------------------------------------
+        workflow::case::flush_cache -case_id $case_id
+        workflow::case::assign_roles -all -case_id $case_id
+    }
+}
+
+ad_proc -private workflow::case::child_state_changed_handler {
+    -parent_enabled_action_id:required
+    {-user_id {}}
+} {
+    Check if all child actions of this action are complete, and if so
+    cause this action to execute
+} {
+    db_transaction {
+
+        set num_incomplete [db_string select_num_incomplete {
+            select count(*)
+            from   workflow_case_enabled_actions
+            where  parent_enabled_action_id = :parent_enabled_action_id
+            and    completed_p = 'f'
+        }]
+
+        if { $num_incomplete > 0 } {
+            # Still incomplete actions, do nothing
+            return
+        }
+
+        #----------------------------------------------------------------------
+        # All child actions are complete, execute the action
+        #----------------------------------------------------------------------
+
+        workflow::case::action::execute \
+            -no_notification \
+            -no_perm_check \
+            -enabled_action_id $parent_enabled_action_id \
+            -user_id $user_id
+    }
+}
+
+
+#####
+#
+# Enable/Unenable/Complete individual actions
+#
+#####
+
+ad_proc -private workflow::case::action::unenable {
+    {-enabled_action_id:required}
+} {
+    Update the workflow_case_enabled_actions table to say that the 
+    previously enabled actions are no longer enabled.
+    Does not flush the cache. 
+    Should only be called indirectly through the workflow API.
+
+    @author Lars Pind (lars@collaboraid.biz)
+} {
+    set action_id [workflow::case::enabled_action_get_element -enabled_action_id $enabled_action_id -element action_id]
+
+    db_dml delete_enabled_action {
+        delete 
+        from   workflow_case_enabled_actions
+        where  enabled_action_id = :enabled_action_id
+    }
+}
+
+ad_proc -private workflow::case::action::enable {
+    {-case_id:required}
+    {-action_id:required}
+    {-parent_enabled_action_id {}}
+    {-user_id {}}
+    {-assigned:boolean}
+    {-assignees {}}
+} {
+    Update the workflow_case_enabled_actions table to say that the 
+    action is now enabled. Will automatically fire an automatic action.
+    Does not flush the cache. 
+    Should only be called indirectly through the workflow API.
+
+    @author Lars Pind (lars@collaboraid.biz)
+} {
+    workflow::action::get -action_id $action_id -array action
+    set workflow_id $action(workflow_id)
 
     db_transaction {
-        set new_state_id [workflow::action::fsm::get_new_state -action_id $action_id]
+        set enabled_action_id [db_nextval "workflow_case_enbl_act_seq"]
+
+        if { ![string equal $action(trigger_type) "user"] } {
+            # Action can only be assigned if it has trigger_type user
+            # But its children can be assigned, so we keep the original assigned_p variable
+            set db_assigned_p f
+        } else {
+            set db_assigned_p [db_boolean $assigned_p]
+        }
+        
+        # Insert the enabled action row
+        db_dml insert_enabled {}
+
+        # Insert assignees
+        if { [exists_and_not_null assignees] } {
+            foreach party_id $assignees {
+                db_dml insert_assignee {
+                    insert into workflow_case_action_assignees (enabled_action_id, party_id)
+                    values (:enabled_action_id, :party_id)
+                }
+            }
+        }
+
+
+        switch $action(trigger_type) {
+            "workflow" {
+                # Find and execute child init action
+                set child_init_id [db_string child_init { 
+                    select action_id
+                    from   workflow_actions 
+                    where  parent_action_id = :action_id
+                    and    trigger_type = 'init'
+                }]
+                
+                workflow::case::action::execute \
+                    -no_notification \
+                    -initial \
+                    -case_id $case_id \
+                    -action_id $child_init_id \
+                    -parent_enabled_action_id $enabled_action_id \
+                    -user_id $user_id
+            }
+            "parallel" {
+                # Find and enable child actions
+                # TODO: Move this to action::get
+                set child_actions [db_list child_actions { 
+                    select action_id
+                    from   workflow_actions
+                    where  parent_action_id = :action_id
+                }]
+                foreach child_action_id $child_actions {
+                    workflow::case::action::enable \
+                        -case_id $case_id \
+                        -action_id $child_action_id \
+                        -parent_enabled_action_id $enabled_action_id \
+                        -user_id $user_id \
+                        -assigned=$assigned_p
+                }
+            }
+            "dynamic" {
+                # HACK: just pick each user from the assigned role ...
+                # TODO: Move this to action::get
+                set child_actions [db_list child_actions { 
+                    select action_id
+                    from   workflow_actions
+                    where  parent_action_id = :action_id
+                }]
+                
+                foreach child_action_id $child_actions {
+
+                    set child_role_id [workflow::action::get_element \
+                                        -action_id $child_action_id \
+                                        -element assigned_role_id]
+
+                    set parties [workflow::case::role::get_assignees \
+                                     -case_id $case_id \
+                                     -role_id $child_role_id]
+
+
+                    foreach elm $parties {
+                        array unset party 
+                        array set party $elm
+
+                        workflow::case::action::enable \
+                            -case_id $case_id \
+                            -action_id $child_action_id \
+                            -parent_enabled_action_id $enabled_action_id \
+                            -user_id $user_id \
+                            -assigned=$assigned_p \
+                            -assignees $party(party_id)
+                    }
+                }
+            }
+            "auto" {
+                workflow::case::action::execute \
+                    -no_perm_check \
+                    -enabled_action_id $enabled_action_id \
+                    -user_id $user_id
+            }
+        }
+    }
+}
+
+ad_proc -private workflow::case::action::complete {
+    {-enabled_action_id:required}
+    {-user_id {}}
+} {
+    Mark an action complete.
+
+    @author Lars Pind (lars@collaboraid.biz)
+} {
+    db_transaction {
+        workflow::case::enabled_action_get -enabled_action_id $enabled_action_id -array enabled_action
+        workflow::action::get -action_id $enabled_action(action_id) -array action
+        
+        if { [lsearch -exact { parallel dynamic } $enabled_action(parent_trigger_type)] != -1 } {
+            db_dml completed_p {
+                update workflow_case_enabled_actions
+                set    completed_p = 't'
+                where  enabled_action_id = :enabled_action_id
+            }
+
+            # Delete children
+            db_dml delete_enabled_actions {
+                delete
+                from   workflow_case_enabled_actions
+                where  parent_enabled_action_id = :enabled_action_id
+            }
+        } else {
+            # Delete the workflow_case_enabled_actions row
+            # Will cascade delete the corresponding state information
+            set case_id $enabled_action(case_id)
+            db_dml delete_enabled_actions {
+                delete
+                from   workflow_case_enabled_actions
+                where  enabled_action_id = :enabled_action_id
+            }
+        }
+    }
+}
+
+
+
+
+
+
+#####
+#
+# Helper
+#
+#####
+
+ad_proc -private workflow::case::get_actual_state {
+    {-case_id:required}
+    {-parent_enabled_action_id {}}
+    {-array:required}
+} {
+    Flushes cache, gets actual state of case, and finds which actions
+    should be enabled/assigned based on that actual state. This can
+    then be used to manage the contents of
+    workflow_case_enabled_actions table.
+} {
+    # TODO B: Make polymorphic -- this should go into a ::fsm:: namespace
+    upvar 1 $array assigned_p
+    
+    workflow::case::flush_cache -case_id $case_id
+    
+    set state_id [workflow::case::fsm::get_state_info \
+                      -case_id $case_id \
+                      -parent_enabled_action_id $parent_enabled_action_id] 
+    
+    workflow::state::fsm::get -state_id $state_id -array state
+    
+    foreach action_id $state(enabled_action_ids) {
+        set assigned_p($action_id) 0
+    }
+    
+    foreach action_id $state(assigned_action_ids) {
+        set assigned_p($action_id) 1
+    }
+}
+
+ad_proc -private workflow::case::action::fsm::execute_state_change {
+    {-initial:boolean}
+    {-case_id {}}
+    {-action_id {}}
+    {-enabled_action_id {}}
+    {-parent_enabled_action_id {}}
+} {
+    Modify the state of the case as required when executing the given action.
+
+    @param case_id            The ID of the case.
+
+    @param action_id          The ID of the action
+
+    @param enabled_action_id  The ID of the action
+
+    @param initial            Set this if this is an initial action.
+
+    @param parent_enabled_action_id
+                              Specify this, if this is an initial action.
+
+    @author Lars Pind (lars@collaboraid.biz)
+} {
+
+    db_transaction {
+
+        if { [empty_string_p $case_id] || [empty_string_p $action_id] } {
+            if { [empty_string_p $enabled_action_id] } {
+                error "You must supply either case_id and action_id, or enabled_action_id"
+            }
+        } 
+
+        if { [empty_string_p $enabled_action_id] } {
+            if { $initial_p } {
+                set enabled_action_p {}
+                # We rely on parent_enabled_action_id being set by the caller here
+            } else {
+                # This will not work with dynamic actions, but is necessary for inital actions
+                set enabled_action_id [workflow::case::action::get_enabled_action_id \
+                                           -case_id $case_id \
+                                           -action_id $action_id \
+                                           -parent_enabled_action_id $parent_enabled_action_id]
+            }
+        }
+
+        if { ![empty_string_p $enabled_action_id] } {
+            workflow::case::enabled_action_get -enabled_action_id $enabled_action_id -array enabled_action
+            # Even if these are provided, we overide them with the DB call
+            set case_id $enabled_action(case_id)
+            set action_id $enabled_action(action_id)
+            set parent_enabled_action_id $enabled_action(parent_enabled_action_id)
+        }
+
+        # Find the new state from the action
+        workflow::action::get -action_id $action_id -array action
+        set new_state_id $action(new_state_id)
+
+        # Actually change the state, if any state change
         if { ![empty_string_p $new_state_id] } {
-            db_dml update_fsm_state {}
+            # Delete any existing state with this parent_enabled_action_id
+
+            if { [empty_string_p $parent_enabled_action_id] } {
+                db_dml delete_fsm_state {
+                    delete 
+                    from   workflow_case_fsm
+                    where  case_id = :case_id
+                    and    parent_enabled_action_id is null
+                }
+            } else {
+                db_dml delete_fsm_state {
+                    delete 
+                    from   workflow_case_fsm
+                    where  case_id = :case_id
+                    and    parent_enabled_action_id = :parent_enabled_action_id
+                }
+            }
+
+            # Insert the new one
+            db_dml insert_fsm_state {
+                insert into workflow_case_fsm (case_id, parent_enabled_action_id, current_state)
+                values (:case_id, :parent_enabled_action_id, :new_state_id)
+            }
         }
     }
 }

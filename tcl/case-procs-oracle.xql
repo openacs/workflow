@@ -23,13 +23,49 @@
     </querytext>
   </fullquery>
 
+  <fullquery name="workflow::case::fsm::get_info_not_cached.select_case_info_null_parent_id">
+    <querytext>
+
+        TODO: Oracle
+            select c.case_id,
+                   c.workflow_id,
+                   c.object_id,
+                   s.state_id,
+                   s.short_name as state_short_name,
+                   s.pretty_name as pretty_state,
+                   s.hide_fields as state_hide_fields
+            from   workflow_cases c,
+                   workflow_case_fsm cfsm left outer join
+                   workflow_fsm_states s on (s.state_id = cfsm.current_state) 
+            where  c.case_id = :case_id
+            and    cfsm.case_id = c.case_id
+            and    cfsm.parent_action_id is null
+    </querytext>
+  </fullquery>
+
   <fullquery name="workflow::case::timed_actions_sweeper.select_timed_out_actions">
     <querytext>
-        select case_id, 
-               action_id
+        select enabled_action_id
         from   workflow_case_enabled_actions
         where  execution_time <= sysdate
-        and   enabled_state = 'enabled'
+        and    completed_p = 'f'
+    </querytext>
+  </fullquery>
+
+  <fullquery name="workflow::case::fsm::get_state_info_not_cached.select_state_info">
+    <querytext>
+
+        TODO: PORT to Oracle
+
+      select cfsm.parent_action_id,
+             a.short_name as parent_action,
+             cfsm.current_state as current_state_id,
+             s.short_name as current_state
+      from   workflow_case_fsm cfsm left outer join
+             workflow_actions a on (a.action_id = cfsm.parent_action_id),
+             workflow_states s,
+      where  cfsm.case_id = :case_id
+      and    s.state_id = cfsm.current_state
     </querytext>
   </fullquery>
 
@@ -107,10 +143,7 @@
              workflow_actions a
       where  c.case_id = :case_id
       and    a.workflow_id = c.workflow_id
-      and    not exists (select 1 
-                         from   workflow_initial_action wia
-                         where  wia.workflow_id = c.workflow_id
-                         and    wia.action_id = a.action_id)
+      and    a.trigger_type != 'init'
       and    (a.always_enabled_p = 't' 
              or exists (select 1 
                         from   workflow_case_fsm cfsm,
@@ -150,10 +183,33 @@
   <fullquery name="workflow::case::action::enable.insert_enabled">
     <querytext>
         insert into workflow_case_enabled_actions
-        (enabled_action_id, case_id, action_id, enabled_state, execution_time)
-        select :enabled_action_id, :case_id, a.action_id, 'enabled', sysdate + a.timeout_seconds/(24*60*60)
+              (enabled_action_id, 
+               case_id, 
+               action_id, 
+               parent_enabled_action_id, 
+               assigned_p, 
+               execution_time)
+        select :enabled_action_id, 
+               :case_id, 
+               :action_id, 
+               :parent_enabled_action_id, 
+               :db_assigned_p, 
+               sysdate + a.timeout_seconds/(24*60*60)
         from   workflow_actions a
         where  a.action_id = :action_id
+    </querytext>
+  </fullquery>
+
+  <fullquery name="workflow::case::action::enabled_p.select_enabled_p">
+    <querytext>
+        TODO PORT
+
+      select 1
+      from   workflow_case_enabled_actions ean
+      where  ean.action_id = :action_id
+      and    ean.case_id = :case_id
+      and    completed_p = 'f'
+      limit 1
     </querytext>
   </fullquery>
 

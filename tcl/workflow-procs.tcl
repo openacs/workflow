@@ -71,22 +71,25 @@ ad_proc -public workflow::edit {
     {-workflow_id {}}
     {-array {}}
     {-internal:boolean}
+    {-no_complain:boolean}
 } {
     Edit a workflow.
 
     Attributes of the array are: 
 
-    short_name
-    pretty_name
-    object_id
-    package_key
-    object_type
-    description
-    description_mime_type
-    callbacks
-    context_id
-    creation_user
-    creation_ip
+    <ul>
+      <li>short_name
+      <li>pretty_name
+      <li>object_id
+      <li>package_key
+      <li>object_type
+      <li>description
+      <li>description_mime_type
+      <li>callbacks
+      <li>context_id
+      <li>creation_user
+      <li>creation_ip
+    </ul>
 
     @param operation    insert, update, delete
 
@@ -94,6 +97,12 @@ ad_proc -public workflow::edit {
 
     @param array        For insert/update: Name of an array in the caller's namespace with attributes to insert/update.
 
+    @param internal     Set this flag if you're calling this proc from within the corresponding proc 
+                        for a particular workflow model. Will cause this proc to not flush the cache 
+                        or call workflow::definition_changed_handler, which the caller must then do.
+
+    @param no_complain  Silently ignore extra attributes that we don't know how to handle. 
+                        
     @return             workflow_id
     
     @see workflow::new
@@ -312,7 +321,7 @@ ad_proc -public workflow::edit {
                 }
 
                 # Check that there are no unknown attributes
-                if { [llength [array names missing_elm]] > 0 } {
+                if { [llength [array names missing_elm]] > 0 && !$no_complain_p } {
                     error "Trying to set illegal workflow attributes: [join [array names missing_elm] ", "]"
                 }
             }
@@ -387,7 +396,7 @@ ad_proc -public workflow::get {
     @param workflow_id ID of workflow
     @param array name of array in which the info will be returned
     @return An array list with keys workflow_id, short_name,
-            pretty_name, object_id, package_key, object_type, initial_action,
+            pretty_name, object_id, package_key, object_type, 
             and callbacks.
 
 } {
@@ -781,12 +790,22 @@ ad_proc -private workflow::parse_spec {
     
     # Pull out the extra types, roles/actions/states, so we don't try to create the workflow with them
     array set aux [list]
+    array set counter [list]
+    array set remain [list]
     foreach { key namespace } $handlers {
         if { [info exists workflow($key)] } {
             set aux($key) $workflow($key)
+            if { [info exists count($key)] } {
+                incr remain($key)
+            } else {
+                set remain($key) 1
+            }
+            set counter($key) 0
             unset workflow($key)
         }
     }
+
+    array set sub_id [list]
 
     db_transaction {
         # Create the workflow
@@ -799,6 +818,8 @@ ad_proc -private workflow::parse_spec {
         foreach { type namespace } $handlers {
             # type is 'roles', 'actions', 'states', etc.
             if { [info exists aux($type)] } {
+                incr remain($type) -1
+                incr counter($type)
                 foreach { subshort_name subspec } $aux($type) {
                     # subshort_name is the short_name of a single role/action/state
                     array unset row
@@ -810,11 +831,21 @@ ad_proc -private workflow::parse_spec {
                         set row($key) [string trim $row($key)]
                     }
     
-                    ${namespace}::edit \
-                        -internal \
-                        -operation "insert" \
-                        -workflow_id $workflow_id \
-                        -array row
+                    set cmd [list ${namespace}::edit \
+                                 -internal \
+                                 -workflow_id $workflow_id \
+                                 -array row]
+
+                    if { $counter($type) == 1 } {
+                        lappend cmd -operation insert
+                    } else {
+                        lappend cmd -[string range $type 0 end-1]_id $sub_id(${type},${subshort_name})
+                    }
+                    if { $remain($type) == 0 } {
+                        lappend cmd -no_complain
+                    }
+
+                    set sub_id(${type},${subshort_name}) [eval $cmd]
 
                     # Flush the cache after all creates
                     workflow::flush_cache -workflow_id $workflow_id
@@ -1055,6 +1086,7 @@ ad_proc -public workflow::fsm::new_from_spec {
                 -workflow_handler "workflow::fsm" \
                 -handlers {
                     roles workflow::role 
+                    actions workflow::action
                     states workflow::state::fsm
                     actions workflow::action::fsm
                 }]
@@ -1100,8 +1132,8 @@ ad_proc -public workflow::fsm::generate_spec {
     {-workflow_handler "workflow"}
     {-handlers {
         roles workflow::role 
-        states workflow::state::fsm
         actions workflow::action::fsm
+        states workflow::state::fsm
     }}
     {-deep:boolean}
 } {

@@ -32,7 +32,24 @@
   </li>
 </ul>
 
-<h2>Hierarchical Workflows</h2>
+<ul>
+  <li><a href="#hierarchy">Hierarchical Workflows</a>
+  <li><a href="#hierarchy2">Hierarchical Workflows, Design 2</a>
+  <li><a href="#trigger-conditions">Trigger Conditions</a>
+  <li><a href="#case-state">Case State</a>
+  <li><a href="#conditional-transformation">Conditional Transformation For Atomic Actions</a>
+  <li><a href="#conditional-child">Conditional Transformation Based on Child Workflows</a>
+  <li><a href="#gated-actions">Gated Actions</a>
+  <li><a href="#enable-callback">Enable Condition Callback</a>
+  <li><a href="#non-user-trigger">Non-User Triggered Actions</a>
+  <li><a href="#resolution-codes">Resolution Codes</a>
+  <li><a href="#assignment-notif">Assignment Notifications</a>
+  <li><a href="#assignment-reminder">Assignment Reminders</a>
+  <li><a href="#trying-to-sum-up">Trying to Sum Up</a>
+  <li><a href="#timers">Timers</a>
+</ul>
+
+<h2><a name="hierarchy">Hierarchical Workflows</a></h2>
 
 <h3>Requirements</h3>
 
@@ -53,6 +70,32 @@
     within a week, their vote is automatically 'Abstained'.
   </li>
 </ul>
+
+<h3>Questions we need answered by the design</h3>
+
+<ol>
+  <li>
+    Which actions are enabled?
+  </li>
+  <li>
+    How is the state changed after this action has executed?
+  </lI>
+  <li>
+    Which roles are assigned/allowed to perform an action?
+  </li>
+  <li>
+    Which roles do a user play?
+  </li>
+  <li>
+    What is the activity history on this case?
+  </li>
+  <li>
+    What is the name of this action?
+  </li>
+  <li>
+    How do we clone a workflow?
+  </li>
+</ol>
 
 <h3>Design</h3>
 
@@ -234,6 +277,7 @@ XXXXXXXXXXXXXX do we need this?
   determine the outcome, and we don't need the rest to vote anymore.
 </p>
 
+
 <p>
   When triggered, all child cases with a case_state of 'active' are
   put into the 'canceled' state. All child cases have their 'locked_p'
@@ -245,8 +289,533 @@ XXXXXXXXXXXXXX do we need this?
 
 
 
+<h2><a name="hierarchy2">Hierarchy, Design 2</a></h2>
 
-<h2>Trigger Conditions</h2>
+<pre>
+----------------------------------------------------------------------
+-- Knowledge level
+----------------------------------------------------------------------
+
+create table workflows(
+);
+
+create table workflow_roles(
+);
+
+create table workflow_actions(
+  action_id                 integer primary key
+  ...
+  parent_action_id          integer references workflow_actions,
+  assigned_role             integer references workflow_roles
+  trigger_type              char(40)
+                            constraint wf_case_enbl_act_trig_type_ck
+                            check (trigger_type in ('user','auto','message','workflow','parallel','dynamic')),
+  ...
+);
+
+create table workflow_fsm_states(
+  state_id                  integer primary key
+  ...
+  parent_action_id          integer references workflow_actions
+);
+
+
+----------------------------------------------------------------------
+-- Operational level
+----------------------------------------------------------------------
+
+create table workflow_case_fsm(
+  case_id
+  action_id
+  state_id
+);
+
+create table workflow_case_actions(
+  case_id                   integer references workflow_cases
+  action_id                 integer references workflow_actions
+  assigned_p                boolean
+  execution_time            timestamptz
+);
+</pre>
+
+<h3>Example I: Simple AskInfo/GiveInfo Pair</h3>
+
+<pre>
+roles                 role_id
+                     ---------            
+                      lawyer
+                      client
+
+actions               action_id    | parent_action_id | assigned_role | trigger_type | new_state  
+                     --------------+------------------+---------------+--------------+---------------
+                      init         |                  |               | init         | open
+                      ask client   |                  |               | workflow     | done       
+                        ac-init    | ask client       |               | init         | ac-asking
+                        ac-ask     | ask client       | lawyer        | user         | ac-responding
+                        ac-respond | ask client       | client        | user         | ac-done    
+                      abort        |                  | judge         | user         | done       
+
+states                state_id      | parent_action_id
+                     ---------------+------------------
+                      open          | 
+                      done          |
+                      ac-asking     | ask client
+                      ac-responding | ask client
+                      ac-done       | ask client
+
+state_action_map      state_id      | action_id
+                     ---------------+------------
+                      open          | ask client
+                      open          | abort
+                      ac-asking     | ac-ask
+                      ac-responding | ac-respond
+
+case_state            action_id  | state_id
+                     ------------+---------
+                                 | open
+                      ask client | ac-asking
+
+case_enabled_actions   ID | action_id  | parent_enabled_action_id | assigned_p
+                      ----+------------+--------------------------+------------
+                       #1 | ask client |                          | no                       
+                       #2 | ac-ask     | #1                       | yes
+                       #3 | abort      |                          | no
+</pre>
+
+<ol>
+  <li>
+    case::enabled_actions -case_id
+    <ol>
+      <li>Find the case state (open)
+      <li>Find the actions enabled in this state (ask client, abort)
+      <li>"abort" is final, put it on the list.
+      <li>"ask client" has a child; look in workflow_enabled_actions for the state
+      <li>
+        If there's no row in enabled actions for "ask client", execute
+        "ac-init", which will set case_enabled_actions.state_id to
+        ac-asking for case_id #1 and action_id "ask client".
+      </li>
+      <li>
+        Look in case_enabled_actions.state_id for case_id #1 and action_id "ask client" for the substate (ac-asking).
+      </li>
+      <li>
+        Find the enabled actions in the ac-asking state (ac-ask).
+      </li>
+      <li>
+        ac-ask is final, put it on the list
+      </li>
+    </ol>
+  </li>
+  <li>
+    case::action::execute -case_id -action_id 
+    <ol>
+      <li>The question is which state to change.
+      <li>Find the action's parent_action_id
+      <li>If null, then change cases.state_id
+      <li>Otherwise, change case_enabled_actions.state_id.
+    </ol>
+  </li>
+  <li>
+    Which roles are assigned/allowed to perform an action? Unchanged from current design.
+  </li>
+  <li>
+    Which roles do a user play? Unchanged from current design.
+  </li>
+  <li>
+    What is the activity history on this case? Unchanged from current design.
+  </li>
+  <li>
+    What is the name of this action? Unchanged from current design.
+  </li>
+  <li>
+    How do we clone a workflow?
+    <ol>
+      <li>We need to have a provision for actions to include other actions in the spec.
+    </ol>
+  </li>
+</ol>
+
+<h3>Notes</h3>
+
+<ul>
+  <li>
+    Keeping the sub-state in the workflow_case_enabled_actions table.
+  </li>
+  <li>
+    Kill the completed rows in workflow_case_enabled_actions, move
+    stuff into the case-log instead => that's going to be much, much
+    better for performance.
+  </li>
+</ul>
+
+
+<h3>Design 2, Parallel Actions</h3>
+
+<h3>Example II: Parallel</h3>
+
+<pre>
+roles                 role_id
+                     ---------            
+                      lawyer
+                      client
+
+actions               action_id      | parent_action_id | assigned_role | trigger_type | new_state  
+                     ----------------+------------------+---------------+--------------+---------------
+                      init           |                  |               | init         | open
+                      rev & op       |                  |               | parallel     | done
+                        review-wr    | rev & op         |               | workflow     | 
+                          rev-init   | review-wr        |               | init         | rev-open
+                          review     | review-wr        | lawyer        | user         | rev-done
+                        opinion-wr   | rev & op         |               | workflow     | 
+                          opi-init   | opinion-wr       |               | init         | opi-open
+                          opinion    | opinion-wr       | lawyer        | user         | opi-done
+
+states                state_id      | parent_action_id
+                     ---------------+------------------
+                      open          | 
+                      done          |
+                      rev-open      | review-wr
+                      rev-done      | review-wr
+                      opi-open      | opinion-wr
+                      opi-done      | opinion-wr
+
+state_action_map      state_id      | action_id
+                     ---------------+------------
+                      open          | rev & op
+                      rev-open      | review
+                      opi-open      | opinion
+
+case_state            action_id  | state_id
+                     ------------+---------
+                                 | open
+                      review-wr  | rev-open
+                      opinion-wr | opi-open
+
+case_enabled_actions   ID | action_id    | parent_enabled_action_id | assigned_p
+                      ----+--------------+--------------------------+-----------
+                       #1 | rev & op     |                          | no                       
+                       #2 |   review-wr  | #1                       | no
+                       #3 |     review   | #2                       | yes
+                       #4 |   opinion-wr | #1                       | no
+                       #5 |     opinion  | #4                       | yes
+</pre>
+
+<ol>
+  <li>
+    case::action::execute -case_id #1 -action_id "init"
+    <ol>
+      <li>set cases.state_id to init's new_state ("open")
+      <li>
+        call case::state_changed_handler -case_id #1
+        <ol>
+          <li>find enabled actions by looking in state_action_map under the current state (open) => (rev & op)
+          <li>foreach enabled action, see if it was already enabled. if so, skip to next action. (not already enabled)
+          <li>
+            if not, call case::action::enable -action_id (rev & op)
+            <ol>
+              <li>insert row into case_enabled_actions (rev & op)
+              <li>
+                foreach sub-action, call case::action::enable -action_id (review-wr, opinion-wr) 
+                <ol>
+                  <li>insert row into case_enabled_actions (review-mr)
+                  <li>foreach sub-action, call case::action::enable -action_id (review-wr, opinion-wr) 
+                </ol>
+                <ol>
+                  <li>insert row into case_enabled_actions (opinion-mr)
+                </ol>
+            </ol>
+          </li>          
+        </ol>
+      <li>
+    </ol>
+  </li>
+  <li>
+    
+  </li>
+</ol>
+
+<p>
+  Difference between parallel sub-actions and non-parallel
+  sub-actions: If they are parallel, we enable all of them and don't
+  maintain state there; if they're not, we look for an init-action,
+  and do maintain state.
+</p>
+
+<pre>
+actions               action_id      | parent_action_id | assigned_role | trigger_type | new_state  
+(workflow)           ----------------+------------------+---------------+--------------+---------------
+                      init           |                  |               | init         | open
+                      ask client     |                  |               | workflow     | done       
+                        ac-init      | ask client       |               | init         | ac-asking
+                        ac-ask       | ask client       | lawyer        | user         | ac-responding
+                        ac-respond   | ask client       | client        | user         | ac-done    
+                      abort          |                  | judge         | user         | done       
+
+actions               action_id      | parent_action_id | assigned_role | trigger_type | new_state  
+(parallel)           ----------------+------------------+---------------+--------------+---------------
+                      init           |                  |               | init         | open
+                      rev & op       |                  |               | parallel     | done
+                        review-wr    | rev & op         |               | workflow     | 
+                          rev-init   | review-wr        | lawyer        | init         | rev-open
+                          review     | review-wr        | lawyer        | user         | rev-done
+                        opinion-wr   | rev & op         |               | workflow     | 
+                          opi-init   | opinion-wr       | lawyer        | init         | opi-open
+                          opinion    | opinion-wr       | lawyer        | user         | opi-done
+</pre>
+
+<p>
+  An action with type 'workflow' will maintain state inside itself.
+</p>
+
+<p>
+  Can we do away with the extra layer of 'workflow' inside the
+  'parallel' track? How do we know that the child workflow has been
+  completed -- i guess we do, because we keep the state until its
+  parent is gone...
+</p>
+
+<pre>
+actions               action_id      | parent_action_id | assigned_role | trigger_type | new_state  
+(parallel-simple)    ----------------+------------------+---------------+--------------+---------------
+                      init           |                  |               | init         | open
+                      rev & op       |                  |               | parallel     | done
+                        review       | rev & op         | lawyer        | user         | 
+                        opinion      | rev & op         | lawyer        | user         | 
+
+
+states                state_id      | parent_action_id
+                     ---------------+------------------
+                      open          | 
+                      done          | 
+
+state_action_map      state_id      | action_id
+                     ---------------+------------
+                      open          | rev & op
+
+case_enabled_actions   ID | action_id    | parent_enabled_action_id | assigned_p | completed_p 
+                      ----+--------------+--------------------------+------------+-------------
+                       #1 | rev & op     |                          | no         | no
+                       #2 |   review     | #1                       | yes        | no
+                       #3 |   opinion    | #1                       | yes        | no
+
+</pre>
+
+<p>
+  Simple: We'd have to keep the row in case_enabled_actions around
+  with completed_p = yes until the parent action is also
+  complete. When an action is completed, it deletes the rows for all
+  its children. If the action does not have a parent action, we delete
+  the row (thus we don't keep completed_p rows around for top-level
+  actions).
+</p>
+
+<h3>Design 2, Action-Per-User (Or Dynamic Number of Parallel Actions With Different Assignees)</h3>
+
+<pre>
+actions               action_id      | parent_action_id | assigned_role | trigger_type | new_state  
+(dynamic-simple)     ----------------+------------------+---------------+--------------+---------------
+                      init           |                  |               | init         | open
+                      all-votes      |                  |               | dynamic      | done
+                        vote         | all-votes        | voters        | user         | 
+
+states                state_id      | parent_action_id
+                     ---------------+------------------
+                      open          | 
+                      done          | 
+
+state_action_map      state_id      | action_id
+                     ---------------+------------
+                      open          | all-votes
+
+case_enabled_actions   enabled_action_id | action_id    | parent_enabled_action_id | assigned_p | completed_p 
+                      -------------------+--------------+--------------------------+------------+-------------
+                       #A                | all-vote     |                          | no         | no   
+                       #B                |   vote       | #A                       | yes        | no
+                       #C                |   vote       | #A                       | yes        | no
+
+case_action_assignees  enabled_action_id | party_id 
+                      -------------------+----------
+                       #B                | malte
+                       #C                | peter
+</pre>
+
+<pre>
+actions               action_id      | parent_action_id | assigned_role | trigger_type | new_state  
+(dynamic-workflow)   ----------------+------------------+---------------+--------------+---------------
+                      init           |                  |               | init         | open
+                      all-votes      |                  |               | dynamic      | voted
+                        vote         | all-vote         |               | workflow     | 
+                          init       | vote             |               | init         | vote-voting
+                          approve    | vote             | voters        | user         | vote-approved
+                          reject     | vote             | voters        | user         | vote-rejected
+                      withdraw       |                  | submitter     | user         | withdrawn
+
+states                state_id      | parent_action_id
+                     ---------------+------------------
+                      open          | 
+                      vote-voting   | vote
+                      vote-approved | vote
+                      vote-rejected | vote
+
+state_action_map      state_id      | action_id
+                     ---------------+------------
+                      open          | all-votes
+                      vote-voting   | approve
+                      vote-voting   | reject
+
+case_state            enabled_action_id  | state_id
+                     --------------------+---------
+                                         | open
+                      #B                 | vote-voting
+                      #E                 | vote-voting
+
+case_enabled_actions  ID | action_id    | parent_enabled_action_id | assigned_p | completed_p | assigned_role
+                     ----+--------------+--------------------------+------------+-------------+---------------
+                      #A | all-votes    |                          | no         | no          | 
+                      #B |   vote       | #A                       | yes        | no          | 
+                      #C |     approve  | #B                       | yes        | no          | 
+                      #D |     reject   | #B                       | yes        | no          | 
+                      #E |   vote       | #A                       | yes        | no          | 
+                      #F |     approve  | #E                       | yes        | no          | 
+                      #G |     reject   | #E                       | yes        | no          | 
+                      #H | withdraw     |                          | yes        | no          | submitter
+
+
+case_action_assignees  enabled_action_id | party_id
+                      -------------------+------------
+                       #B                | malte
+                       #D                | malte
+                       #F                | peter
+                       #G                | peter
+</pre>
+
+<p>
+  When a dynamic action is enabled, we create new enabled_action rows
+  for each of the child actions/workflows needed
+<p>
+
+<h3>Views</h3>
+
+<ul>
+  <li>
+    Enabled? Action is enabled if:
+    <ol>
+      <li>
+        It has workflow_actions.always_enabled_p = true
+      </li>
+      <li>
+        There is a row in workflow_fsm_action_en_in_st for the current state and the given action.
+      </li>
+    </ol>
+  </li>
+  <li>
+    Assigned? It's assigned if: trigger_type = 'user', state-action map has 
+    assigned_p = true, it has an assigned_role.
+  </li>
+  <li>
+    What's the assigned role? (For dynamic actions, there may not be
+    an assigend role, if the assignees are in the
+    workflow_case_action_assignees table.) Pick the parties from the 
+    workflow_case_role_map.
+  </li>
+  <li>
+    Who are the assignees?
+    <ol>
+      <li>
+        Find the users:
+        <ol>
+          <li>
+            Find the parties:
+            <ol>
+              <li>
+                If there are rows in workflow_case_action_assignees for the
+                action, that's the parties.
+              </li>
+              <li>
+                Otherwise, the parties are in the workflow_case_role_map for
+                role workflow_actions.assigned_role.
+              </li>
+            </ol>
+          </li>
+          <li>
+            Use party_approved_member_map to find the users.
+          </li>
+        </ol>
+      </li>
+      <li>
+        Use the workflow_deputies table to find the actual users.
+      </li>
+    </ol>
+  </li>
+</ul>
+
+<h3>Engine Algorithms</h3>
+
+<pre>
+state_changed_handler
+--------------------
+- find all actually enabled actions
+  - chase the action-state-map for all current_states
+  - add children of enabled actions, where the child has always_enabled_p = true, 
+    or the parent has trigger_type = parallel or dynamic.
+- enable all new actions
+
+enable
+------
+- if trigger_type = workflow, find and execute child action with trigger_type = init.
+- if trigger_type = parallel, find subactions and ::enable them
+- if trigger_type = dynamic, we'll need code to determine which children to ::enable, and how to create them
+
+execute_state_change
+--------------------
+- if action.new_state not null
+  - if there's a state with the same parent_action_id as the action being executed, update that state with new_state
+  - otherwise insert row with new_state
+
+complete
+--------
+- if action.parent_action_id not null
+  - set workflow_case_enabled_actions.completed_p = true
+  - call child_state_changed_handler -action_id $parent_action_id
+- otherwise, delete row in workflow_case_enabled_actions
+  - delete all child rows
+
+child_state_changed_handler
+---------------------------
+- trigger_type = workflow/parallel/dynamic:
+  - if there are no actions with parent_action_id = :action_id, completed_p = false, 
+    then call ::action::execute on the parent action
+
+
+calculating the actual state-action map (which we can do later, if we want to)
+------------------------------------------------------------------------------
+- apply the state-action mapping table
+- add always-enabled actions with parent_id to the states in which their parent is enabled (or all, if no parent)
+- add actions with parent.trigger_type dynamic/parallel to states in which their parent is enabled
+</pre>
+
+
+<pre>
+always_enabled_p
+----------------
+- if parent_action_id is null, it means it's always enabled
+
+- if parent action is trigger_type workflow, it means it's enabled when its parent workflow is enabled.
+  -> ::enable it after starting the workflow, i.e. executing the initial action
+  -> will it stay enabled?
+  -> it will get disabled automatically by cascading delete when its parent is deleted
+
+- if parent action is trigger_type parallel, it has no meaning, all the parent's children will get enabled, anyway
+
+- if parent action is trigger_type dynamic, same shit, no semantics
+
+
+How about the state_changed_handler only deals with state change at a particular parent_enabled_action_id level?
+
+
+</pre>
+
+<h2><a name="trigger-conditions">Trigger Conditions</a></h2>
 
 <h3>Requirements</h3>
 
@@ -292,7 +861,7 @@ XXXXXXXXXXXXXXX <h4>Child Case State Changed Logic</h4>>
 
 
 
-<h2>Case State</h2>
+<h2><a name="case-state">Case State</a></h2>
 
 <h3>Requirements</h3>
 
@@ -371,7 +940,7 @@ create table workflow_cases(
 
 
 
-<h2>Conditional Transformation For Atomic Actions</h2>
+<h2><a name="conditional-transformation">Conditional Transformation For Atomic Actions</a></h2>
 
 <pre>
 create table workflow_action_fsm_output_map(
@@ -433,7 +1002,7 @@ create table workflow_action_fsm_output_map(
 
 
 
-<h2>Conditional Transformation Based on Child Workflows</h2>
+<h2><a name="conditional-child">Conditional Transformation Based on Child Workflows</a></h2>
 
 <pre>
 create table workflow_outcomes(
@@ -465,7 +1034,8 @@ create table workflow_fsm_states(
 </pre>
 
 
-<h2>Gated Actions</h2>
+<h2><a name="gated-actions">Gated Actions</a></h2>
+
 
 <h3>Requirements</h3>
 
@@ -514,7 +1084,7 @@ create table workflow_action_dependencies(
 
 
 
-<h2>Enable Condition Callback</h2>
+<h2><a name="enable-callback">Enable Condition Callback</a></h2>
 
 <p>
   <b>Action.CanEnableP -> (CanEnabledP)</b>: Gets called when an
@@ -540,7 +1110,7 @@ create table workflow_action_dependencies(
 </p>
 
 
-<h2>Non-User Triggered Actions</h2>
+<h2><a name="non-user-trigger">Non-User Triggered Actions</a></h2>
 
 <h3>Requirements</h3>
 
@@ -567,7 +1137,7 @@ create table workflow_actions(
 
 
 
-<h2>Resolution Codes</h2>
+<h2><a name="resolution-codes">Resolution Codes</a></h2>
 
 <h3>Requirements</h3>
 
@@ -642,7 +1212,7 @@ create table workflow_action_res_output_map(
 
 
 
-<h2>Assignment Notifications</h2>
+<h2><a name="assignment-notif">Assignment Notifications</a></h2>
 
 <h3>Requirements</h3>
 
@@ -668,8 +1238,7 @@ create table workflow_action_res_output_map(
 </p>
 
 
-
-<h2>Assignment Reminders</h2>
+<h2><a name="assignment-reminder">Assignment Reminders</a></h2>
 
 <h3>Requirements</h3>
 
@@ -690,8 +1259,7 @@ create table workflow_action_res_output_map(
 
 
 
-
-<h2>Trying to Sum Up</h2>
+<h2><a name="trying-to-sum-up">Trying to Sum Up</a></h2>
 
 <h4>Logic to Determine if Action is Enabled</h4>
 
@@ -891,18 +1459,10 @@ XXXXXXXXXXXXXXXXXXXXXXX
 
 
 
-<h2>NOTE: Cloning</h2>
-
-<p>
-  We need to update the new_from_spec and generate_spec procedures to
-  output and parse all the new properties from this spec which get
-  implemented.
-</p>
 
 
 
-
-<h2>Implemented: Timers</h2>
+<h2><a name="timers">Timers (Implemented)</a></h2>
 
 <h3>Requirements</h3>
 
