@@ -154,10 +154,6 @@ ad_proc -public workflow::edit {
                     set row(creation_ip) [db_null]
                 }
             }
-            # Default context_id
-            if { ![info exists row(context_id)] } {
-                set row(context_id) $row(object_id)
-            }
             # Default object_type
             if { ![info exists row(object_type)] } {
                 set row(object_type) "acs_object"
@@ -167,6 +163,10 @@ ad_proc -public workflow::edit {
                 if { ![info exists row($attr)] } {
                     error "$attr is required when creating a new workflow"
                 }
+            }
+            # Default context_id
+            if { ![info exists row(context_id)] } {
+                set row(context_id) $row(object_id)
             }
             # These are used when validating/generating short_name
             set workflow_array(package_key) $row(package_key)
@@ -557,6 +557,10 @@ ad_proc -public workflow::generate_spec {
     array unset row initial_action
     array unset row initial_action_id
 
+    if { ![exists_and_not_null row(description)] } {
+        array unset row description_mime_type
+    }
+
     set spec [list]
 
     # Output sorted, and with no empty elements
@@ -580,6 +584,191 @@ ad_proc -public workflow::generate_spec {
     }
 
     return [list $short_name $spec]
+}
+
+ad_proc -public workflow::clone {
+    {-workflow_id:required}
+    {-package_key {}}
+    {-object_id {}}
+    {-array {}}
+    {-workflow_handler workflow}
+} {
+    Clones an existing FSM workflow. The clone must belong to either a package key or an object id.
+
+    @param pretty_name   A human readable name for the workflow for use in the UI.
+
+    @param object_id     The id of an ACS Object indicating the scope the workflow. 
+                         Typically this will be the id of a package type or a package instance
+                         but it could also be some other type of ACS object within a package, for example
+                         the id of a bug in the Bug Tracker application.
+
+    @param package_key   A package to which this workflow belongs
+
+    @param array         The name of an array in the caller's namespace. Values in this array will 
+                         override workflow attributes of the workflow being cloned.
+
+    @author Lars Pind (lars@collaboraid.biz)
+    @see workflow::new
+} {
+    if { ![empty_string_p $array] } {
+        upvar 1 $array row
+        set array row
+    } 
+
+    set spec [${workflow_handler}::generate_spec \
+                  -workflow_id $workflow_id]
+
+    set workflow_id [${workflow_handler}::new_from_spec \
+                         -package_key $package_key \
+                         -object_id $object_id \
+                         -spec $spec \
+                         -array $array]
+
+    return $workflow_id
+}
+
+ad_proc -public workflow::new_from_spec {
+    {-package_key {}}
+    {-object_id {}}
+    {-spec:required}
+    {-array {}}
+    {-workflow_handler workflow}
+    {-handlers { 
+        roles workflow::role 
+        actions workflow::action
+    }}
+} {
+    Create a new workflow from spec. Workflows must belong to either a package key or an object id.
+
+    @param package_key   A package to which this workflow belongs
+
+    @param object_id     The id of an ACS Object indicating the scope the workflow. 
+                         Typically this will be the id of a package type or a package instance
+                         but it could also be some other type of ACS object within a package, for example
+                         the id of a bug in the Bug Tracker application.
+
+    @param spec          The workflow spec
+
+    @param array         The name of an array in the caller's namespace. Values in this array will 
+                         override workflow attributes of the workflow being cloned.
+
+    @return The ID of the workflow created
+
+    @author Lars Pind (lars@collaboraid.biz)
+    @see workflow::new
+} {
+    if { [llength $spec] != 2 } {
+        error "A workflow spec must have exactly two elements, short_name and an array-list with details."
+    }
+
+    set short_name [lindex $spec 0]
+    array set workflow_array [lindex $spec 1]
+
+    # Override workflow attributes from the array
+    if { ![empty_string_p $array] } {
+        upvar 1 $array row
+        foreach name [array names row] {
+            if { [string equal $name short_name] } {
+                set short_name $row($name)
+            } else {
+                set workflow_array($name) $row($name)
+            }
+        }
+    }
+
+    set workflow_id [workflow::parse_spec \
+                         -package_key $package_key \
+                         -object_id $object_id \
+                         -short_name $short_name \
+                         -spec [array get workflow_array] \
+                         -workflow_handler $workflow_handler \
+                         -handlers $handlers]
+
+    # The lookup proc might have cached that there is no workflow
+    # with the short name of the workflow we have now created so
+    # we need to flush
+    util_memoize_flush_regexp {^workflow::get_id_not_cached}    
+
+    return $workflow_id
+}
+
+ad_proc -private workflow::parse_spec {
+    {-short_name:required}
+    {-package_key {}}
+    {-object_id {}}
+    {-spec:required}
+    {-workflow_handler workflow}
+    {-handlers { 
+        roles workflow::role 
+        actions workflow::action
+    }}
+} {
+    Create workflow, roles, states, actions, etc., as appropriate
+
+    @param workflow_id The id of the workflow to delete.
+    @param spec The roles spec
+
+    @author Lars Pind (lars@collaboraid.biz)
+    @see workflow::new
+} {
+    # Default values
+    array set workflow { 
+        callbacks {}
+        object_type {acs_object}
+    }
+
+    foreach { key value } $spec { 
+        set workflow($key) [string trim $value]
+    }
+
+    # Override stuff in the spec with stuff provided as an argument here
+    foreach var { short_name package_key object_id } {
+        if { ![empty_string_p [set $var]] || ![exists_and_not_null workflow($var)] } {
+            set workflow($var) [set $var]
+        }
+    }
+    
+    # Pull out the extra types, roles/actions/states, so we don't try to create the workflow with them
+    array set aux [list]
+    foreach { key namespace } $handlers {
+        if { [info exists workflow($key)] } {
+            set aux($key) $workflow($key)
+            unset workflow($key)
+        }
+    }
+
+    db_transaction {
+        # Create the workflow
+        set workflow_id [${workflow_handler}::edit \
+                             -internal \
+                             -operation "insert" \
+                             -array workflow]
+    
+        # Create roles/actions/states
+        foreach { type namespace } $handlers {
+            # type is 'roles', 'actions', 'states', etc.
+            if { [info exists aux($type)] } {
+                foreach { subshort_name subspec } $aux($type) {
+                    # subshort_name is the short_name of a single role/action/state
+                    array unset row
+                    array set row $subspec
+                    set row(short_name) $subshort_name
+    
+#                    ns_log Notice "LARS: ${namespace}::edit -- short_name $row(short_name) -- [array get row] -- [db_list select_roles { select short_name from workflow_roles where workflow_id = :workflow_id }]"
+                    ${namespace}::edit \
+                        -internal \
+                        -operation "insert" \
+                        -workflow_id $workflow_id \
+                        -array row
+
+                    # Flush the cache after all creates
+                    workflow::flush_cache -workflow_id $workflow_id
+                }
+            }
+        }
+    }
+    
+    return $workflow_id
 }
 
 
@@ -799,39 +988,21 @@ ad_proc -public workflow::fsm::new_from_spec {
     @author Lars Pind (lars@collaboraid.biz)
     @see workflow::new
 } {
-    if { [llength $spec] != 2 } {
-        error "A workflow spec must have exactly two elements, short_name and an array-list with details."
-    }
-
-    set short_name [lindex $spec 0]
-    array set workflow_array [lindex $spec 1]
-
-    # Override workflow attributes
     if { ![empty_string_p $array] } {
         upvar 1 $array row
-        foreach name [array names row] {
-            if { [string equal $name short_name] } {
-                set short_name $row($name)
-            } else {
-                set workflow_array($name) $row($name)
-            }
-        }
-    }
-
-    db_transaction {
-        set workflow_id [workflow::fsm::parse_spec \
-                             -package_key $package_key \
-                             -object_id $object_id \
-                             -short_name $short_name \
-                             -spec [array get workflow_array]]
-    }
-
-    # The lookup proc might have cached that there is no workflow
-    # with the short name of the workflow we have now created so
-    # we need to flush
-    util_memoize_flush_regexp {^workflow::get_id_not_cached}    
-
-    return $workflow_id
+        set array row
+    } 
+    return [workflow::new_from_spec \
+                -package_key $package_key \
+                -object_id $object_id \
+                -spec $spec \
+                -array $array \
+                -workflow_handler "workflow::fsm" \
+                -handlers {
+                    roles workflow::role 
+                    states workflow::state::fsm
+                    actions workflow::action::fsm
+                }]
 }
 
 ad_proc -public workflow::fsm::clone {
@@ -841,8 +1012,6 @@ ad_proc -public workflow::fsm::clone {
     {-array {}}
 } {
     Clones an existing FSM workflow. The clone must belong to either a package key or an object id.
-
-    @param pretty_name   A human readable name for the workflow for use in the UI.
 
     @param object_id     The id of an ACS Object indicating the scope the workflow. 
                          Typically this will be the id of a package type or a package instance
@@ -861,12 +1030,12 @@ ad_proc -public workflow::fsm::clone {
         upvar 1 $array row
         set array row
     } 
-
-    set workflow_id [new_from_spec \
-                         -package_key $package_key \
-                         -object_id $object_id \
-                         -spec [generate_spec -workflow_id $workflow_id] \
-                         -array $array]
+    return [workflow::clone \
+                -workflow_id $workflow_id \
+                -package_key $package_key \
+                -object_id $object_id \
+                -array $array \
+                -workflow_handler workflow::fsm]
 
     return $workflow_id
 }
@@ -886,8 +1055,8 @@ ad_proc -public workflow::fsm::generate_spec {
                   -workflow_id $workflow_id \
                   -handlers {
                       roles workflow::role 
-                      actions workflow::action::fsm
                       states workflow::state::fsm
+                      actions workflow::action::fsm
                   }]
 
     return $spec
@@ -925,68 +1094,23 @@ ad_proc -public workflow::fsm::get_initial_state {
     return $initial_state
 }
 
-#####
-# Private procs
-#####
-
-ad_proc -private workflow::fsm::parse_spec {
-    {-short_name:required}
-    {-package_key {}}
-    {-object_id {}}
-    {-spec:required}
+ad_proc -public workflow::fsm::edit {
+    {-operation "update"}
+    {-workflow_id {}}
+    {-array {}}
+    {-internal:boolean}
 } {
-    Create workflow, roles, states, actions, etc., as appropriate
-
-    @param workflow_id The id of the workflow to delete.
-    @param spec The roles spec
-
-    @author Lars Pind (lars@collaboraid.biz)
-    @see workflow::new
-} {
-    # Default values
-    array set workflow { 
-        roles {} 
-        states {} 
-        actions {} 
-        callbacks {}
-        object_type {acs_object}
+    if { ![empty_string_p $array] } {
+        upvar 1 $array row
+        set array row
     }
 
-    foreach { key value } $spec { 
-        set workflow($key) [string trim $value]
-    }
-
-    # Override stuff in the spec with stuff provided as an argument here
-    foreach var { package_key object_id } {
-        if { ![empty_string_p [set $var]] } {
-            set workflow($var) [set $var]
-        }
-    }
-    
-    set workflow_id [workflow::new \
-                         -short_name $short_name \
-                         -pretty_name $workflow(pretty_name) \
-                         -package_key $workflow(package_key) \
-                         -object_id $object_id \
-                         -object_type $workflow(object_type) \
-                         -callbacks $workflow(callbacks)]
-    
-    workflow::role::parse_roles_spec \
-        -workflow_id $workflow_id \
-        -spec $workflow(roles)
-    
-    workflow::state::fsm::parse_states_spec \
-        -workflow_id $workflow_id \
-        -spec $workflow(states)
-    
-    workflow::action::fsm::parse_actions_spec \
-        -workflow_id $workflow_id \
-        -spec $workflow(actions)
-    
-    return $workflow_id
+    return [workflow::edit \
+                -operation $operation \
+                -workflow_id $workflow_id \
+                -array $array \
+                -internal=$internal_p]
 }
-
-
 
 
 

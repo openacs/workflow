@@ -116,7 +116,6 @@ ad_proc workflow::test::get_message_key_spec {} {
         pretty_name "#acs-subsite.About_You#"
         package_key "acs-automated-testing"
         object_type "acs_object"
-        description_mime_type "text/plain"
         roles {
             short_name {
                 pretty_name "#acs-subsite.Bad_Password#"
@@ -147,7 +146,6 @@ ad_proc workflow::test::workflow_get_array_style_spec {} {
         pretty_name "Bug Test"
         package_key "acs-automated-testing"
         object_type "acs_object"
-        description_mime_type "text/plain"
         roles {
             submitter {
                 pretty_name "Submitter"

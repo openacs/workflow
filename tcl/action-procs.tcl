@@ -1181,6 +1181,10 @@ ad_proc -private workflow::action::fsm::generate_spec {
     array unset row enabled_state_ids
     array unset row assigned_state_ids
 
+    if { ![exists_and_not_null row(description)] } {
+        array unset row description_mime_type
+    }
+
     # Get rid of a few defaults
     array set defaults { initial_action_p f always_enabled_p f }
 
