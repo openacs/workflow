@@ -10,7 +10,7 @@
 ---------------------------------
 -- Workflow level, Generic Model
 ---------------------------------
-create or replace package workflow_case
+create or replace package workflow_case_pkg
 as
   function get_pretty_state(
     workflow_short_name in varchar,
@@ -21,11 +21,11 @@ as
     delete_case_id in integer
   ) return integer;
 
-end workflow_case;
+end workflow_case_pkg;
 /
 show errors
 
-create or replace package body workflow_case
+create or replace package body workflow_case_pkg
 as 
   function get_pretty_state(
     workflow_short_name in varchar,
@@ -69,12 +69,12 @@ as
 
     -- All workflow data cascades from the case id
     delete from workflow_cases
-        where case_id = delete_case_id;
+        where object_id = delete_case_id;
 
     return 0;
   end delete;
 
-end workflow_case;
+end workflow_case_pkg;
 /
 show errors
 
@@ -114,7 +114,7 @@ as
              from workflow_cases
              where workflow_id = delete_workflow_id)
     loop
-        foo := workflow_case.delete(rec.case_id);
+        foo := workflow_case_pkg.delete(rec.case_id);
     end loop;
 
     acs_object.delete(delete_workflow_id);
