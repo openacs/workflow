@@ -1575,11 +1575,11 @@ ad_proc -private workflow::action::get_all_info_not_cached {
     db_foreach action_callbacks {} -column_array callback_row {
         set action_id $callback_row(action_id)
 
-        lappend actions_array_${action_id}(callbacks) \
+        lappend action_array_${action_id}(callbacks) \
                 "$callback_row(impl_owner_name).$callback_row(impl_name)"
-        lappend actions_array_${action_id}(callback_ids) $callback_row(impl_id)
+        lappend action_array_${action_id}(callback_ids) $callback_row(impl_id)
 
-        lappend actions_array_${action_id}(callbacks_array) \
+        lappend action_array_${action_id}(callbacks_array) \
             [list $callback_row(impl_id) [array get callback_row]]
     } 
 
