@@ -155,6 +155,7 @@ ad_proc -public workflow::action::edit {
       <li>privileges
       <li>allowed_roles
       <li>callbacks
+      <li>child_actions
     </ul>
 
     Deprecated but still supported:
@@ -239,7 +240,7 @@ ad_proc -public workflow::action::edit {
             # DB column is parent_action_id (takes action_id_id)
             if { [info exists row(parent_action)] } {
                 if { [info exists row(parent_action_id)] } {
-                    error "You cannot supply both parent_action (takes short_name) and parent_action_id (takes action_id)"
+                    error "You cannot supply both parent_action ($row(parent_action)) (takes short_name) and parent_action_id ($row(parent_action_id)) (takes action_id)"
                 }
                 if { ![empty_string_p $row(parent_action)] } {
                     set row(parent_action_id) [workflow::action::get_id \
@@ -425,6 +426,24 @@ ad_proc -public workflow::action::edit {
                             -name $callback_name
                     }
                     unset missing_elm(callbacks)
+                }
+
+                # Child actions
+                if { [info exists row(child_actions)] } {
+                    foreach existing_action_id [workflow::get_actions \
+                                                    -workflow_id $workflow_id \
+                                                    -parent_action_id $parent_action_id]  {
+                        workflow::action::delete -action_id $existing_action_id
+                    }
+
+                    foreach { short_name spec } $row(child_actions) {
+                        workflow::action::fsm::parse_spec \
+                            -parent_action_id $action_id \
+                            -workflow_id $workflow_id \
+                            -short_name $short_name \
+                            -spec $spec
+                    }
+                    unset missing_elm(child_actions)
                 }
 
                 # Check that there are no unknown attributes
@@ -873,8 +892,16 @@ ad_proc -public workflow::action::fsm::edit {
 } {
     Edit an action. 
 
-    Attributes: new_state_id, enabled_states, enabled_state_ids, enabled_actions, enabled_action_ids
+    Attributes: 
 
+    <ul>
+      <li>new_state_id
+      <li>enabled_states
+      <li>enabled_state_ids
+      <li>enabled_actions
+      <li>enabled_action_ids
+      <li>child_states
+    </ul>
 
     @param operation    insert, update, delete
 
@@ -1011,7 +1038,7 @@ ad_proc -public workflow::action::fsm::edit {
             # Handle auxillary rows
             array set aux [list]
             foreach attr { 
-                enabled_state_ids assigned_state_ids
+                enabled_state_ids assigned_state_ids child_states child_actions
             } {
                 if { [info exists row($attr)] } {
                     set aux($attr) $row($attr)
@@ -1090,6 +1117,42 @@ ad_proc -public workflow::action::fsm::edit {
                         db_dml insert_enabled_state {}
                     }
                     unset aux(assigned_state_ids)
+                }
+
+                # Child states
+                if { [info exists aux(child_states)] } {
+                    foreach existing_state_id [workflow::fsm::get_states \
+                                                    -workflow_id $workflow_id \
+                                                    -parent_action_id $action_id]  {
+                        workflow::state::fsm::delete -state_id $existing_state_id
+                    }
+                    
+                    foreach { short_name spec } $aux(child_states) {
+                        workflow::state::fsm::parse_spec \
+                            -parent_action_id $action_id \
+                            -workflow_id $workflow_id \
+                            -short_name $short_name \
+                            -spec $spec
+                    }
+                    unset aux(child_states)
+                }
+
+                # Child actions
+                if { [info exists aux(child_actions)] } {
+                    foreach existing_action_id [workflow::get_actions \
+                                                    -workflow_id $workflow_id \
+                                                    -parent_action_id $action_id]  {
+                        workflow::action::delete -action_id $existing_action_id
+                    }
+                    
+                    foreach { short_name spec } $aux(child_actions) {
+                        workflow::action::fsm::parse_spec \
+                            -parent_action_id $action_id \
+                            -workflow_id $workflow_id \
+                            -short_name $short_name \
+                            -spec $spec
+                    }
+                    unset aux(child_actions)
                 }
             }
         }
@@ -1241,6 +1304,7 @@ ad_proc -private workflow::action::fsm::parse_spec {
     {-workflow_id:required}
     {-short_name:required}
     {-spec:required}
+    {-parent_action_id {}}
 } {
     Parse the spec for an individual action definition.
 
@@ -1262,7 +1326,6 @@ ad_proc -private workflow::action::fsm::parse_spec {
         assigned_states {}
         new_state {} 
         trigger_type user
-        parent_action {}
         callbacks {}
     }
     
@@ -1271,32 +1334,13 @@ ad_proc -private workflow::action::fsm::parse_spec {
         set action($key) [string trim $value]
     }
     set action(short_name) $short_name
+    set action(parent_action_id) $parent_action_id
 
     # Create the action
     set action_id [workflow::action::fsm::edit \
                        -operation "insert" \
                        -workflow_id $workflow_id \
                        -array action]
-}
-
-ad_proc -private workflow::action::fsm::parse_actions_spec {
-    {-workflow_id:required}
-    {-spec:required}
-} {
-    Parse the spec for the block containing the definition of all
-    actions for the workflow.
-
-    @param workflow_id The id of the workflow to delete.
-    @param spec The actions spec
-
-    @author Lars Pind (lars@collaboraid.biz)
-} {
-    foreach { short_name subspec } $spec {
-        workflow::action::fsm::parse_spec \
-                -workflow_id $workflow_id \
-                -short_name $short_name \
-                -spec $subspec
-    }
 }
 
 ad_proc -private workflow::action::fsm::generate_spec {
@@ -1339,7 +1383,30 @@ ad_proc -private workflow::action::fsm::generate_spec {
     array unset row allowed_role_ids
     array unset row enabled_state_ids
     array unset row assigned_state_ids
+    array unset row parent_action
     array unset row parent_action_id
+    array unset row child_actions
+    array unset row child_states
+
+    foreach child_action_id $row(child_action_ids) {
+        set child_short_name [workflow::action::fsm::get_element \
+                                  -one_id $child_action_id \
+                                  -element short_name]
+        set child_spec [workflow::action::fsm::generate_spec -action_id $child_action_id]
+        
+        lappend row(child_actions) $child_short_name $child_spec
+    }
+    array unset row child_action_ids
+
+    foreach child_state_id $row(child_state_ids) {
+        set child_short_name [workflow::state::fsm::get_element \
+                                  -one_id $child_state_id \
+                                  -element short_name]
+        set child_spec [workflow::state::fsm::generate_spec -state_id $child_state_id]
+        
+        lappend row(child_states) $child_short_name $child_spec
+    }
+    array unset row child_state_ids
 
     if { ![exists_and_not_null row(description)] } {
         array unset row description_mime_type
@@ -1461,106 +1528,105 @@ ad_proc -private workflow::action::get_all_info_not_cached {
 } {
     # We avoid nested db queries in this proc to enhance performance
 
-    # Put scalar action data into the master array and use
-    # a list of action_id:s for sorting purposes
+    # This is where we will ultimately deliver the results
     array set action_data {}
+
+    # This will be a list of all action_id's
     set action_ids [list]
+
+    # Get basic action info
     db_foreach action_info {} -column_array action_row {
         # Cache the mapping action_id -> workflow_id
         util_memoize_seed \
                 [list workflow::action::get_workflow_id_not_cached -action_id $action_row(action_id)] \
                 $workflow_id
 
-        set action_row(trigger_type) [string trim $action_row(trigger_type)]
-        set action_data($action_row(action_id)) [array get action_row]
-        lappend action_ids $action_row(action_id)
+        set action_id $action_row(action_id)
+        array set action_array_${action_id} {
+            callbacks_array {}
+            callbacks {}
+            callback_ids {}
+            allowed_roles {}
+            allowed_role_ids {}
+            allowed_roles_array {}
+            privileges {}
+            assigned_states {}
+            assigned_state_ids {}
+            enabled_states {}
+            enabled_state_ids {}
+            child_states {}
+            child_state_ids {}
+        }
+        array set action_array_${action_id} [array get action_row]
+        if { ![empty_string_p $action_row(parent_action_id)] } {
+            lappend action_array_$action_row(parent_action_id)(child_action_ids) $action_id
+            lappend action_array_$action_row(parent_action_id)(child_actions) $action_row(short_name)
+        }
+        lappend action_ids $action_id
+    }
+    
+    foreach action_id $action_ids {
+        if { ![info exists action_array_${action_id}(child_action_ids)] } {
+            set action_array_${action_id}(child_action_ids) [list]
+            set action_array_${action_id}(child_actios) [list]
+        }
+    }
+    
+    # Get child states
+    foreach state_id [workflow::fsm::get_states -all -workflow_id $workflow_id] {
+        workflow::state::fsm::get -state_id $state_id -array state_array
+        if { ![empty_string_p $state_array(parent_action_id)] } {
+            lappend action_array_$state_array(parent_action_id)(child_state_ids) $state_id
+            lappend action_array_$state_array(parent_action_id)(child_states) $state_array(short_name)
+        }
     }
     
     # Build a separate array for all action callbacks of the workflow
-    array set callbacks_array {}
-    array set callbacks {}
-    array set callback_ids_array {}
-    set callback_ids [list]
-    set last_action_id ""
+
+    # Columns: impl_id, impl_name, impl_owner_name, contract_name, action_id
     db_foreach action_callbacks {} -column_array callback_row {
-        set callbacks_array($callback_row(action_id),$callback_row(impl_id)) [array get callback_row]
-        lappend callbacks($callback_row(action_id)) \
+        set action_id $callback_row(action_id)
+
+        lappend actions_array_${action_id}(callbacks) \
                 "$callback_row(impl_owner_name).$callback_row(impl_name)"
-        
-        if { ![string equal $last_action_id $callback_row(action_id)] } {
-            set callback_ids_array($last_action_id) $callback_ids
-            set callback_ids [list]
-        }
-        lappend callback_ids $callback_row(impl_id)
-        set last_action_id $callback_row(action_id)
+        lappend actions_array_${action_id}(callback_ids) $callback_row(impl_id)
+
+        lappend actions_array_${action_id}(callbacks_array) \
+            [list $callback_row(impl_id) [array get callback_row]]
     } 
-    # Peter had forgotten this at the end of the loop
-    set callback_ids_array($last_action_id) $callback_ids
 
     # Build an array for all allowed roles for all actions
-    array set allowed_roles_array {}
-    array set allowed_roles {}
-    array set allowed_role_ids {}
     db_foreach action_allowed_roles {} -column_array allowed_role_row {
-        set allowed_roles_array($allowed_role_row(action_id),$allowed_role_row(role_id)) [array get allowed_role_row]
-        lappend allowed_roles($allowed_role_row(action_id)) $allowed_role_row(short_name)
-        lappend allowed_role_ids($allowed_role_row(action_id)) $allowed_role_row(role_id)
+        set action_id $allowed_role_row(action_id)
+
+        lappend action_array_${action_id}(allowed_roles) $allowed_role_row(short_name)
+        lappend action_array_${action_id}(allowed_role_ids) $allowed_role_row(role_id)
+
+        # The 'allowed_roles_array' entry is an array-list, keyed by role_id, with the value being 
+        # an array-list of the information returned by this call
+        lappend action_array_${action_id}(allowed_roles_array) \
+            [list $allowed_role_row(role_id) [array get allowed_role_row]]
     }
 
     # Build an array  of privileges for all actions
-    array set privileges {}
     db_foreach select_privileges {} {
-        lappend privileges($action_id) $privilege
+        lappend action_array_${action_id}(privileges) $privilege
     }
 
     # Build arrays of enabled and assigned state short names for all actions
-    array set enabled_states {}
-    array set enabled_state_ids {}
-    array set assigned_states {}
-    array set assigned_state_ids {}
     db_foreach action_enabled_in_states {} {
         if { [string equal $assigned_p "t"] } {
-            lappend assigned_states($action_id) $short_name
-            lappend assigned_state_ids($action_id) $state_id
+            lappend action_array_${action_id}(assigned_states) $short_name
+            lappend action_array_${action_id}(assigned_state_ids) $state_id
         } else {
-            lappend enabled_states($action_id) $short_name
-            lappend enabled_state_ids($action_id) $state_id
+            lappend action_array_${action_id}(enabled_states) $short_name
+            lappend action_array_${action_id}(enabled_state_ids) $state_id
         }
     }
 
-    # For each action_id, add to the array of that action the contents of the
-    # sub arrays (callbacks, allowed_roles, allowed_role_ids, privileges)
+    # Move everything from the action_array_${action_id} arrays into the cacheo
     foreach action_id $action_ids {
-        array set one_action $action_data($action_id)
-        
-        foreach array_name { 
-            privileges enabled_states enabled_state_ids assigned_states assigned_state_ids callbacks allowed_roles allowed_role_ids
-        } {
-            if { [info exists ${array_name}($action_id)] } {
-                set one_action(${array_name}) [set ${array_name}($action_id)]
-            } else {
-                set one_action(${array_name}) {}
-            }
-        }
-
-        set id_len [expr [string length $action_id] + 1]
-        foreach array_name { callbacks_array allowed_roles_array } {
-            set one_action($array_name) [list]
-            foreach { key value } [array get $array_name "${action_id},*"] {
-                lappend one_action($array_name) [string range $key $id_len end] $value
-            }
-        }
-
-        if { [info exists callback_ids_array($action_id)] } {
-            set one_action(callback_ids) $callback_ids_array($action_id)
-        } else {
-            set one_action(callback_ids) [list]
-        }
-
-        set action_data($action_id) [array get one_action]
-
-        # Have to unset the array as otherwise array set will append to previous values
-        unset one_action
+        set action_data($action_id) [array get action_array_${action_id}]
     }
 
     set action_data(action_ids) $action_ids

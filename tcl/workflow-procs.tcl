@@ -592,7 +592,7 @@ ad_proc -public workflow::generate_spec {
     foreach { key namespace } $handlers {
         set subspec [list]
         
-        foreach sub_id [${namespace}::get_ids -all -workflow_id $workflow_id] {
+        foreach sub_id [${namespace}::get_ids -workflow_id $workflow_id] {
             set sub_short_name [${namespace}::get_element \
                                 -one_id $sub_id \
                                 -element short_name]

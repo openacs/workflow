@@ -453,26 +453,6 @@ ad_proc -private workflow::role::parse_spec {
             ]
 }
 
-ad_proc -private workflow::role::parse_roles_spec {
-    {-workflow_id:required}
-    {-spec:required}
-} {
-    Parse the spec for the block containing the definition of all
-    roles for the workflow.
-
-    @param workflow_id The id of the workflow to delete.
-    @param spec The roles spec
-
-    @author Lars Pind (lars@collaboraid.biz)
-} {
-    foreach { short_name spec } $spec {
-        workflow::role::parse_spec \
-                -workflow_id $workflow_id \
-                -short_name $short_name \
-                -spec $spec
-    }
-}
-
 ad_proc -private workflow::role::generate_spec {
     {-role_id {}}
     {-one_id {}}

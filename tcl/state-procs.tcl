@@ -565,6 +565,7 @@ ad_proc -private workflow::state::fsm::parse_spec {
     {-workflow_id:required}
     {-short_name:required}
     {-spec:required}
+    {-parent_action_id {}}
 } {
     Parse the spec for an individual state definition.
 
@@ -584,6 +585,7 @@ ad_proc -private workflow::state::fsm::parse_spec {
         set state($key) [string trim $value]
     }
     set state(short_name) $short_name
+    set state(parent_action_id) $parent_action_id
 
     # Create the state
     set state_id [workflow::state::fsm::edit \
@@ -591,26 +593,6 @@ ad_proc -private workflow::state::fsm::parse_spec {
                       -workflow_id $workflow_id \
                       -array state]
 
-}
-
-ad_proc -private workflow::state::fsm::parse_states_spec {
-    {-workflow_id:required}
-    {-spec:required}
-} {
-    Parse the spec for the block containing the definition of all
-    states for the workflow.
-
-    @param workflow_id The id of the workflow to delete.
-    @param spec The states spec
-
-    @author Lars Pind (lars@collaboraid.biz)
-} {
-    foreach { short_name spec } $spec {
-        workflow::state::fsm::parse_spec \
-                -workflow_id $workflow_id \
-                -short_name $short_name \
-                -spec $spec
-    }
 }
 
 ad_proc -private workflow::state::fsm::generate_spec {
@@ -645,6 +627,7 @@ ad_proc -private workflow::state::fsm::generate_spec {
     array unset row state_id
     array unset row workflow_id
     array unset row sort_order
+    array unset row parent_action
     array unset row parent_action_id
     array unset row enabled_actions
     array unset row enabled_action_ids
