@@ -1132,6 +1132,63 @@ ad_proc -public workflow::action::fsm::get_element {
     return $row($element)
 }
 
+ad_proc -public workflow::action::fsm::set_enabled_in_state {
+    -action_id:required
+    -state_id:required
+    -enabled:boolean
+    -assigned:boolean
+    {-workflow_id {}}
+} {
+    Edit the enabled state of an action
+
+    @param workflow_id Optionally provide the workflow_id. If not, this will be gotten from a query.
+
+    @author Lars Pind (lars@collaboraid.biz)
+} {
+    if { [empty_string_p $workflow_id] } {
+        set workflow_id [workflow::action::get_element \
+                             -action_id $action_id \
+                             -element workflow_id]
+    }
+
+    set currently_assigned_p [db_string enabled_p { 
+        select assigned_p
+        from   workflow_fsm_action_en_in_st
+        where  action_id = :action_id
+        and    state_id = :state_id
+    } -default {}]
+
+    set currently_enabled_p [expr ![empty_string_p $currently_assigned_p]]
+    set currently_assigned_p [template::util::is_true $currently_assigned_p]
+
+    set db_assigned_p [db_boolean $assigned_p]
+    
+    if { $currently_enabled_p != $enabled_p} {
+        if { $enabled_p } {
+            db_dml enabled {
+                insert into workflow_fsm_action_en_in_st (action_id, state_id, assigned_p)
+                values (:action_id, :state_id, :db_assigned_p)
+            }
+        } else {
+            db_dml disable {
+                delete 
+                from   workflow_fsm_action_en_in_st 
+                where  action_id = :action_id
+                and    state_id = :state_id
+            }
+        }
+    } elseif { $currently_assigned_p != $assigned_p } {
+        db_dml update_assigned_p {
+            update workflow_fsm_action_en_in_st 
+            set    assigned_p = :db_assigned_p
+            where  action_id = :action_id
+            and    state_id = :state_id
+        }
+    }
+    
+    workflow::definition_changed_handler -workflow_id $workflow_id
+}
+
 
     
 
