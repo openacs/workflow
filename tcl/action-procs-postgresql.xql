@@ -49,7 +49,6 @@
         from   workflow_actions a left outer join 
                workflow_fsm_actions fa on (a.action_id = fa.action_id) 
         where  a.workflow_id = :workflow_id
-          and  fa.action_id = a.action_id
         order by a.sort_order
     </querytext>
  </fullquery>
