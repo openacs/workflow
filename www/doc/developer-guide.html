@@ -1311,15 +1311,69 @@ if { ![empty_string_p $action_id] } {
 </p>
 
 <p>
-  To add the case log to the comment field, use <code>workflow::case::get_activity_html</code>.
+  To add the case log to the comment field, use
+  <code>workflow::case::get_activity_html</code> and feed it to the
+  <code>before_html</code> property of a textarea.
 </p>
-
 
 
 <h2>Integrating With Your Application's Queries</h2>
 
+<p>
+  Here's an example of how the bug-tracker integrates with workflow
+  for nformation about the current state of bugs.
+</p>
 
+<blockquote><pre>
+select b.bug_id,
+       ...
 
+       st.pretty_name as pretty_state,
+       st.short_name as state_short_name,
+       st.state_id,
+       st.hide_fields,
+
+       assignee.party_id as assignee_party_id,
+       assignee.email as assignee_email,
+       assignee.name as assignee_name
+
+from   bt_bugs b,
+       workflow_cases cas left outer join
+       (select rpm.case_id,
+               p.party_id,
+               p.email,
+               acs_object__name(p.party_id) as name
+          from workflow_case_role_party_map rpm,
+               parties p
+         where rpm.role_id = :action_role
+           and p.party_id = rpm.party_id
+         ) assignee on (cas.case_id = assignee.case_id),
+       workflow_case_fsm cfsm,
+       workflow_fsm_states st 
+where  cas.workflow_id = :workflow_id
+and    cas.object_id = b.bug_id
+and    cfsm.case_id = cas.case_id
+and    st.state_id = cfsm.current_state
+and    b.project_id = :package_id
+order  by $order_by_clause
+</pre></blockquote>
+
+<p>
+  Note the outer join to get the assignee(s). The joins to get
+  information about the current state is straight-forward.
+</p>
+
+<h2>Good Luck!</h2>
+
+<p>
+  That's all I think you'll need to know to start developing
+  workflow-enabled applications.
+</p>
+
+<p>
+  Let me know how it goes, or of something's missing, by posting on
+  the <a href="http://openacs.org/forums/">OpenACS Forums</a>.
+</p>
 
 <hr>
 <a href="mailto:lars@pinds.com"><address>lars@pinds.com</address></a>
