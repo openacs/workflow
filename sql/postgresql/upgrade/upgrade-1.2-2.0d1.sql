@@ -83,7 +83,7 @@ alter table workflow_actions add
 alter table workflow_actions add
   trigger_type              varchar(50)
                             constraint wf_acns_trigger_type_ck
-                            check (trigger_type in ('user','auto','init','message','parallel','workflow','dynamic'));
+                            check (trigger_type in ('user','auto','init','time','message','parallel','workflow','dynamic'));
 alter table workflow_actions alter column trigger_type set default 'user';
 update workflow_actions set trigger_type = 'user';
 update workflow_actions
