@@ -385,28 +385,30 @@ ad_proc -public workflow::action::edit {
 
                 # Child role map
                 if { [info exists row(child_role_map)] } {
-                    if { ![exists_and_not_null row(child_workflow_id)] } {
-                        error "You cannot set child_role_map without also setting child_workflow_id."
-                    }
-
                     db_dml delete_callbacks {
                         delete from workflow_action_child_role_map
                         where  action_id = :action_id
                     }
                     
-                    foreach { child_role_short_name spec } $row(child_role_map) {
-                        foreach { parent_role_short_name mapping_type } $spec {}
+                    if { [llength $row(child_role_map)] > 0 } { 
+                        if { ![exists_and_not_null row(child_workflow_id)] } {
+                            error "You cannot set child_role_map without also setting child_workflow_id."
+                        }
 
-                        set child_role_id [workflow::role::get_id \
-                                               -workflow_id $row(child_workflow_id) \
-                                               -short_name $child_role_short_name]
-                        set parent_role_id [workflow::role::get_id \
-                                                -workflow_id $workflow_id \
-                                                -short_name $parent_role_short_name]
-
-                        db_dml insert_child_role_map {
-                            insert into workflow_action_child_role_map (action_id, child_role_id, parent_role_id, mapping_type)
-                            values (:action_id, :child_role_id, :parent_role_id, :mapping_type)
+                        foreach { child_role_short_name spec } $row(child_role_map) {
+                            foreach { parent_role_short_name mapping_type } $spec {}
+                            
+                            set child_role_id [workflow::role::get_id \
+                                                   -workflow_id $row(child_workflow_id) \
+                                                   -short_name $child_role_short_name]
+                            set parent_role_id [workflow::role::get_id \
+                                                    -workflow_id $workflow_id \
+                                                    -short_name $parent_role_short_name]
+                            
+                            db_dml insert_child_role_map {
+                                insert into workflow_action_child_role_map (action_id, child_role_id, parent_role_id, mapping_type)
+                                values (:action_id, :child_role_id, :parent_role_id, :mapping_type)
+                            }
                         }
                     }
                     unset missing_elm(child_role_map)
