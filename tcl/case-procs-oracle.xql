@@ -74,14 +74,14 @@
                workflow_actions a,
                cr_items i,
                acs_objects io,
-               cc_users iou,
+               acs_users_all iou,
                cr_revisions r,
                workflow_case_log_data d
         where  l.case_id = :case_id
           and  l.action_id = a.action_id
           and  i.item_id = l.entry_id
           and  io.object_id = i.item_id
-          and  iou.user_id = io.creation_user
+          and  iou.user_id (+) = io.creation_user
           and  r.revision_id = i.live_revision
           and  d.entry_id (+) = l.entry_id
         order  by creation_date
