@@ -93,14 +93,21 @@ ad_proc -public workflow::case::new {
 
             set states [workflow::fsm::get_states -workflow_id $workflow_id]
             
+	    if { [llength $states] == 0 } {
+		error "workflow $workflow_id doesn't have any states"
+	    }
+
             # We use the first state as the initial state
-            set action_row(new_state_id) [lindex $states 0]
-            
+            set action_row(new_state_id) [lindex $states 0]           	    
+
             # Add the new initial action
             set initial_action_id [workflow::action::fsm::edit \
                                        -operation "insert" \
                                        -array action_row \
                                        -workflow_id $workflow_id]
+	    
+	    workflow::flush_cache -workflow_id $workflow_id
+	    
         } else {
             # NOTE: FSM-specific check here
             
