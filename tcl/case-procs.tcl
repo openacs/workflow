@@ -72,10 +72,23 @@ ad_proc -public workflow::case::new {
         # Insert the case
         set case_id [insert -workflow_id $workflow_id -object_id $object_id]
 
+        set action_id [workflow::get_element -workflow_id $workflow_id -element initial_action_id]
+
+        if { [empty_string_p $action_id] } {
+            error "The workflow must have an initial action."
+        }
+        
+        # NOTE: FSM-specific check here
+        set new_state [workflow::action::fsm::get_element -action_id $action_id -element new_state]
+
+        if { [empty_string_p $new_state] } {
+            error "Initial action must change state."
+        }
+
         # Execute the initial action
         workflow::case::action::execute \
                 -case_id $case_id \
-                -action_id [workflow::get_element -workflow_id $workflow_id -element initial_action_id] \
+                -action_id $action_id \
                 -comment $comment \
                 -comment_mime_type $comment_mime_type \
                 -user_id $user_id \
