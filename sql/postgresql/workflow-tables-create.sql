@@ -67,7 +67,7 @@ create table workflows (
                           references acs_object_types(object_type)
                           on delete cascade,
   description             text,
-  description_mime_type   varchar(200) default 'text/plain',
+  description_mime_type   varchar(200),
   constraint wfs_oid_sn_un
   unique (package_key, object_id, short_name)
 );
@@ -167,7 +167,7 @@ create table workflow_actions (
                           not null,
   pretty_past_tense       varchar(200),
   description             text,
-  description_mime_type   varchar(200) default 'text/plain',
+  description_mime_type   varchar(200),
   edit_fields             varchar(4000),
   assigned_role           integer
                           constraint wf_acns_assigned_role_fk
