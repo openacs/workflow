@@ -418,14 +418,14 @@ ad_proc -private workflow::state::fsm::generate_states_spec {
     Generate the spec for the block containing the definition of all
     states for the workflow.
 
-    @param workflow_id The id of the workflow to delete.
+    @param workflow_id The id of the workflow to get the states spec for
+
     @return The states spec
 
     @author Lars Pind (lars@collaboraid.biz)
 } {
     # states(short_name) { ... state-spec ... }
-    array set states [list]
-
+    set states_list [list]
     foreach state_id [workflow::fsm::get_states -workflow_id $workflow_id] {
         lappend states_list [get_element -state_id $state_id -element short_name] [generate_spec -state_id $state_id]
     }
