@@ -59,6 +59,7 @@ ad_proc -public workflow::role::edit {
     {-array {}}
     {-internal:boolean}
     {-no_complain:boolean}
+    {-handlers {}}
 } {
     Edit a workflow role. 
 
