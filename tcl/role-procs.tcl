@@ -20,19 +20,23 @@ namespace eval workflow::role {}
 
 ad_proc -private workflow::role::insert {
     {-workflow_id:required}
-    {-short_name:required}
+    {-short_name {}}
     {-pretty_name:required}
     {-sort_order {}}
 } {
     Inserts the DB row for a new role. You shouldn't normally be usin
     this procedure, use workflow::role::new instead.
     
-    @param workflow_id The ID of the workflow the new role belongs to
-    @param short_name The short_name of the new role
-    @param pretty_name The pretty name of the new role
-    @param sort_order             The number which this role should be in the sort ordering sequence. 
-                                  Leave blank to add role at the end. If you provide a sort_order number
-                                  which already exists, existing roles are pushed down one number.
+    @param workflow_id  The ID of the workflow the new role belongs to
+
+    @param short_name   The short_name of the new role
+
+    @param pretty_name  The pretty name of the new role
+
+    @param sort_order   The number which this role should be in the sort ordering sequence. 
+                        Leave blank to add role at the end. If you provide a sort_order number
+                        which already exists, existing roles are pushed down one number.
+
     @return The ID of the new role
     
     @author Lars Pind (lars@collaboraid.biz)
@@ -50,6 +54,11 @@ ad_proc -private workflow::role::insert {
                 -sort_order $sort_order
         }
 
+        set short_name [workflow::role::generate_short_name \
+                            -workflow_id $workflow_id \
+                            -pretty_name $pretty_name \
+                            -short_name $short_name]
+
         set role_id [db_nextval "workflow_roles_seq"]
 
         db_dml do_insert {}
@@ -60,7 +69,7 @@ ad_proc -private workflow::role::insert {
 
 ad_proc -public workflow::role::new {
     {-workflow_id:required}
-    {-short_name:required}
+    {-short_name {}}
     {-pretty_name:required}
     {-sort_order {}}
     {-callbacks {}}
@@ -88,9 +97,10 @@ ad_proc -public workflow::role::new {
         # Callbacks
         set edit_array(callbacks) $callbacks
         workflow::role::edit \
+            -internal \
+            -workflow_id $workflow_id \
             -role_id $role_id \
-            -array edit_array \
-            -internal
+            -array edit_array
     }
 
     # Role info for the workflow is changed, need to flush
@@ -143,12 +153,32 @@ ad_proc -public workflow::role::edit {
     } {
         if { [info exists row($attr)] } {
             set varname attr_$attr
-            set $varname $row($attr)
+
+            # Convert the Tcl value to something we can use in the query
+            switch $attr {
+                short_name {
+                    if { ![exists_and_not_null row(pretty_name)] } {
+                        if { [empty_string_p $row(short_name)] } {
+                            error "You cannot edit with an empty short_name without also setting pretty_name"
+                        } else {
+                            set row(pretty_name) {}
+                        }
+                    }
+                    
+                    set $varname [workflow::role::generate_short_name \
+                                      -workflow_id $workflow_id \
+                                      -pretty_name $row(pretty_name) \
+                                      -short_name $row(short_name)]
+                }
+                default {
+                    set $varname $row($attr)
+                }
+            }
+
             lappend set_clauses "$attr = :$varname"
             unset missing_elm($attr)
         }
     }
-    
 
     db_transaction {
 
@@ -219,12 +249,13 @@ ad_proc -public workflow::role::get_options {
     @author Lars Pind (lars@collaboraid.biz)
 } {
     set result [list]
+
+    # workflow::get_roles returns the roles in sort_order
     foreach role_id [workflow::get_roles -workflow_id $workflow_id] {
         workflow::role::get -role_id $role_id -array row
         lappend result [list $row(pretty_name) $row(short_name)]
     }
-    # Order by label
-    return [lsort -index 0 $result]
+    return $result
 }
 
 ad_proc -public workflow::role::get_id {
@@ -577,4 +608,62 @@ ad_proc -private workflow::role::update_sort_order {
     if { $sort_order_taken_p } {
         db_dml update_sort_order {}
     }
+}
+
+ad_proc -public workflow::role::get_existing_short_names {
+    {-workflow_id:required}
+    {-ignore_role_id {}}
+} {
+    Returns a list of existing role short_names in this workflow.
+    Useful when you're trying to ensure a short_name is unique, 
+    or construct a new short_name that is guaranteed to be unique.
+
+    @param ignore_role_id   If specified, the short_name for the given role will not be included in the result set.
+} {
+    set result [list]
+
+    foreach role_id [workflow::get_roles -workflow_id $workflow_id] {
+        if { [empty_string_p $ignore_role_id] || ![string equal $ignore_role_id $role_id] } {
+            lappend result [workflow::role::get_element -role_id $role_id -element short_name]
+        }
+    }
+
+    return $result
+}
+
+ad_proc -public workflow::role::generate_short_name {
+    {-workflow_id:required}
+    {-pretty_name:required}
+    {-short_name {}}
+    {-role_id {}}
+} {
+    Generate a unique short_name from pretty_name.
+    
+    @param role_id    If you pass in this, we will allow that role's short_name to be reused.
+    
+} {
+    set existing_short_names [workflow::role::get_existing_short_names \
+                                  -workflow_id $workflow_id \
+                                  -ignore_role_id $role_id]
+    
+    if { [empty_string_p $short_name] } {
+        if { [empty_string_p $pretty_name] } {
+            error "Cannot have empty pretty_name when short_name is empty"
+        }
+        set short_name [util_text_to_url \
+                            -replacement "_" \
+                            -existing_urls $existing_short_names \
+                            -text $pretty_name]
+    } else {
+        # Make lowercase, remove illegal characters
+        set short_name [string tolower $short_name]
+        regsub -all {[- ]} $short_name {_} short_name
+        regsub -all {[^a-zA-Z_0-9]} $short_name {} short_name
+
+        if { [lsearch -exact $existing_short_names $short_name] != -1 } {
+            error "Role with short_name '$short_name' already exists in this workflow."
+        }
+    }
+
+    return $short_name
 }
