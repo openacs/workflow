@@ -152,9 +152,10 @@ bug-tracker. </p>
 <p>
   The workflow API is designed so that whenver you're using features
   that are specific to finite state machines, the procedure name will
-  include the letters "fsm" in the name, as in
-  <code>workflow::case::fsm::get</code>. That way you'll know when
-  you're hard-wiring a dependency on the particular workflow model.
+  include the letters "fsm" in the name, as in <code><a
+  href="/api-doc/proc-view?proc=workflow::case::fsm::get">workflow::case::fsm::get</a></code>. That
+  way you'll know when you're hard-wiring a dependency on the
+  particular workflow model.
 </p>
 
 <p>
@@ -327,7 +328,7 @@ set spec {
     }
 }
 
-set workflow_id [workflow::fsm::new_from_spec -spec $spec]
+set workflow_id [<a href="/api-doc/proc-view?proc=workflow::fsm::new_from_spec">workflow::fsm::new_from_spec</a> -spec $spec]
 </pre>
 
 <p>
@@ -796,7 +797,7 @@ ad_proc -private bug_tracker::bug::workflow_create {} {
         }
     }
 
-    set workflow_id [workflow::fsm::new_from_spec -spec $spec]
+    set workflow_id [<a href="/api-doc/proc-view?proc=workflow::fsm::new_from_spec">workflow::fsm::new_from_spec</a> -spec $spec]
     
     return $workflow_id
 }
@@ -1099,9 +1100,9 @@ ad_proc -private bug_tracker::bug::workflow_create {} {
 </p>
 
 <p>
-  Using workflow::case::add_log_data, you can add arbitrary key/value
+  Using <a href="/api-doc/proc-view?proc=workflow::case::add_log_data">workflow::case::add_log_data</a>, you can add arbitrary key/value
   pairs to a log entry. These can the be retrieved later using
-  workflow::case::get_log_data_by_key, and workflow::case::get_log_data.
+  <a href="/api-doc/proc-view?proc=workflow::case::get_log_data_by_key">workflow::case::get_log_data_by_key</a>, and <a href="/api-doc/proc-view?proc=workflow::case::get_log_data">workflow::case::get_log_data</a>.
 </p>
 
 
@@ -1117,14 +1118,14 @@ ad_proc -private bug_tracker::bug::workflow_create {} {
   <dd>
     <ul>
       <li>Register service contract implementations
-      <li>Create default workflow (<code>workflow::fsm::new_from_spec</code>)
+      <li>Create default workflow (<code><a href="/api-doc/proc-view?proc=workflow::fsm::new_from_spec">workflow::fsm::new_from_spec</a></code>)
     </ul>
   </dd>
   
   <dt>before-uninstall</dt>
   <dd>
     <ul>
-      <li>Delete default workflow (<code>workflow::delete</code>)
+      <li>Delete default workflow (<code><a href="/api-doc/proc-view?proc=workflow::delete">workflow::delete</a></code>)
       <li>Unregister service contract implementations
     </ul>
   </dd>
@@ -1144,7 +1145,7 @@ ad_proc -private bug_tracker::bug::workflow_create {} {
     <ul>
       <li>
         Clone default workflow to create a new workflow attached to
-        the instance (<code>workflow::fsm::clone</code>)
+        the instance (<code><a href="/api-doc/proc-view?proc=workflow::fsm::clone">workflow::fsm::clone</a></code>)
       </li>
     </ul>
   </dd>
@@ -1153,7 +1154,7 @@ ad_proc -private bug_tracker::bug::workflow_create {} {
   <dd>
     <ul>
       <li>
-        Delete the workflow attached to the instance (<code>workflow::delete</code>)
+        Delete the workflow attached to the instance (<code><a href="/api-doc/proc-view?proc=workflow::delete">workflow::delete</a></code>)
       </li>
     </ul>
   </dd>
@@ -1184,9 +1185,9 @@ ad_proc -private bug_tracker::bug::workflow_create {} {
   <dt>get</dt>
   <dd>
     In addition to your application's object data, you'll want to call
-    <code>workflow::case::get_id</code> to get the case_id for your
-    object, and then either <code>workflow::case::get</code> or
-    <code>workflow::case::fsm::get</code> in order to get state
+    <code><a href="/api-doc/proc-view?proc=workflow::case::get_id">workflow::case::get_id</a></code> to get the case_id for your
+    object, and then either <code><a href="/api-doc/proc-view?proc=workflow::case::get">workflow::case::get</a></code> or
+    <code><a href="/api-doc/proc-view?proc=workflow::case::fsm::get">workflow::case::fsm::get</a></code> in order to get state
     information from workflow to include in the data set returned by
     your API proc.
   </dd>
@@ -1194,7 +1195,7 @@ ad_proc -private bug_tracker::bug::workflow_create {} {
   <dt>new</dt>
   <dd>
     When creating a new object, you should also start a new workflow
-    case for that object using <code>workflow::case::new</code>.
+    case for that object using <code><a href="/api-doc/proc-view?proc=workflow::case::new">workflow::case::new</a></code>.
   </dd>
 
   <dt>edit</dt>
@@ -1213,11 +1214,11 @@ ad_proc -private bug_tracker::bug::workflow_create {} {
     <p>
     First, you should update your application object data as normal.
     Then you'll probably want to use
-    <code>workflow::case::get_id</code> to find the case_id. If you
+    <code><a href="/api-doc/proc-view?proc=workflow::case::get_id">workflow::case::get_id</a></code> to find the case_id. If you
     have assignment integrated in your form, you'll want to call 
-    <code>workflow::case::role::assign</code> to pass these on to
+    <code><a href="/api-doc/proc-view?proc=workflow::case::role::assign">workflow::case::role::assign</a></code> to pass these on to
     workflow, and finally you'll say 
-    <code>workflow::case::action::execute</code> to execute the
+    <code><a href="/api-doc/proc-view?proc=workflow::case::action::execute">workflow::case::action::execute</a></code> to execute the
     action, including state changes, side-effects, and notifications.
   </dd>
 </dl>
@@ -1243,7 +1244,7 @@ ad_proc -private bug_tracker::bug::workflow_create {} {
 </p>
 
 <p>
-  Use <code>workflow::case::get_id</code> to get the case_id.
+  Use <code><a href="/api-doc/proc-view?proc=workflow::case::get_id">workflow::case::get_id</a></code> to get the case_id.
 </p>
 
 <p>
@@ -1270,20 +1271,20 @@ ad_proc -private bug_tracker::bug::workflow_create {} {
 <p>
   Then you should check that this action is currently available to
   this user by saying
-  <code>workflow::case::action::available_p</code>.
+  <code><a href="/api-doc/proc-view?proc=workflow::case::action::available_p">workflow::case::action::available_p</a></code>.
 </p>
 
 <p>
   To get the currently available actions so you can offer them to the
-  user, use <code>workflow::case::get_available_actions</code> which
-  will return the action_id's, then <code>workflow::action::get</code>
+  user, use <code><a href="/api-doc/proc-view?proc=workflow::case::get_available_actions">workflow::case::get_available_actions</a></code> which
+  will return the action_id's, then <code><a href="/api-doc/proc-view?proc=workflow::action::get">workflow::action::get</a></code>
   to get the details about each of the actions.
 </p>
 
 <p>
   If you're using <code>ad_form</code>, and you want only one assignee
   per role, and you want assignment integrated with your form, use
-  <code>workflow::case::role::add_assignee_widgets</code> to add the
+  <code><a href="/api-doc/proc-view?proc=workflow::case::role::add_assignee_widgets">workflow::case::role::add_assignee_widgets</a></code> to add the
   widgets. It'll do an <code>ad_form -extend</code>, so they'll appear
   at the point at which you call this proc.
 </p>
@@ -1294,7 +1295,7 @@ ad_proc -private bug_tracker::bug::workflow_create {} {
 
 <pre>
 if { ![empty_string_p $action_id] } {
-    foreach field [workflow::action::get_element -action_id $action_id -element edit_fields] { 
+    foreach field [<a href="/api-doc/proc-view?proc=workflow::action::get_element">workflow::action::get_element</a> -action_id $action_id -element edit_fields] { 
 	element set_properties bug $field -mode edit 
     }
 }
@@ -1306,13 +1307,13 @@ if { ![empty_string_p $action_id] } {
 
 <p>
   To populate values of the assignee widgets, use
-  <code>workflow::case::role::set_assignee_values</code> in your
+  <code><a href="/api-doc/proc-view?proc=workflow::case::role::set_assignee_values">workflow::case::role::set_assignee_values</a></code> in your
   <code>on_request</code> block.
 </p>
 
 <p>
   To add the case log to the comment field, use
-  <code>workflow::case::get_activity_html</code> and feed it to the
+  <code><a href="/api-doc/proc-view?proc=workflow::case::get_activity_html">workflow::case::get_activity_html</a></code> and feed it to the
   <code>before_html</code> property of a textarea.
 </p>
 
