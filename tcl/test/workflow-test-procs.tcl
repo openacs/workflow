@@ -127,7 +127,7 @@ ad_proc workflow::test::get_message_key_spec {} {
         actions {
             foobar {
                 pretty_name "#acs-subsite.Confirm#"
-                pretty_past_tense "#acs-subsite.Customize_Questions#"
+                pretty_past_tense "#acs-subsite.Confirm#"
                 initial_action_p t                
             }
         }
