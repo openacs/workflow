@@ -4,6 +4,9 @@
   
   <table cellpadding=3 cellspacing=1 border=0>
     <tr class="form-element">
+    <td rowspan="2">
+    Enabled
+    </td>
       <td class="form-label">Enabled in state
       </td>
       <td class="form-widget">
@@ -32,6 +35,9 @@
       </td>
     </tr>
         <tr class="form-element">
+    <td rowspan="3" style="border-top: 1px solid black; border-bottom: 1px solid black" >
+    Trigger
+    </td>
                   <td class="form-label">
                 Mode
                </td>
@@ -47,21 +53,6 @@
             </td>
           </tr>
           <tr class="form-element">
-            <td class="form-label" style="background-color:lightgreen">
-              Assigned Role
-            </td>
-            <td class="form-widget">
-              <select>
-                <option>Asker</option>
-                <option selected>Giver</option>
-                </select>
-              <div class="form-help-text">
-                <img src="/shared/images/info.gif" width="12" height="9" alt="[i]" title="Help text" border="0"/>
-                The task is assigned to this role.
-              </div>
-            </td>
-          </tr>
-        <tr class="form-element">
                   <td class="form-label">
                 Duration
                </td>
@@ -78,17 +69,113 @@
             </td>
           </tr>
           <tr class="form-element">
+            <td class="form-label" style="background-color:lightgreen">
+              Assigned Role
+            </td>
+            <td class="form-widget">
+ <table class="list" cellpadding="3" cellspacing="1">
+
+  
+      <tr class="list-header">
+
+        
+          <th class="list">
+            
+              
+            
+          </th>
+        
+          <th class="list">
+            
+              
+            
+          </th>
+        
+      </tr>
+    
+    
+                <tr class="list-odd">
+              
+    
+                <td class="list">
+                  Asking for Information
+                </td>
+
+              
+                <td class="list">
+                  
+              <select>
+                <option selected></option>
+                <option>Asker</option>
+                <option>Giver</option>
+                </select>
+
+            
+                </td>
+              
+            </tr>
+          
+        
+                <tr class="list-even">
+              
+    
+                <td class="list">
+                  Waiting for Response
+                </td>
+              
+                <td class="list">
+
+                  
+              <select>
+                <option></option>
+                <option>Asker</option>
+                <option selected>Giver</option>
+                </select>
+            
+                </td>
+              
+            </tr>
+          
+        
+                <tr class="list-odd">
+              
+    
+                <td class="list">
+                  Completed
+                </td>
+              
+                <td class="list">
+                  
+              <select>
+                <option selected></option>
+                <option>Asker</option>
+                <option>Giver</option>
+                </select>
+                </td>
+              
+            </tr>
+          
+        
+
+  </table>
+              <div class="form-help-text">
+                <img src="/shared/images/info.gif" width="12" height="9" alt="[i]" title="Help text" border="0"/>
+                The task is assigned to this role.
+              </div>
+            </td>
+          </tr>
+          <tr class="form-element">
+    <td rowspan="2">
+    Outcome
+    </td>
             <td class="form-label">
-              Outcome
+              New State
             </td>
             <td class="form-widget">
             <input type="radio" name="outcome">Don't change state</input><br>
-            <input type="radio" name="outcome" checked>Change to state:</input>
-               <select>
-                 <option>Asking for Information</option>
-                 <option>Waiting for Response</option>
-                 <option selected>Completed</option>
-                 </select><br/>
+            <input type="radio" name="outcome"><b>Asking for Information</b></input<br/>
+            <input type="radio" name="outcome"><b>Waiting for Response</b></input><br/>
+            <input type="radio" name="outcome" checked><b>Completed</b></input><br/>
             </td>
           </tr>
           <tr class="form-element">
