@@ -44,7 +44,7 @@ drop table workflow_case_role_party_map;
 drop table workflow_case_log_data;
 drop table workflow_case_log;
 drop table workflow_cases;
-drop table workflow_fsm_action_enabled_in_states;
+drop table workflow_fsm_action_en_in_st;
 drop table workflow_fsm_actions;
 drop table workflow_initial_action;
 drop table workflow_fsm_states;

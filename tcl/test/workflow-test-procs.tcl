@@ -25,6 +25,13 @@ ad_proc workflow::test::workflow_object_id {} {
                                                               where parent_id is null}]
 }
 
+ad_proc workflow::test::workflow_object_id_2 {} {
+
+} {
+    return [db_string some_object_id {select min(object_id) from acs_objects where object_type = 'apm_parameter'}]
+
+}
+
 ad_proc workflow::test::workflow_id {} {
     Get the id of the Bug Tracker bug workflow
 } {
@@ -97,7 +104,12 @@ ad_proc workflow::test::workflow_setup_array_style {} {
     Create a test workflow for the Bug Tracker 
     Bug use case.
 } {
+
     set spec {
+        pretty_name "Bug Test"
+        package_key "acs-automated-testing"
+        object_type "acs_object"
+        callbacks { bug-tracker.FormatLogTitle }
         roles {
             submitter {
                 pretty_name "Submitter"
@@ -129,7 +141,7 @@ ad_proc workflow::test::workflow_setup_array_style {} {
                 pretty_name "Open"
                 pretty_past_tense "Opened"
                 new_state "open"
-                initial_action_p 1
+                initial_action_p t
             }
             comment {
                 pretty_name "Comment"
@@ -172,17 +184,12 @@ ad_proc workflow::test::workflow_setup_array_style {} {
             }
         }
     }
+    set spec [list [workflow::test::workflow_name] $spec]
     
-    set main_site_package_id [workflow::test::workflow_object_id]
-
     # Cannot use bt_bug as we cannot assume Bug Tracker to be installed
 
-    set workflow_id [workflow::fsm::new \
-            -short_name [workflow::test::workflow_name] \
-            -pretty_name "Bug Test" \
-            -object_id $main_site_package_id \
-            -object_type "acs_object" \
-            -callbacks { bug-tracker.FormatLogTitle } \
+    set workflow_id [workflow::fsm::new_from_spec \
+            -object_id [workflow::test::workflow_object_id] \
             -spec $spec]
 
     return $workflow_id
@@ -198,14 +205,13 @@ ad_proc workflow::test::workflow_setup {} {
     #
     #####
 
-    set main_site_package_id [workflow::test::workflow_object_id]
-
     # Cannot use bt_bug as we cannot assume Bug Tracker to be installed
 
     set workflow_id [workflow::new \
             -short_name [workflow::test::workflow_name] \
             -pretty_name "Bug Test" \
-            -object_id $main_site_package_id \
+            -package_key "acs-automated-testing" \
+            -object_id [workflow::test::workflow_object_id] \
             -object_type "acs_object" \
             -callbacks { bug-tracker.FormatLogTitle }]
 
@@ -253,7 +259,7 @@ ad_proc workflow::test::workflow_setup {} {
     #####
 
     workflow::action::fsm::new \
-            -initial_action \
+            -initial_action_p t \
             -workflow_id $workflow_id \
             -short_name "open" \
             -pretty_name "Open" \
@@ -317,9 +323,7 @@ ad_proc workflow::test::workflow_teardown {} {
 } {
     # We don't care about error here
     catch { 
-        set workflow_id [workflow::get_id \
-                -object_id [workflow::test::workflow_object_id] \
-                -short_name [workflow::test::workflow_name]]
+        set workflow_id [workflow_id]
 
         workflow::delete -workflow_id $workflow_id
     }
@@ -351,7 +355,7 @@ ad_proc workflow::test::run_bug_tracker_test {
         # Cannot get this to work as it seems the catch will return true
         # if any catch did so in the executed code.
         # set error_p [catch workflow::test::workflow_setup error]
-        set workflow_id [workflow::test::$create_proc]
+        set workflow_id [$create_proc]
     
         # Create the workflow case in open state
         set object_id [workflow::test::workflow_object_id]
@@ -362,13 +366,14 @@ ad_proc workflow::test::run_bug_tracker_test {
                 -object_id $object_id \
                 -workflow_short_name [workflow::test::workflow_name]]
         
-        set retrieved_object_id \
-          [workflow::case::get_object_id -case_id $case_id]
+        #set retrieved_object_id \
+        \#  [workflow::case::get_object_id $case_id
+
         
         aa_true "case_id of a created workflow case should be retrievable" \
                 [string equal $case_id $retrieved_case_id]
-        aa_true "object_id of a created workflow case should be retrievable" \
-                [string equal $object_id $retrieved_object_id]
+        #aa_true "object_id of a created workflow case should be retrievable" \
+        \#        [string equal $object_id $retrieved_object_id]
     
         set expect_enabled_actions [list comment edit resolve]
         workflow::test::assert_case_state \
@@ -418,13 +423,14 @@ ad_proc workflow::test::run_bug_tracker_test {
     } 
 
     set error_p [catch $test_chunk errMsg]
+
+    if { $error_p } {    
+        global errorInfo
+        aa_false "error during setup: $errMsg - $errorInfo" $error_p
+    }
         
     # Teardown
-    workflow::test::workflow_teardown
-
-    # Report any errors from the setup proc
-    global errorInfo
-    aa_false "error during setup: $errMsg - $errorInfo" $error_p
+    # workflow::test::workflow_teardown
 }
 
 
@@ -442,15 +448,47 @@ aa_register_case bugtracker_workflow_create_normal {
     @author Peter Marklund
     @creation-date 16 January 2003
 } {
-    workflow::test::run_bug_tracker_test -create_proc "workflow_setup"
+    workflow::test::run_bug_tracker_test -create_proc "workflow::test::workflow_setup"
 }
 
 aa_register_case bugtracker_workflow_create_array_style {
     Test creation and teardown of an FSM workflow case, with array style specification.
 
-    @author Peter Marklund
-    @creation-date 16 January 2003
+    @author Lars Pind
+    @creation-date 21 January 2003
 } {
-    workflow::test::run_bug_tracker_test -create_proc "workflow_setup_array_style"
+    workflow::test::run_bug_tracker_test -create_proc "workflow::test::workflow_setup_array_style"
+}
+
+aa_register_case bugtracker_workflow_clone {
+    Test creation and teardown of cloning an FSM workflow case.
+
+    @author Lars Pind
+    @creation-date 22 January 2003
+} {
+    set test_chunk {
+        set workflow_id_1 [workflow::test::workflow_setup]
+    
+        set workflow_id_2 [workflow::fsm::clone -workflow_id $workflow_id_1 -object_id [workflow::test::workflow_object_id_2]]
+        
+        set spec_1 [workflow::fsm::generate_spec -workflow_id $workflow_id_1]
+        set spec_2 [workflow::fsm::generate_spec -workflow_id $workflow_id_2]
+
+        aa_true "Generated spec from original and cloned workflow should be identical" \
+                [string equal $spec_1 $spec_2]
+    } 
+
+    set error_p [catch $test_chunk errMsg]
+    
+    if { $error_p } {    
+        global errorInfo
+        aa_false "error during setup: $errMsg - $errorInfo" $error_p
+    }
+        
+    catch { 
+        workflow::delete -workflow_id $workflow_id_1
+        workflow::delete -workflow_id $workflow_id_2
+    }
+
 }
 

@@ -24,7 +24,7 @@ ad_proc -public workflow::package_key {} {
 ad_proc -public workflow::new {
     {-short_name:required}
     {-pretty_name:required}
-    {-package_key {}}
+    {-package_key:required}
     {-object_id {}}
     {-object_type "acs_object"}
     {-callbacks {}}
@@ -62,10 +62,6 @@ ad_proc -public workflow::new {
 
     db_transaction {
 
-        if { [empty_string_p $package_key] } {
-            set package_key [db_null]
-        }
-
         if { [empty_string_p $object_id] } {
             set object_id [db_null]
         }
@@ -88,27 +84,6 @@ ad_proc -public workflow::new {
 
     return $workflow_id
 }
-
-ad_proc -private workflow::fsm::parse_spec {
-    {-workflow_id:required}
-    {-spec:required}
-} {
-    Parse the -workflow argument to workflow::new and create roles,
-    states, actions, etc., as appropriate
-
-    @param workflow_id The id of the workflow to delete.
-
-    @author Lars Pind (lars@collaboraid.biz)
-    @see workflow::new
-} {
-    array set workflow { roles {} states {} actions {} }
-    array set workflow $spec
-    
-    workflow::roles::parse_spec $workflow(roles)
-    workflow::roles::parse_spec $workflow(roles)
-}
-
-
 
 ad_proc -public workflow::delete {
     {-workflow_id:required}
@@ -161,6 +136,42 @@ ad_proc -public workflow::get_id {
     }
 }
 
+ad_proc -public workflow::get {
+    {-workflow_id:required}
+    {-array:required}
+} {
+    Return information about a workflow.
+
+    @author Lars Pind (lars@collaboraid.biz)
+
+    @param workflow_id ID of workflow
+    @param array name of array in which the info will be returned
+    @return An array list with info
+} {
+    # Select the info into the upvar'ed Tcl Array
+    upvar $array row
+
+    db_1row workflow_info {} -column_array row
+
+    set row(callbacks) [db_list workflow_callbacks {}]
+}
+
+
+ad_proc -public workflow::get_element {
+    {-workflow_id:required}
+    {-element:required}
+} {
+    Return a single element from the information about a workflow.
+
+    @param workflow_id The ID of the workflow
+    @return The element you asked for
+
+    @author Lars Pind (lars@collaboraid.biz)
+} {
+    get -workflow_id $workflow_id -array row
+    return $row($element)
+}
+
 ad_proc -public workflow::get_initial_action {
     {-workflow_id:required}
 } {
@@ -173,6 +184,40 @@ ad_proc -public workflow::get_initial_action {
 } {
     return [db_string select_initial_action {}]
 }
+
+ad_proc -public workflow::get_roles {
+    {-workflow_id:required}
+} {
+    Get the role_id's of all the roles in the workflow.
+    
+    @param workflow_id The ID of the workflow
+    @return list of role_id's.
+
+    @author Lars Pind (lars@collaboraid.biz)
+} {
+    return [db_list select_role_ids {}]
+}
+
+ad_proc -public workflow::get_actions {
+    {-workflow_id:required}
+} {
+    Get the action_id's of all the actions in the workflow.
+    
+    @param workflow_id The ID of the workflow
+    @return list of action_id's.
+
+    @author Lars Pind (lars@collaboraid.biz)
+} {
+    return [db_list select_action_ids {}]
+}
+
+
+
+
+
+#####
+# Private procs
+#####
 
 ad_proc -private workflow::default_sort_order {
     {-workflow_id:required}
@@ -203,12 +248,6 @@ ad_proc -private workflow::callback_insert {
     
     @author Lars Pind (lars@collaboraid.biz)
 } {
-    # TODO:
-    # Insert for real when the service contracts have been defined
-    
-    ns_log Error "LARS: workflow::callback_insert -- would have inserted the callback $name to workflow $workflow_id"
-    return
-
     db_transaction {
 
         # Get the impl_id
@@ -233,15 +272,43 @@ ad_proc -private workflow::callback_insert {
 #
 #####
 
-ad_proc -public workflow::fsm::new {
-    {-short_name:required}
-    {-pretty_name:required}
-    {-object_id:required}
-    {-object_type "acs_object"}
-    {-callbacks {}}
-    {-spec}
+ad_proc -public workflow::fsm::new_from_spec {
+    {-package_key {}}
+    {-object_id {}}
+    {-spec:required}
 } {
-    Creates a new FSM workflow, with an optional spec argument.
+    Create a new workflow from spec
+
+    @param workflow_id The id of the workflow to delete.
+    @param spec The roles spec
+    @return A list of IDs of the workflows created
+
+    @author Lars Pind (lars@collaboraid.biz)
+    @see workflow::new
+} {
+    if { [llength $spec] != 2 } {
+        error "You can only create one workflow at a time"
+    }
+
+    db_transaction {
+        foreach { short_name spec } $spec {
+            set workflow_id [workflow::fsm::parse_spec \
+                    -package_key $package_key \
+                    -object_id $object_id \
+                    -short_name $short_name \
+                    -spec $spec]
+        }
+    }
+
+    return $workflow_id
+}
+
+ad_proc -public workflow::fsm::clone {
+    {-workflow_id:required}
+    {-package_key {}}
+    {-object_id {}}
+} {
+    Clones an existing FSM workflow
 
     @param short_name  For referring to the workflow from Tcl code. Use Tcl variable syntax.
     @param pretty_name A human readable name for the workflow for use in the UI.
@@ -256,32 +323,87 @@ ad_proc -public workflow::fsm::new {
     @author Lars Pind (lars@collaboraid.biz)
     @see workflow::new
 } {
-
-    db_transaction {
-
-        # Create the workflow
-        set workflow_id [workflow::new \
-                -short_name $short_name \
-                -pretty_name $pretty_name \
-                -object_id $object_id \
-                -object_type $object_type \
-                -callbacks $callbacks]
-        
-        # May need to parse the simple workflow notation
-        if { [exists_and_not_null spec] } {
-            parse_spec -workflow_id $workflow_id -spec $spec
-        }
-    }
+    set workflow_id [new_from_spec \
+            -package_key $package_key \
+            -object_id $object_id \
+            -spec [generate_spec -workflow_id $workflow_id] \
+            ]
 
     return $workflow_id
 }
 
-ad_proc -private workflow::fsm::parse_spec {
+ad_proc -public workflow::fsm::generate_spec {
     {-workflow_id:required}
+} {
+    Generate a spec for a workflow in array list style.
+    
+    @param workflow_id The id of the workflow to delete.
+    @return The spec for the workflow.
+
+    @author Lars Pind (lars@collaboraid.biz)
+    @see workflow::new
+} {
+    workflow::get -workflow_id $workflow_id -array row
+
+    set short_name $row(short_name)
+
+    array unset row object_id
+    array unset row workflow_id
+    array unset row short_name
+
+    set spec [list]
+
+    foreach name [lsort [array names row]] {
+        lappend spec $name $row($name)
+    }
+
+    lappend spec roles [workflow::role::generate_roles_spec -workflow_id $workflow_id]
+    lappend spec states [workflow::state::fsm::generate_states_spec -workflow_id $workflow_id]
+    lappend spec actions [workflow::action::fsm::generate_actions_spec -workflow_id $workflow_id]
+    
+    return [list $short_name $spec]
+}
+
+ad_proc -public workflow::fsm::get_states {
+    {-workflow_id:required}
+} {
+    Get the state_id's of all the states in the workflow.
+    
+    @param workflow_id The ID of the workflow
+    @return list of state_id's.
+
+    @author Lars Pind (lars@collaboraid.biz)
+} {
+    return [db_list select_state_ids {}]
+}
+
+ad_proc -public workflow::fsm::get_initial_state {
+    {-workflow_id:required}
+} {
+    Get the id of the state that a workflow case is in once it's
+    started (after the initial action is fired).
+
+    @author Peter Marklund
+} {
+    set initial_action_id [workflow::get_initial_action -workflow_id $workflow_id]
+
+    set initial_state [workflow::action::fsm::get_element -action_id $initial_action_id \
+                                                          -element new_state_id]
+
+    return $initial_state
+}
+
+#####
+# Private procs
+#####
+
+ad_proc -private workflow::fsm::parse_spec {
+    {-short_name:required}
+    {-package_key {}}
+    {-object_id {}}
     {-spec:required}
 } {
-    Parse the -workflow argument to workflow::new and create roles,
-    states, actions, etc., as appropriate
+    Create workflow, roles, states, actions, etc., as appropriate
 
     @param workflow_id The id of the workflow to delete.
     @param spec The roles spec
@@ -289,8 +411,31 @@ ad_proc -private workflow::fsm::parse_spec {
     @author Lars Pind (lars@collaboraid.biz)
     @see workflow::new
 } {
-    array set workflow { roles {} states {} actions {} }
+    # Default values
+    array set workflow { 
+        roles {} 
+        states {} 
+        actions {} 
+        callbacks {}
+        object_type {acs_object}
+    }
+
     array set workflow $spec
+
+    # Override stuff in the spec with stuff provided as an argument here
+    foreach var { package_key object_id } {
+        if { ![empty_string_p [set $var]] } {
+            set workflow($var) [set $var]
+        }
+    }
+    
+    set workflow_id [workflow::new \
+            -short_name $short_name \
+            -pretty_name $workflow(pretty_name) \
+            -package_key $workflow(package_key) \
+            -object_id $object_id \
+            -object_type $workflow(object_type) \
+            -callbacks $workflow(callbacks)]
     
     workflow::role::parse_roles_spec \
             -workflow_id $workflow_id \
@@ -303,7 +448,11 @@ ad_proc -private workflow::fsm::parse_spec {
     workflow::action::fsm::parse_actions_spec \
             -workflow_id $workflow_id \
             -spec $workflow(actions)
+    
+    return $workflow_id
 }
+
+
 
 
 
@@ -317,24 +466,24 @@ ad_proc -private workflow::fsm::parse_spec {
 #
 #####
 
-ad_proc -public workflow::service_contract::role_default_assignee {} {
-    return "Role_DefaultAssignees"
+ad_proc -public workflow::service_contract::role_default_assignees {} {
+    return "[workflow::package_key].Role_DefaultAssignees"
 }
 
 ad_proc -public workflow::service_contract::role_assignee_pick_list {} {
-    return "Role_AssigneePickList"
+    return "[workflow::package_key].Role_AssigneePickList"
 }
 
 ad_proc -public workflow::service_contract::role_assignee_subquery {} {
-    return "Role_AssigneeSubQuery"
+    return "[workflow::package_key].Role_AssigneeSubQuery"
 }
 
 ad_proc -public workflow::service_contract::action_side_effect {} {
-    return "Action_SideEffect"
+    return "[workflow::package_key].Action_SideEffect"
 }
 
 ad_proc -public workflow::service_contract::activity_log_format_title {} {
-    return "ActivityLog_FormatTitle"
+    return "[workflow::package_key].ActivityLog_FormatTitle"
 }
 
 ad_proc -public workflow::service_contract::get_impl_id {

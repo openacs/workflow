@@ -44,160 +44,130 @@ drop function inline_0 ();
 -- this workflows table.
 create table workflows (
   workflow_id             integer
-                          constraint workflows_pk
+                          constraint wfs_pk
                           primary key
-                          constraint workflows_workflow_id_fk
+                          constraint wfs_workflow_id_fk
                           references acs_objects(object_id)
                           on delete cascade,
   short_name              varchar(100)
-                          constraint workflows_short_name_nn
+                          constraint wfs_short_name_nn
                           not null,
   pretty_name             varchar(200)
-                          constraint workflows_pretty_name_nn
+                          constraint wfs_pretty_name_nn
                           not null,
   object_id               integer
-                          constraint workflows_object_id_fk
+                          constraint wfs_object_id_fk
                           references acs_objects(object_id)
                           on delete cascade,
   package_key             varchar(100)
-                          constraint workflows_apm_package_types_fk
+                          constraint wfs_package_key_nn
+                          not null
+                          constraint wfs_apm_package_types_fk
                           references apm_package_types(package_key),
   -- object_id points to either a package type, package instance, or single workflow case
   -- For Bug Tracker, every package instance will get its own workflow instance that is a copy
   -- of the workflow instance for the Bug Tracker package type
   object_type             varchar(1000)
-                          constraint workflows_object_type_nn
+                          constraint wfs_object_type_nn
                           not null
-                          constraint workflows_object_type_fk
+                          constraint wfs_object_type_fk
                           references acs_object_types(object_type)
                           on delete cascade,
-  constraint workflows_oid_sn_un
-  unique (object_id, short_name)
+  constraint wfs_oid_sn_un
+  unique (package_key, object_id, short_name)
 );
 
 -- For callbacks on workflow
 create table workflow_callbacks (
   workflow_id             integer
-                          constraint workflow_callbacks_wid_nn
+                          constraint wf_cbks_wid_nn
                           not null
-                          constraint workflow_callbacks_wid_fk
+                          constraint wf_cbks_wid_fk
                           references workflows(workflow_id)
                           on delete cascade,
   acs_sc_impl_id          integer
-                          constraint workflow_callbacks_sci_nn
+                          constraint wf_cbks_sci_nn
                           not null
-                          constraint workflow_callbacks_sci_fk
+                          constraint wf_cbks_sci_fk
                           references acs_sc_impls(impl_id)
                           on delete cascade,
   sort_order              integer
-                          constraint workflow_callbacks_so_nn
+                          constraint wf_cbks_so_nn
                           not null,
-  constraint workflow_callbacks_pk
+  constraint wf_cbks_pk
   primary key (workflow_id, acs_sc_impl_id)
 );
 
 create table workflow_roles (
   role_id                 integer
-                          constraint workflow_roles_pk
+                          constraint wf_roles_pk
                           primary key,
   workflow_id             integer
-                          constraint workflow_roles_workflow_id_fk
+                          constraint wf_roles_workflow_id_fk
                           references workflows(workflow_id)
                           on delete cascade,
   short_name              varchar(100)
-                          constraint workflow_roles_short_name_nn
+                          constraint wf_roles_short_name_nn
                           not null,
   pretty_name             varchar(200)
-                          constraint workflow_roles_pretty_name_nn
+                          constraint wf_roles_pretty_name_nn
+                          not null,
+  sort_order              integer
+                          constraint wf_roles_so_nn
                           not null
 );
 
 create sequence workflow_roles_seq;
 
--- Static role-party map
-create table workflow_role_default_parties (
-  role_id                 integer
-                          constraint workflow_role_default_parties_rid_nn
-                          not null
-                          constraint workflow_role_default_parties_rid_fk
-                          references workflow_roles(role_id)
-                          on delete cascade,
-  party_id                integer
-                          constraint workflow_role_default_parties_pid_nn
-                          not null
-                          constraint workflow_role_default_parties_pid_fk
-                          references parties(party_id)
-                          on delete cascade,
-  constraint workflow_role_default_parties_pk
-  primary key (role_id, party_id)
-);
-
--- Static map between roles and parties allowed to be in those roles
-create table workflow_role_allowed_parties (
-  role_id                 integer
-                          constraint workflow_role_allowed_parties_rid_nn
-                          not null
-                          constraint workflow_role_allowed_parties_rid_fk
-                          references workflow_roles(role_id)
-                          on delete cascade,
-  party_id                integer
-                          constraint workflow_role_allowed_parties_pid_nn
-                          not null
-                          constraint workflow_role_allowed_parties_pid_fk
-                          references parties(party_id)
-                          on delete cascade,
-  constraint workflow_role_allowed_parties_pk
-  primary key (role_id, party_id)
-);
-
 -- Callbacks for roles
 create table workflow_role_callbacks (
   role_id                 integer
-                          constraint workflow_role_callbacks_role_id_nn
+                          constraint wf_role_cbks_role_id_nn
                           not null
-                          constraint workflow_role_callbacks_role_id_fk
+                          constraint wf_role_cbks_role_id_fk
                           references workflow_roles(role_id)
                           on delete cascade,
   acs_sc_impl_id          integer
-                          constraint workflow_role_callbacks_contract_id_nn
+                          constraint wf_role_cbks_contract_id_nn
                           not null
-                          constraint workflow_role_callbacks_contract_id_fk
+                          constraint wf_role_cbks_contract_id_fk
                           references acs_sc_impls(impl_id)
                           on delete cascade,
   -- this should be an implementation of any of the three assignment
   -- service contracts: DefaultAssignee, AssigneePickList, or 
   -- AssigneeSubQuery
   sort_order              integer
-                          constraint workflow_role_callbacks_sort_order_nn
+                          constraint wf_role_cbks_sort_order_nn
                           not null,
-  constraint workflow_role_callbacks_pk
+  constraint wf_role_cbks_pk
   primary key (role_id, acs_sc_impl_id),
-  constraint workflow_role_asgn_rol_sort_un
+  constraint wf_role_asgn_rol_sort_un
   unique (role_id, sort_order)
 );
 
 create table workflow_actions (
   action_id               integer
-                          constraint workflow_actions_pk
+                          constraint wf_acns_pk
                           primary key,
   workflow_id             integer
-                          constraint workflow_actions_workflow_id_nn
+                          constraint wf_acns_workflow_id_nn
                           not null
-                          constraint workflow_actions_workflow_id_fk
+                          constraint wf_acns_workflow_id_fk
                           references workflows(workflow_id)
                           on delete cascade,
   sort_order              integer
-                          constraint workflow_actions_sort_order_nn
+                          constraint wf_acns_sort_order_nn
                           not null,
   short_name              varchar(100)
-                          constraint workflow_actions_short_name_nn
+                          constraint wf_acns_short_name_nn
                           not null,
   pretty_name             varchar(200)
-                          constraint workflow_actions_pretty_name_nn
+                          constraint wf_acns_pretty_name_nn
                           not null,
   pretty_past_tense       varchar(200),
+  edit_fields             varchar(4000),
   assigned_role           integer
-                          constraint workflow_actions_assigned_role_fk
+                          constraint wf_acns_assigned_role_fk
                           references workflow_roles(role_id)
                           on delete set null,
   always_enabled_p        bool default 'f'
@@ -208,18 +178,18 @@ create sequence workflow_actions_seq;
 -- Determines which roles are allowed to take certain actions
 create table workflow_action_allowed_roles (
   action_id               integer
-                          constraint workflow_action_allowed_roles_action_id_nn
+                          constraint wf_acn_alwd_roles_acn_id_nn
                           not null
-                          constraint workflow_action_allowed_roles_action_id_fk
+                          constraint wf_acn_alwd_roles_acn_id_fk
                           references workflow_actions(action_id)
                           on delete cascade,
   role_id                 integer
-                          constraint workflow_action_allowed_roles_role_id_nn
+                          constraint wf_acn_alwd_roles_role_id_nn
                           not null
-                          constraint workflow_action_allowed_roles_role_id_fk
+                          constraint wf_acn_alwd_roles_role_id_fk
                           references workflow_roles(role_id)
                           on delete cascade,
-  constraint workflow_action_allowed_roles_pk
+  constraint wf_acn_alwd_roles_pk
   primary key (action_id, role_id)
 );
 
@@ -227,51 +197,52 @@ create table workflow_action_allowed_roles (
 -- users to take certain actions
 create table workflow_action_privileges (
   action_id               integer
-                          constraint workflow_action_privileges_action_id_nn
+                          constraint wf_acn_priv_acn_id_nn
                           not null
-                          constraint workflow_action_privileges_action_id_fk
+                          constraint wf_acn_priv_acn_id_fk
                           references workflow_actions(action_id)
                           on delete cascade,
   privilege               varchar(100)
-                          constraint workflow_action_privileges_privilege_nn
+                          constraint wf_acn_priv_privilege_nn
                           not null
-                          constraint workflow_action_privileges_privilege_fk
+                          constraint wf_acn_priv_privilege_fk
                           references acs_privileges(privilege)
                           on delete cascade,
-  constraint workflow_action_privileges_pk
+  constraint wf_acn_priv_pk
   primary key (action_id, privilege)
 );
 
 -- For callbacks on actions
 create table workflow_action_callbacks (
   action_id               integer
-                          constraint workflow_action_callbacks_action_id_nn
+                          constraint wf_acn_cbks_acn_id_nn
                           not null
-                          constraint workflow_action_callbacks_action_id_fk
+                          constraint wf_acn_cbks_acn_id_fk
                           references workflow_actions(action_id)
                           on delete cascade,
   acs_sc_impl_id          integer
-                          constraint workflow_action_callbacks_sci_nn
+                          constraint wf_acn_cbks_sci_nn
                           not null
-                          constraint workflow_action_callbacks_sci_fk
+                          constraint wf_acn_cbks_sci_fk
                           references acs_sc_impls(impl_id)
                           on delete cascade,
   sort_order              integer
-                          constraint workflow_action_callbacks_sort_order_nn
+                          constraint wf_acn_cbks_sort_order_nn
                           not null,
-  constraint workflow_action_callbacks_pk
+  constraint wf_acn_cbks_pk
   primary key (action_id, acs_sc_impl_id)
 );
 
+-- For the initial action, which fires when a new case is started
 create table workflow_initial_action (
   workflow_id             integer
-                          constraint workflow_initial_action_pk
+                          constraint wf_initial_acn_pk
                           primary key
-                          constraint workflow_initial_action_wf_fk
+                          constraint wf_initial_acn_wf_fk
                           references workflows(workflow_id)
                           on delete cascade,
   action_id               integer
-                          constraint workflow_initial_action_act_fk
+                          constraint wf_initial_acn_act_fk
                           references workflow_actions(action_id)
                           on delete cascade
 );
@@ -283,37 +254,38 @@ create table workflow_initial_action (
 
 create table workflow_fsm_states (
   state_id                integer
-                          constraint workflow_fsm_states_pk
+                          constraint wf_fsm_states_pk
                           primary key,
   workflow_id             integer
-                          constraint workflow_fsm_states_workflow_id_nn
+                          constraint wf_fsm_states_workflow_id_nn
                           not null
-                          constraint workflow_fsm_states_workflow_id_fk
+                          constraint wf_fsm_states_workflow_id_fk
                           references workflows(workflow_id)
                           on delete cascade,
   sort_order              integer
-                          constraint workflow_fsm_states_sort_order_nn
+                          constraint wf_fsm_states_sort_order_nn
                           not null,
   -- The state with the lowest sort order is the initial state
   short_name              varchar(100)
-                          constraint workflow_fsm_states_short_name_nn
+                          constraint wf_fsm_states_short_name_nn
                           not null,
   pretty_name             varchar(200)
-                          constraint workflow_fsm_states_pretty_name_nn
-                          not null
+                          constraint wf_fsm_states_pretty_name_nn
+                          not null,
+  hide_fields             varchar(4000)
 );
 
 create sequence workflow_fsm_states_seq;
 
 create table workflow_fsm_actions (
   action_id               integer
-                          constraint workflow_fsm_actions_aid_fk
+                          constraint wf_fsm_acns_aid_fk
                           references workflow_actions(action_id)
                           on delete cascade
-                          constraint workflow_fsm_actions_pk
+                          constraint wf_fsm_acns_pk
                           primary key,
   new_state               integer
-                          constraint workflow_fsm_actions_new_state_fk
+                          constraint wf_fsm_acns_new_st_fk
                           references workflow_fsm_states(state_id)
                           on delete cascade
   -- can be null
@@ -321,20 +293,66 @@ create table workflow_fsm_actions (
 
 -- If an action is enabled in all states it won't have any entries in this table
 -- it is enabled in all states
-create table workflow_fsm_action_enabled_in_states (
+create table workflow_fsm_action_en_in_st (
   action_id               integer
-                          constraint workflow_fsm_action_enabled_in_states_action_id_nn
+                          constraint wf_fsm_acn_enb_in_st_acn_id_nn
                           not null
-                          constraint workflow_fsm_action_enabled_in_states_action_id_fk
+                          constraint wf_fsm_acn_enb_in_st_acn_id_fk
                           references workflow_fsm_actions(action_id)
                           on delete cascade,
   state_id                integer
-                          constraint workflow_fsm_action_enabled_in_states_state_id_nn
+                          constraint wf_fsm_acn_enb_in_st_st_id_nn
                           not null
-                          constraint workflow_fsm_action_enabled_in_states_state_id_fk
+                          constraint wf_fsm_acn_enb_in_st_st_id_fk
                           references workflow_fsm_states
                           on delete cascade
 );
+
+
+
+--------------------------------------------------------
+-- Workflow level, context-dependent (assignments, etc.)
+--------------------------------------------------------
+
+
+-- Static role-party map
+create table workflow_role_default_parties (
+  role_id                 integer
+                          constraint wf_role_default_parties_rid_nn
+                          not null
+                          constraint wf_role_default_parties_rid_fk
+                          references workflow_roles(role_id)
+                          on delete cascade,
+  party_id                integer
+                          constraint wf_role_default_parties_pid_nn
+                          not null
+                          constraint wf_role_default_parties_pid_fk
+                          references parties(party_id)
+                          on delete cascade,
+  constraint wf_role_default_parties_pk
+  primary key (role_id, party_id)
+);
+
+-- Static map between roles and parties allowed to be in those roles
+create table workflow_role_allowed_parties (
+  role_id                 integer
+                          constraint wf_role_alwd_parties_rid_nn
+                          not null
+                          constraint wf_role_alwd_parties_rid_fk
+                          references workflow_roles(role_id)
+                          on delete cascade,
+  party_id                integer
+                          constraint wf_role_alwd_parties_pid_nn
+                          not null
+                          constraint wf_role_alwd_parties_pid_fk
+                          references parties(party_id)
+                          on delete cascade,
+  constraint wf_role_alwd_parties_pk
+  primary key (role_id, party_id)
+);
+
+
+
 
 ---------------------------------
 -- Case level, Generic Model
@@ -344,86 +362,45 @@ create sequence workflow_cases_seq;
 
 create table workflow_cases (
   case_id                 integer
-                          constraint workflow_cases_pk
+                          constraint wf_cases_pk
                           primary key,
   workflow_id             integer
-                          constraint workflow_cases_workflow_id_nn
+                          constraint wf_cases_workflow_id_nn
                           not null
-                          constraint workflow_cases_workflow_id_fk
+                          constraint wf_cases_workflow_id_fk
                           references workflows(workflow_id)
                           on delete cascade,
   object_id               integer
-                          constraint workflow_cases_object_id_nn
+                          constraint wf_cases_object_id_nn
                           not null
-                          constraint workflow_cases_object_id_fk
+                          constraint wf_cases_object_id_fk
                           references acs_objects(object_id)
                           on delete cascade
-                          constraint workflow_cases_object_id_un
+                          constraint wf_cases_object_id_un
                           unique
   -- the object which this case is about, e.g. the acs-object for a bug-tracker bug
 );
 
-create sequence workflow_case_log_seq;
-
-create table workflow_case_log (
-  entry_id                integer
-                          constraint workflow_case_log_pk
-                          primary key,
-  case_id                 integer
-                          constraint workflow_case_log_case_id_fk 
-                          references workflow_cases(case_id)
-                          on delete cascade,
-  action_id               integer
-                          constraint workflow_case_log_action_id_fk
-                          references workflow_actions(action_id)
-                          on delete cascade,
-  user_id                 integer
-                          constraint workflow_case_log_user_id_fk
-                          references users(user_id)
-                          on delete cascade,
-  action_date             timestamp
-                          constraint workflow_case_log_action_date_nn
-                          not null 
-                          default now(),
-  comment                 text,
-  comment_format          varchar(30) default 'plain' not null
-                          constraint  bt_bug_actions_comment_format_ck
-                          check (comment_format in ('html', 'plain', 'pre'))
-);
-
-create table workflow_case_log_data (
-  entry_id                integer
-                          constraint workflow_case_log_data_eid_nn
-                          not null
-                          constraint workflow_case_log_data_eid_fk
-                          references workflow_case_log(entry_id)
-                          on delete cascade,
-  key                     varchar(50),
-  value                   varchar(4000),
-  constraint workflow_case_log_data_pk
-  primary key (entry_id, key)
-);
-
 create table workflow_case_role_party_map (
   case_id                 integer
-                          constraint workflow_case_role_party_map_case_id_nn
+                          constraint wf_case_role_pty_map_case_id_nn
                           not null
-                          constraint workflow_case_role_party_map_case_id_fk
+                          constraint wf_case_role_pty_map_case_id_fk
                           references workflow_cases(case_id)
                           on delete cascade,
   role_id                 integer
-                          constraint workflow_case_role_party_map_case_id_nn
+                          constraint wf_case_role_pty_map_case_id_nn
                           not null
-                          constraint workflow_case_role_party_map_case_id_fk
+                          constraint wf_case_role_pty_map_case_id_fk
                           references workflow_roles(role_id)
                           on delete cascade,
   party_id                integer
-                          constraint workflow_case_role_party_map_party_id_nn
+                          constraint wf_case_role_pty_map_pty_id_nn
                           not null
-                          constraint workflow_case_role_party_map_party_id_fk
+                          constraint wf_case_role_pty_map_pty_id_fk
                           references parties(party_id)
                           on delete cascade,
-  constraint workflow_case_role_party_map_pk
+  constraint wf_case_role_pty_map_pk
   primary key (case_id, role_id, party_id)
 );
 
@@ -433,13 +410,66 @@ create table workflow_case_role_party_map (
 
 create table workflow_case_fsm (
   case_id                 integer
-                          constraint workflow_case_fsm_case_id_nn
+                          constraint wf_case_fsm_case_id_nn
                           not null
-                          constraint workflow_case_fsm_case_id_fk
+                          constraint wf_case_fsm_case_id_fk
                           references workflow_cases(case_id)
                           on delete cascade,
   current_state           integer
-                          constraint workflow_case_fsm_state_id_fk
+                          constraint wf_case_fsm_st_id_fk
                           references workflow_fsm_states(state_id)
                           on delete cascade
 );
+
+
+---------------------------------
+-- Case level, Activity Log
+---------------------------------
+
+begin;
+    select content_type__create_type (
+        'workflow_activity_log', -- content_type
+	'content_revision',      -- supertype
+	'Workflow Activity Log', -- pretty_name
+	'Workflow Activity Log', -- pretty_plural
+	'workflow_case_log',     -- table_name
+	'entry_id',              -- id_column
+    );
+end;
+
+
+create sequence workflow_case_log_seq;
+
+create table workflow_case_log (
+  entry_id                integer
+                          constraint wf_case_log_eid_fk
+                          references cr_revisions on delete cascade
+                          constraint wf_case_log_pk
+                          primary key,
+  case_id                 integer
+                          constraint wf_case_log_case_id_fk 
+                          references workflow_cases(case_id)
+                          on delete cascade,
+  action_id               integer
+                          constraint wf_case_log_acn_id_fk
+                          references workflow_actions(action_id)
+                          on delete cascade,
+  comment_format          varchar(50) 
+                          default 'text/plain'
+                          constraint wf_clog_comment_format_nn
+                          not null
+);
+
+create table workflow_case_log_data (
+  entry_id                integer
+                          constraint wf_case_log_data_eid_nn
+                          not null
+                          constraint wf_case_log_data_eid_fk
+                          references workflow_case_log(entry_id)
+                          on delete cascade,
+  key                     varchar(50),
+  value                   varchar(4000),
+  constraint wf_case_log_data_pk
+  primary key (entry_id, key)
+);
+

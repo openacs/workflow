@@ -32,14 +32,6 @@
     </querytext>
   </fullquery>
 
-  <fullquery name="workflow::case::get_object_id.select_object_id">
-    <querytext>
-      select object_id
-      from   workflow_cases c
-      where  c.case_id = :case_id
-    </querytext>
-  </fullquery>
-
   <fullquery name="workflow::case::get_user_roles.select_user_roles">
     <querytext>
       select distinct rpm.role_id
@@ -65,10 +57,11 @@
       and    (a.always_enabled_p = 't' 
              or exists (select 1 
                         from   workflow_case_fsm cfsm,
-                               workflow_fsm_action_enabled_in_states waeis
+                               workflow_fsm_action_en_in_st waeis
                         where  cfsm.case_id = c.case_id
                         and    waeis.state_id = cfsm.current_state
                         and    waeis.action_id = a.action_id))
+      order by a.sort_order
     </querytext>
   </fullquery>
 
@@ -80,6 +73,32 @@
       and    role_id = :role_id
     </querytext>
   </fullquery>
+
+  <fullquery name="workflow::case::get_activity_html.select_log">
+    <querytext>
+        select l.entry_id,
+               l.case_id,
+               l.action_id,
+               a.short_name as action_short_name,
+               a.pretty_name as action_pretty_name,
+               a.pretty_past_tense as action_pretty_past_tense,
+               l.user_id,
+               u.first_names as user_first_names,
+               u.last_name as user_last_name,
+               u.email as user_email,
+               l.action_date,
+               to_char(l.action_date, 'fmMM/DDfm/YYYY') as action_date_pretty,
+               l.comment,
+               l.comment_format
+        from   workflow_case_log l,
+               workflow_actions a,
+               cc_users u
+        where  l.case_id = :case_id
+        and    a.action_id = l.action_id
+        and    u.user_id = l.user_id
+    </querytext>
+  </fullquery>
+
 
   <fullquery name="workflow::case::role::set_default_assignees.select_callbacks">
     <querytext>
@@ -124,6 +143,44 @@
     </querytext>
   </fullquery>
 
+  <fullquery name="workflow::case::fsm::get.select_case_info">
+    <querytext>
+      select c.case_id,
+             c.workflow_id,
+             c.object_id,
+             s.state_id,
+             s.short_name as state_short_name,
+             s.pretty_name as pretty_state,
+             s.hide_fields as state_hide_fields
+      from   workflow_cases c,
+             workflow_case_fsm cfsm,
+             workflow_fsm_states s
+      where  c.case_id = :case_id
+      and    cfsm.case_id = c.case_id
+      and    s.state_id = cfsm.current_state
+    </querytext>
+  </fullquery>
+
+  <fullquery name="workflow::case::fsm::get.select_case_info_after_action">
+    <querytext>
+      select c.case_id,
+             c.workflow_id,
+             c.object_id,
+             s.state_id,
+             s.short_name as state_short_name,
+             s.pretty_name as pretty_state,
+             s.hide_fields as state_hide_fields
+      from   workflow_cases c,
+             workflow_case_fsm cfsm,
+             workflow_fsm_states s,
+             workflow_fsm_actions a
+      where  c.case_id = :case_id
+      and    cfsm.case_id = c.case_id
+      and    a.action_id = :action_id
+      and    ((a.new_state is null and s.state_id = cfsm.current_state)  or (s.state_id = a.new_state))
+    </querytext>
+  </fullquery>
+
   <fullquery name="workflow::case::action::enabled_p.select_enabled_p">
     <querytext>
       select 1
@@ -131,7 +188,7 @@
       where  a.action_id = :action_id
       and    (a.always_enabled_p = 't' or 
              exists (select 1 
-                     from   workflow_fsm_action_enabled_in_states waeis,
+                     from   workflow_fsm_action_en_in_st waeis,
                             workflow_case_fsm c_fsm
                      where  waeis.action_id = a.action_id
                      and    c_fsm.case_id = :case_id
@@ -154,6 +211,19 @@
         (entry_id, case_id, action_id, user_id, comment, comment_format)
       values
         (:entry_id, :case_id, :action_id, :user_id, :comment, :comment_format)
+    </querytext>
+  </fullquery>
+
+  <fullquery name="workflow::case::action::execute.log_entry_exists_p">
+    <querytext>
+        select count(*)
+        from   workflow_case_log
+        where  entry_id = :entry_id
+        and    case_id = :case_id
+        and    action_id = :action_id
+        and    user_id = :user_id
+        and    comment = :comment
+        and    comment_format = :comment_format
     </querytext>
   </fullquery>
 

@@ -68,8 +68,13 @@ ad_proc -public workflow::case::new {
     }
     
     db_transaction {
+
+        ns_log Notice "LARS - case::new1: object_id = $object_id, [db_string foobar { select count(*) from acs_objects where object_id = :object_id }]"
+
         # Insert the case
         set case_id [insert -workflow_id $workflow_id -object_id $object_id]
+
+        ns_log Notice "LARS - case::new2: object_id = $object_id, [db_string foobar { select count(*) from acs_objects where object_id = :object_id }]"
 
         # Execute the initial action
         workflow::case::action::execute \
@@ -79,6 +84,9 @@ ad_proc -public workflow::case::new {
                 -comment_format $comment_format \
                 -user_id $user_id \
                 -no_check
+
+        ns_log Notice "LARS - case::new3: object_id = $object_id, [db_string foobar { select count(*) from acs_objects where object_id = :object_id }]"
+
     }
         
     return $case_id
@@ -105,17 +113,45 @@ ad_proc -public workflow::case::get_id {
     }
 }
 
-ad_proc -public workflow::case::get_object_id {
+ad_proc -public workflow::case::get {
     {-case_id:required}
+    {-array:required}
+    {-action_id {}}
 } {
-    Gets the object_id from the case.
+    Get information about a case
 
-    @param case_id The case_id.
-    @return The object_id of the case.
+    @param caes_id The case ID
+    @param array The name of an array in which information will be returned.
 
     @author Lars Pind (lars@collaboraid.biz)
 } {
-    return [db_string select_object_id {}]
+    # Select the info into the upvar'ed Tcl Array
+    upvar $array row
+
+    workflow::case::fsm::get -case_id $case_id -array row -action_id $action_id
+
+    # LARS TODO:
+    # Should we redesign the API so that it's polymorphic, wrt. to workflow type (FSM/Petri Net)
+    # That way, you'd call workflow::case::get and get a state_pretty pseudocolumn, which would be
+    # the pretty-name of the state in an FSM, but it would be some kind of human-readable summary of
+    # the active tokens in a petri net.
+}
+
+ad_proc -public workflow::case::get_element {
+    {-case_id:required}
+    {-element:required}
+    {-action_id {}}
+} {
+    Return a single element from the information about a case.
+
+    @param case_id The ID of the case
+    @param element The element you want
+    @return The element you asked for
+
+    @author Lars Pind (lars@collaboraid.biz)
+} {
+    get -case_id $case_id -action_id $action_id -array row
+    return $row($element)
 }
 
 ad_proc -public workflow::case::get_user_roles {
@@ -142,17 +178,12 @@ ad_proc -public workflow::case::get_enabled_actions {
     Get the currently enabled actions, based on the state of the case
 
     @param case_id     The ID of the case.
-    @return            A list of id:s of the actions which are currently 
+    @return            A list of id's of the actions which are currently 
                        enabled
                        
     @author Lars Pind (lars@collaboraid.biz)
 } {
-    set action_list [list]
-    db_foreach select_enabled_actions {} {
-        lappend action_list $action_id
-    }
-
-    return $action_list
+    return [db_list select_enabled_actions {}]
 }
 
 ad_proc -public workflow::case::get_available_actions {
@@ -196,7 +227,7 @@ ad_proc -private workflow::case::assign_roles {
 
     foreach action_id [get_enabled_actions -case_id $case_id] {
         set role_id [workflow::action::get_assigned_role -action_id $action_id]
-        if { [lsearch $role_id_list $role_id] == -1 } {
+        if { ![empty_string_p $role_id] && [lsearch $role_id_list $role_id] == -1 } {
             lappend role_id_list $role_id
         }
     }
@@ -205,7 +236,9 @@ ad_proc -private workflow::case::assign_roles {
         set num_assignees [db_string select_num_assignees {}]
 
         if { $num_assignees == 0 } {
-            workflow::case::role::set_default_assignees -case_id $case_id -role_id $role_id
+            workflow::case::role::set_default_assignees \
+                    -case_id $case_id \
+                    -role_id $role_id
         }
     }
 }
@@ -231,21 +264,31 @@ ad_proc -public workflow::case::role::set_default_assignees {
 
     @author Lars Pind (lars@collaboraid.biz)
 } {
-    set contract_name [workflow::service_contract::role_default_assignee]
+    set contract_name [workflow::service_contract::role_default_assignees]
     
-    set object_id [workflow::case::get_object_id -case_id $case_id]
+    db_transaction {
 
-    db_foreach select_callbacks {} {
-        
-        # Run the service contract
-        set party_id_list [acs_sc_call $contract_name "GetAssignees" [list $case_id $object_id $role_id] $impl_name]
-        
-        if { [llength $party_id_list] != 0 } {
-            foreach party_id $party_id_list {
-                assignee_insert -case_id $case_id -role_id $role_id -party_id $party_id
+        set object_id [workflow::case::get_element -case_id $case_id -element object_id]
+    
+        ns_log Notice "LARS - case::role::set_default_assignees: object_id = $object_id, [db_string foobar { select count(*) from acs_objects where object_id = :object_id }]"
+    
+        set impl_names [db_list select_callbacks {}]
+       
+        foreach impl_name $impl_names {
+            # Call the service contract implementation
+            set party_id_list [acs_sc::invoke \
+                    -contract $contract_name \
+                    -operation "GetAssignees" \
+                    -impl $impl_name \
+                    -call_args [list $case_id $object_id $role_id]]
+    
+            if { [llength $party_id_list] != 0 } {
+                foreach party_id $party_id_list {
+                    assignee_insert -case_id $case_id -role_id $role_id -party_id $party_id
+                }
+                # We stop when the first callback returned something
+                break
             }
-            # We stop when the first callback returned something
-            break
         }
     }
 }
@@ -274,6 +317,23 @@ ad_proc -public workflow::case::role::assignee_insert {
     }
 }
 
+ad_proc -public workflow::case::get_activity_html {
+    -case_id:required
+} {
+    Get the activity log for a case as an HTML chunk
+} {
+    #LARS TODO: Template this
+
+    set log_html {}
+
+    db_foreach select_log {} {
+        append log_html "<b>$action_date_pretty $action_pretty_past_tense by $user_first_names $user_last_name</b>
+        <blockquote>[ad_html_text_convert -from $comment_format -to "text/html" -- $comment]</blockquote>"
+    }
+    
+    return $log_html
+}
+
 
 
 #####
@@ -293,6 +353,32 @@ ad_proc -public workflow::case::fsm::get_current_state {
     @author Lars Pind (lars@collaboraid.biz)
 } {
     return [db_string select_current_state {}]
+}
+
+ad_proc -public workflow::case::fsm::get {
+    {-case_id:required}
+    {-array:required}
+    {-action_id {}}
+} {
+    Get information about an FSM case
+
+    @param caes_id The case ID
+    @param array The name of an array in which information will be returned.
+    @param action_id If you supply an action here, you'll get 
+    the information as it'll look after executing the given action.
+
+    @author Lars Pind (lars@collaboraid.biz)
+} {
+    # Select the info into the upvar'ed Tcl Array
+    upvar $array row
+
+    if { [empty_string_p $action_id] } {
+        db_1row select_case_info {} -column_array row
+        set row(entry_id) {}
+    } else {
+        db_1row select_case_info_after_action {} -column_array row
+        set row(entry_id) [db_nextval "workflow_case_log_seq"]
+    }
 }
 
 
@@ -324,7 +410,7 @@ ad_proc -public workflow::case::action::permission_p {
         set user_id [ad_conn user_id]
     }
 
-    set object_id [workflow::case::get_object_id -case_id $case_id]
+    set object_id [workflow::case::get_element -case_id $case_id -element object_id]
     set user_role_ids [workflow::case::get_user_roles -case_id $case_id -user_id $user_id]
     
     set permission_p 0
@@ -355,7 +441,7 @@ ad_proc -public workflow::case::action::permission_p {
             }
         }
     }
-        
+
     return $permission_p
 }
 
@@ -388,6 +474,11 @@ ad_proc -public workflow::case::action::available_p {
 
     @author Lars Pind (lars@collaboraid.biz)
 } {
+    # Always permit the no-op
+    if { [empty_string_p $action_id] } {
+        return 1
+    }
+
     if { ![exists_and_not_null user_id] } {
         set user_id [ad_conn user_id]
     }
@@ -410,6 +501,7 @@ ad_proc -public workflow::case::action::execute {
     {-comment_format:required}
     {-user_id}
     {-no_check:boolean}
+    {-entry_id {}}
 } {
     Execute the action
 
@@ -422,6 +514,9 @@ ad_proc -public workflow::case::action::execute {
     @param no_check        Use this switch to bypass a check of whether the action is
                            enabled and the user is allowed to perform it. This 
                            switch should normally not be used.
+    @param entry_id        Optional entry_id for double-click protection. 
+                           This can be gotten from workflow::case::fsm::get.
+    @return entry_id of the new log entry.
 
     @author Lars Pind (lars@collaboraid.biz)
 } {
@@ -444,10 +539,27 @@ ad_proc -public workflow::case::action::execute {
             db_dml update_fsm_state {}
         }
 
-        # Insert activity log entry
-        set entry_id [db_nextval "workflow_case_log_seq"]
-        db_dml insert_log_entry {}
+        # Maybe get entry_id, if one wasn't supplied
+        if { [empty_string_p $entry_id] } {
+            set entry_id [db_nextval "workflow_case_log_seq"]
+        }
+
+        # Check if the row already exists
+        set exists_p [db_string log_entry_exists_p {}]
         
+        if { $exists_p } {
+            return $entry_id
+        }
+
+        # We can't have empty comment_format
+        if { [empty_string_p $comment_format] } {
+            # We need a default value here
+            set comment_format "text/plain"
+        }
+
+        # Insert activity log entry
+        db_dml insert_log_entry {}
+
         # Assign new enabled roles, if currently unassigned
         workflow::case::assign_roles -case_id $case_id
 
@@ -456,7 +568,40 @@ ad_proc -public workflow::case::action::execute {
 
         # Notifications
         # ... TODO ...
+
+
+        # LARS: TODO
+        # Taken from bug-tracker
+        if 0 { 
+            # Setup any assignee for alerts on the bug
+            if { [info exists row(assignee)] && ![empty_string_p $row(assignee)] } {
+                bug_tracker::add_instant_alert \
+                        -bug_id $bug_id \
+                        -user_id $row(assignee)
+            }
+        }
+
+
+    # LARS: TODO
+    # Taken from bug-tracker
+    if 0 { 
+        set resolution {}
+        if { [exists_and_not_null row(resolution)] } {
+            set resolution $row(resolution)
+        }
+        
+        # Send out notifications
+        bug_tracker::bug_notify \
+                -bug_id $bug_id \
+                -action $action \
+                -comment $description \
+                -comment_format $desc_format \
+                -resolution $resolution
     }
+    
+    }
+    
+    return $entry_id
 }
 
 

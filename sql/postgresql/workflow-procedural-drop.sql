@@ -15,6 +15,7 @@
 drop function workflow__delete (integer);
 drop function workflow__new (varchar, -- short_name
                                varchar, -- pretty_name
+                               varchar, -- package_key
                                integer, -- object_id
                                varchar, -- object_type
                                integer, -- creation_user
