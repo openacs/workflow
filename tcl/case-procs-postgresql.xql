@@ -71,8 +71,8 @@
         from   workflow_case_log l join 
                workflow_actions a using (action_id) join 
                cr_items i on (i.item_id = l.entry_id) join 
-               acs_objects io on (io.object_id = i.item_id) join 
-               cc_users iou on (iou.user_id = io.creation_user) join
+               acs_objects io on (io.object_id = i.item_id) left outer join 
+               acs_users_all iou on (iou.user_id = io.creation_user) join
                cr_revisions r on (r.revision_id = i.live_revision) left outer join 
                workflow_case_log_data d using (entry_id)
         where  l.case_id = :case_id

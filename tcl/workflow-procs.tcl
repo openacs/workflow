@@ -545,7 +545,6 @@ ad_proc -public workflow::generate_spec {
         roles workflow::role 
         actions workflow::action
     }}
-    {-deep:boolean}
 } {
     Generate a spec for a workflow in array list style.
     Note that calling this directly with the default arguments will bomb, because workflow::action doesn't implement the required API.
@@ -587,8 +586,6 @@ ad_proc -public workflow::generate_spec {
         }
     }
 
-    set child_workflows [list]
-
     foreach { key namespace } $handlers {
         set subspec [list]
         
@@ -598,44 +595,12 @@ ad_proc -public workflow::generate_spec {
                                 -element short_name]
             set elm_spec [${namespace}::generate_spec -one_id $sub_id -handlers $handlers]
             
-            if { $deep_p } {
-                if { [string equal $key "actions"] } {
-                    array unset elm_array 
-                    array set elm_array $elm_spec
-                    if { [exists_and_not_null elm_array(child_workflow)] } {
-                        # Prefix the child workflow with the short_name of the parent workflow
-                        set new_child_workflow ${short_name}_$elm_array(child_workflow)
-                        
-                        # Change the child_workflow to the prefixed version in the spec
-                        set elm_array(child_workflow) $new_child_workflow
-
-                        # Output the modified spec
-                        set elm_spec [list]
-                        foreach name [lsort [array names elm_array]] {
-                            lappend elm_spec $name $elm_array($name)
-                        }
-
-                        # Remember this child workflow, so we generate the spec for it later
-                        set child_workflow_id [${namespace}::get_element -one_id $sub_id -element child_workflow_id]
-                        lappend child_workflows $child_workflow_id $new_child_workflow
-                    }
-                }
-            }
-
             lappend subspec $sub_short_name $elm_spec 
         }
         lappend spec $key $subspec
     }
 
     set spec [list $short_name $spec]
-
-    foreach { child_workflow_id new_short_name } $child_workflows {
-        set child_spec [${workflow_handler}::generate_spec \
-                                    -workflow_id $child_workflow_id \
-                                    -workflow_handler $workflow_handler \
-                                    -handlers $handlers]
-        set spec [concat $spec $new_short_name [list [lindex $child_spec 1]]]
-    }
 
     return $spec
 }
@@ -646,7 +611,6 @@ ad_proc -public workflow::clone {
     {-object_id {}}
     {-array {}}
     {-workflow_handler workflow}
-    {-deep:boolean}
 } {
     Clones an existing FSM workflow. The clone must belong to either a package key or an object id.
 
@@ -672,8 +636,7 @@ ad_proc -public workflow::clone {
 
     set spec [${workflow_handler}::generate_spec \
                   -workflow_id $workflow_id \
-                  -workflow_handler $workflow_handler \
-                  -deep=$deep_p]
+                  -workflow_handler $workflow_handler]
     
     set workflow_id [${workflow_handler}::new_from_spec \
                          -package_key $package_key \
@@ -1140,7 +1103,6 @@ ad_proc -public workflow::fsm::generate_spec {
         actions workflow::action::fsm
         states workflow::state::fsm
     }}
-    {-deep:boolean}
 } {
     Generate a spec for a workflow in array list style.
     
@@ -1153,8 +1115,7 @@ ad_proc -public workflow::fsm::generate_spec {
     set spec [workflow::generate_spec \
                   -workflow_id $workflow_id \
                   -workflow_handler $workflow_handler \
-                  -handlers $handlers \
-                  -deep=$deep_p]
+                  -handlers $handlers]
 
     return $spec
 }

@@ -1861,7 +1861,11 @@ ad_proc -public workflow::case::action::execute {
     @author Lars Pind (lars@collaboraid.biz)
 } {
     if { ![exists_and_not_null user_id] } {
-        set user_id [ad_conn user_id]
+        if { ![ad_conn isconnected] } {
+            set user_id 0
+        } else {
+            set user_id [ad_conn user_id]
+        }
     }
 
     if { [empty_string_p $case_id] || [empty_string_p $action_id] } {
