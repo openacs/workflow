@@ -341,7 +341,7 @@ create sequence workflow_cases_seq;
 
 create table workflow_cases (
   case_id                 integer
-			  constraint wf_cases_pk
+			  constraint workflow_cases_pk
                           primary key,
   workflow_id             constraint wf_cases_workflow_id_nn
                           not null
