@@ -36,9 +36,12 @@ select inline_0 ();
 drop function inline_0();
 
 -- Drop all tables
+drop view wf_case_assigned_user_actions;
+drop view wf_case_assigned_party_actions;
 drop view workflow_case_assigned_actions;
 drop table workflow_case_fsm;
 drop view workflow_case_role_user_map;
+drop view workflow_user_deputy_map;
 drop table workflow_deputies;
 drop table workflow_case_role_party_map;
 drop table workflow_case_log_data;
@@ -50,7 +53,10 @@ select content_type__drop_type (
   't'                                -- drop_table_p
 );
 
+drop table workflow_case_action_assignees;
+drop table workflow_case_enabled_actions;
 drop table workflow_cases;
+drop table workflow_case_parent_action;
 drop table workflow_fsm_action_en_in_st;
 drop table workflow_fsm_actions;
 drop table workflow_initial_action;
