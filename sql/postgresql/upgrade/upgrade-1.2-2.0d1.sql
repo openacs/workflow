@@ -51,3 +51,8 @@ alter table workflow_actions add constraint wf_actions_pretty_name_un unique (wo
 
 alter table workflow_fsm_states add constraint wf_fsm_states_short_name_un unique (workflow_id, short_name);
 alter table workflow_fsm_states add constraint wf_fsm_states_pretty_name_un unique (workflow_id, pretty_name);
+
+
+-- New not null constraints
+alter table workflow_initial_action alter column workflow_id set not null;
+alter table workflow_roles alter column workflow_id set not null;

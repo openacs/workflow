@@ -53,53 +53,277 @@ ad_proc -public workflow::new {
 
     @author Peter Marklund
 } {
-    # Auditing information for the acs_objects table
-    if { [ad_conn isconnected] } {            
-        set creation_user [ad_conn user_id]
-        set creation_ip [ad_conn peeraddr]        
-    } else {
-        # No HTTP request so we have don't have IP and user info
-        set creation_user {}
-        set creation_ip {}
+    # Wrapper for workflow::edit
+
+    foreach elm { short_name pretty_name package_key object_id object_type callbacks } {
+        set row($elm) [set $elm]
     }
 
-    # It makes sense that the workflow inherits permissions from the object 
-    # (typically package type or package instance) that sets the scope of the workflow
-    set context_id $object_id
+    set workflow_id [workflow::edit \
+                     -operation "insert" \
+                     -array row]
 
+    return $workflow_id
+}
+
+ad_proc -public workflow::edit {
+    {-operation "update"}
+    {-workflow_id {}}
+    {-array {}}
+    {-internal:boolean}
+} {
+    Edit a workflow.
+
+    Attributes of the array are: 
+
+    short_name
+    pretty_name
+    object_id
+    package_key
+    object_type
+    description
+    description_mime_type
+    callbacks
+    context_id
+    creation_user
+    creation_ip
+
+    @param operation    insert, update, delete
+
+    @param workflow_id  For update/delete: The workflow to update or delete. 
+
+    @param array        For insert/update: Name of an array in the caller's namespace with attributes to insert/update.
+
+    @return             workflow_id
+    
+    @see workflow::new
+
+    @author Peter Marklund
+    @author Lars Pind (lars@collaboraid.biz)
+} {        
+    switch $operation {
+        update - delete {
+            if { [empty_string_p $workflow_id] } {
+                error "You must specify the workflow_id of the workflow to $operation."
+            }
+        }
+        insert {}
+        default {
+            error "Illegal operation '$operation'"
+        }
+    }
+    switch $operation {
+        insert - update {
+            upvar 1 $array row
+            if { ![array exists row] } {
+                error "Array $array does not exist or is not an array"
+            }
+            foreach name [array names row] {
+                set missing_elm($name) 1
+            }
+        }
+    }
+    switch $operation {
+        insert {
+            # Check that they didn't try to supply a workflow_id
+            if { [info exists row(workflow_id)] } {
+                error "Cannot supply a workflow_id when creating"
+            }
+            # Default short_name on insert
+            if { ![info exists row(short_name)] } {
+                set row(short_name) {}
+            }
+            # Default package_key
+            if { ![info exists row(package_key)] } {
+                if { [ad_conn isconnected] } {
+                    set row(package_key) [ad_conn package_key]
+                }
+            }
+            # Default creation_user and creation_ip
+            if { ![info exists row(creation_user)] } {
+                if { [ad_conn isconnected] } {
+                    set row(creation_user) [ad_conn user_id]
+                } else {
+                    set row(creation_user) [db_null]
+                }
+            }
+            if { ![info exists row(creation_ip)] } {
+                if { [ad_conn isconnected] } {
+                    set row(creation_ip) [ad_conn peeraddr]
+                } else {
+                    set row(creation_ip) [db_null]
+                }
+            }
+            # Default context_id
+            if { ![info exists row(context_id)] } {
+                set row(context_id) $row(object_id)
+            }
+            # Default object_type
+            if { ![info exists row(object_type)] } {
+                set row(object_type) "acs_object"
+            }
+            # Check required values
+            foreach attr { pretty_name package_key object_id  } {
+                if { ![info exists row($attr)] } {
+                    error "$attr is required when creating a new workflow"
+                }
+            }
+            # These are used when validating/generating short_name
+            set workflow_array(package_key) $row(package_key)
+            set workflow_array(object_id) $row(object_id)
+        }
+        update {
+            # These are used when validating/generating short_name
+            if { [info exists row(package_key)] || ![info exists row(object_id)]  } {
+                workflow::get -workflow_id $workflow_id -array workflow_array
+            }
+            if { [info exists row(package_key)] } {
+                set workflow_array(package_key) $row(package_key)
+            }
+            if { [info exists row(object_id)]  } {
+                set workflow_array(object_id) $row(object_id)
+            }
+        }
+    }
+
+
+    # Parse column values
+    switch $operation {
+        insert - update {
+            set update_clauses [list]
+            set insert_names [list]
+            set insert_values [list]
+
+            # Handle columns in the workflows table
+            foreach attr { 
+                short_name
+                pretty_name
+                object_id
+                package_key
+                object_type
+                description
+                description_mime_type
+                creation_user
+                creation_ip
+                context_id
+            } {
+                if { [info exists row($attr)] } {
+                    set varname attr_$attr
+                    # Convert the Tcl value to something we can use in the query
+                    switch $attr {
+                        short_name {
+                            if { ![exists_and_not_null row(pretty_name)] } {
+                                if { [empty_string_p $row(short_name)] } {
+                                    error "You cannot $operation with an empty short_name without also setting pretty_name"
+                                } else {
+                                    set row(pretty_name) {}
+                                }
+                            }
+                            
+                            set $varname [workflow::generate_short_name \
+                                              -workflow_id $workflow_id \
+                                              -pretty_name $row(pretty_name) \
+                                              -short_name $row(short_name) \
+                                              -package_key $workflow_array(package_key) \
+                                              -object_id $workflow_array(object_id)]
+                        }
+                        default {
+                            set $varname $row($attr)
+                        }
+                    }
+                    # Add the column to the insert/update statement
+                    switch $attr {
+                        short_name - pretty_name - package_key - object_id - object_type {
+                            switch $operation {
+                                insert {
+                                    # Handled by the PL/SQL call
+                                }
+                                update {
+                                    lappend update_clauses "$attr = :$varname"
+                                }
+                            }
+                        }
+                        creation_user - creation_ip - context_id {
+                            if { ![string equal $operation insert] } {
+                                error "Cannot update creation_user, creation_ip, context_id"
+                            }
+                        }
+                        default {
+                            lappend update_clauses "$attr = :$varname"
+                            lappend insert_names $attr
+                            lappend insert_values :$varname
+                        }
+                    }
+                    if { [info exists missing_elm($attr)] } {
+                        unset missing_elm($attr)
+                    }
+                }
+            }
+        }
+    }
+    
     db_transaction {
+        # Do the insert/update/delete
+        switch $operation {
+            insert {
+                # Insert the workflow -- uses a PL/SQL call because it's an object
+                set workflow_id [db_exec_plsql do_insert {}]
 
-        if { [empty_string_p $object_id] } {
-            set object_id [db_null]
+                # Deal with attributes not handled by the PL/SQL call
+                if { [llength $update_clauses] > 0 } {
+                    db_dml update_workflow "
+                        update workflows
+                        set    [join $update_clauses ", "]
+                        where  workflow_id = :workflow_id
+                    "
+                }
+            }
+            update {
+                if { [llength $update_clauses] > 0 } {
+                    db_dml update_workflow "
+                        update workflows
+                        set    [join $update_clauses ", "]
+                        where  workflow_id = :workflow_id
+                    "
+                }
+            }
+            delete {
+                db_dml delete_workflow {
+                    delete from workflows
+                    where workflow_id = :workflow_id
+                }
+            }
         }
 
-        set short_name [workflow::generate_short_name \
-                            -package_key $package_key \
-                            -object_id $object_id \
-                            -pretty_name $pretty_name \
-                            -short_name $short_name]
+        switch $operation {
+            insert - update {
+                # Callbacks
+                if { [info exists row(callbacks)] } {
+                    db_dml delete_callbacks {
+                        delete from workflow_callbacks
+                        where  workflow_id = :workflow_id
+                    }
+                    foreach callback_name $row(callbacks) {
+                        workflow::callback_insert \
+                            -workflow_id $workflow_id \
+                            -name $callback_name
+                    }
+                    unset missing_elm(callbacks)
+                }
 
-        # Insert the workflow
-        set workflow_id [db_exec_plsql do_insert {}]
-        
-        # Callbacks
-        foreach callback_name $callbacks {
-            ns_log Debug "callback_name = $callback_name"
-            workflow::callback_insert \
-                    -workflow_id $workflow_id \
-                    -name $callback_name
-        }
-        
-        # May need to parse the simple workflow notation
-        if { [exists_and_not_null workflow] } {
-            parse_spec -workflow_id $workflow_id -spec $workflow
+                # Check that there are no unknown attributes
+                if { [llength [array names missing_elm]] > 0 } {
+                    error "Trying to set illegal workflow attributes: [join [array names missing_elm] ", "]"
+                }
+            }
         }
     }
 
-    # The lookup proc might have cached that there is no workflow
-    # with the short name of the workflow we have now created so
-    # we need to flush
-    util_memoize_flush_regexp {^workflow::get_id_not_cached}    
+    if { !$internal_p } {
+        # Flush the workflow cache, as changing an workflow changes the entire workflow
+        # e.g. initial_workflow_p, enabled_in_states.
+        workflow::flush_cache -workflow_id $workflow_id
+    }
 
     return $workflow_id
 }
@@ -698,7 +922,9 @@ ad_proc -private workflow::fsm::parse_spec {
         object_type {acs_object}
     }
 
-    array set workflow $spec
+    foreach { key value } $spec { 
+        set workflow($key) [string trim $value]
+    }
 
     # Override stuff in the spec with stuff provided as an argument here
     foreach var { package_key object_id } {
@@ -708,24 +934,24 @@ ad_proc -private workflow::fsm::parse_spec {
     }
     
     set workflow_id [workflow::new \
-            -short_name $short_name \
-            -pretty_name $workflow(pretty_name) \
-            -package_key $workflow(package_key) \
-            -object_id $object_id \
-            -object_type $workflow(object_type) \
-            -callbacks $workflow(callbacks)]
+                         -short_name $short_name \
+                         -pretty_name $workflow(pretty_name) \
+                         -package_key $workflow(package_key) \
+                         -object_id $object_id \
+                         -object_type $workflow(object_type) \
+                         -callbacks $workflow(callbacks)]
     
     workflow::role::parse_roles_spec \
-            -workflow_id $workflow_id \
-            -spec $workflow(roles)
-
+        -workflow_id $workflow_id \
+        -spec $workflow(roles)
+    
     workflow::state::fsm::parse_states_spec \
-            -workflow_id $workflow_id \
-            -spec $workflow(states)
-
+        -workflow_id $workflow_id \
+        -spec $workflow(states)
+    
     workflow::action::fsm::parse_actions_spec \
-            -workflow_id $workflow_id \
-            -spec $workflow(actions)
+        -workflow_id $workflow_id \
+        -spec $workflow(actions)
     
     return $workflow_id
 }

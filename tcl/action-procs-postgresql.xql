@@ -13,9 +13,15 @@
     </querytext>
   </fullquery>
 
-  <partialquery name="workflow::action::edit.update_timeout_seconds">
+  <partialquery name="workflow::action::edit.update_timeout_seconds_name">
     <querytext>
-      timeout = [ad_decode $attr_timeout_seconds "" "null" "interval '$attr_timeout_seconds seconds'"]
+      timeout
+    </querytext>
+  </partialquery>
+
+  <partialquery name="workflow::action::edit.update_timeout_seconds_value">
+    <querytext>
+      [ad_decode $attr_timeout_seconds "" "null" "interval '$attr_timeout_seconds seconds'"]
     </querytext>
   </partialquery>
 

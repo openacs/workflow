@@ -10,6 +10,8 @@
              w.object_id,
              w.package_key,
              w.object_type,
+             w.description,
+             w.description_mime_type,
              a.short_name as initial_action,
              a.action_id as initial_action_id
       from   workflows w left outer join
@@ -22,17 +24,17 @@
   </fullquery>
 
 
-  <fullquery name="workflow::new.do_insert">
+  <fullquery name="workflow::edit.do_insert">
     <querytext>
         select workflow__new (
-            :short_name,
-            :pretty_name,
-            :package_key,            
-            :object_id,
-            :object_type,
-            :creation_user,
-            :creation_ip,
-            :context_id
+            :attr_short_name,
+            :attr_pretty_name,
+            :attr_package_key,            
+            :attr_object_id,
+            :attr_object_type,
+            :attr_creation_user,
+            :attr_creation_ip,
+            :attr_context_id
         );
     </querytext>
   </fullquery>

@@ -10,6 +10,8 @@
              w.object_id,
              w.package_key,
              w.object_type,
+             w.description,
+             w.description_mime_type,
              a.short_name as initial_action,
              a.action_id as initial_action_id
       from   workflows w,
@@ -21,18 +23,18 @@
     </querytext>
   </fullquery>
 
-  <fullquery name="workflow::new.do_insert">
+  <fullquery name="workflow::edit.do_insert">
     <querytext>
         begin
         :1 := workflow.new (
-            short_name => :short_name,
-            pretty_name => :pretty_name,
-            package_key => :package_key,            
-            object_id => :object_id,
-            object_type => :object_type,
-            creation_user => :creation_user,
-            creation_ip => :creation_ip,
-            context_id => :context_id
+            short_name => :attr_short_name,
+            pretty_name => :attr_pretty_name,
+            package_key => :attr_package_key,            
+            object_id => :attr_object_id,
+            object_type => :attr_object_type,
+            creation_user => :attr_creation_user,
+            creation_ip => :attr_creation_ip,
+            context_id => :attr_context_id
         );
         end;
     </querytext>

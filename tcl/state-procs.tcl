@@ -28,16 +28,16 @@ ad_proc -public workflow::state::fsm::new {
     
     @param workflow_id The id of the FSM workflow to add the state to
 
-    @param short_name             If you leave blank, the short_name will be generated from pretty_name.
+    @param short_name   If you leave blank, the short_name will be generated from pretty_name.
 
-    @param pretty_name
+    @param pretty_name  
 
-    @param hide_fields            A space-separated list of the names of form fields which should be
-                                  hidden when in this state, because they're irrelevant in a certain state.
+    @param hide_fields  A space-separated list of the names of form fields which should be
+                        hidden when in this state, because they're irrelevant in a certain state.
 
-    @param sort_order             The number which this state should be in the sort ordering sequence. 
-                                  Leave blank to add state at the end. If you provide a sort_order number
-                                  which already exists, existing states are pushed down one number.
+    @param sort_order   The number which this state should be in the sort ordering sequence. 
+                        Leave blank to add state at the end. If you provide a sort_order number
+                        which already exists, existing states are pushed down one number.
 
     @param internal     Set this flag if you're calling this proc from within the corresponding proc 
                         for a particular workflow model. Will cause this proc to not flush the cache 
@@ -47,128 +47,204 @@ ad_proc -public workflow::state::fsm::new {
     
     @author Peter Marklund
 } {        
-    db_transaction {
-    
-        set state_id [db_nextval "workflow_fsm_states_seq"]
-        
-        if { [empty_string_p $sort_order] } {
-            set sort_order [workflow::default_sort_order \
-                                -workflow_id $workflow_id \
-                                -table_name "workflow_fsm_states"]
-        } else {
-            workflow::state::fsm::update_sort_order \
-                -workflow_id $workflow_id \
-                -sort_order $sort_order
-        }
+    # Wrapper for workflow::state::fsm::edit
 
-        set short_name [workflow::state::fsm::generate_short_name \
-                            -workflow_id $workflow_id \
-                            -pretty_name $pretty_name \
-                            -short_name $short_name]
-        
-        db_dml do_insert {}
-
-        if { !$internal_p } {
-            workflow::definition_changed_handler -workflow_id $workflow_id
-        }
+    foreach elm { short_name pretty_name sort_order } {
+        set row($elm) [set $elm]
     }
 
-    if { !$internal_p } {
-        workflow::flush_cache -workflow_id $workflow_id
-    }
- 
+    set state_id [workflow::state::fsm::edit \
+                      -operation "insert" \
+                      -workflow_id $workflow_id \
+                      -array row]
+
     return $state_id
 }
 
-
 ad_proc -public workflow::state::fsm::edit {
-    {-state_id:required}
-    {-array:required}
+    {-operation "update"}
+    {-state_id {}}
     {-workflow_id {}}
+    {-array {}}
     {-internal:boolean}
 } {
-    Creates a new state for a certain FSM (Finite State Machine) workflow.
-    
-    @param state_id     The id of the FSM state you wish to edit
+    Edit a workflow state. 
 
-    @param workflow_id  Optionally specify the workflow_id. If not specified, we will execute a query to find it.
-    
-    @param array        Name of an array in the caller's namespace with attributes to edit.
+    Attributes of the array are: 
 
-    @param internal     Set this flag if you're calling this proc from within the corresponding proc 
-                        for a particular workflow model. Will cause this proc to not flush the cache 
-                        or call workflow::definition_changed_handler, which the caller must then do.
+    short_name
+    pretty_name
+    sort_order
+    hide_fields
 
-    @return ID of the state.
+    @param operation    insert, update, delete
+
+    @param state_id     For update/delete: The state to update or delete. 
+                        For insert: Optionally specify a pre-generated state_id for the state.
+
+    @param workflow_id  For update/delete: Optionally specify the workflow_id. If not specified, we will execute a query to find it.
+                        For insert: The workflow_id of the new state.
     
+    @param array        For insert/update: Name of an array in the caller's namespace with attributes to insert/update.
+
+    @return             state_id
+    
+    @see workflow::state::new
+
     @author Peter Marklund
+    @author Lars Pind (lars@collaboraid.biz)
 } {        
-    upvar 1 $array row
-    if { ![array exists row] } {
-        error "Array $array does not exist or is not an array"
+    switch $operation {
+        update - delete {
+            if { [empty_string_p $state_id] } {
+                error "You must specify the state_id of the state to $operation."
+            }
+        }
+        insert {}
+        default {
+            error "Illegal operation '$operation'"
+        }
     }
-    foreach name [array names row] {
-        set missing_elm($name) 1
+    switch $operation {
+        insert - update {
+            upvar 1 $array row
+            if { ![array exists row] } {
+                error "Array $array does not exist or is not an array"
+            }
+            foreach name [array names row] {
+                set missing_elm($name) 1
+            }
+        }
+    }
+    switch $operation {
+        insert {
+            if { [empty_string_p $workflow_id] } {
+                error "You must supply workflow_id"
+            }
+            # Default sort_order
+            if { ![exists_and_not_null row(sort_order)] } {
+                set row(sort_order) [workflow::default_sort_order \
+                                         -workflow_id $workflow_id \
+                                         -table_name "workflow_fsm_states"]
+            }
+            # Default short_name on insert
+            if { ![info exists row(short_name)] } {
+                set row(short_name) {}
+            }
+        }
+        update {
+            if { [empty_string_p $workflow_id] } {
+                set workflow_id [workflow::state::fsm::get_element \
+                                     -state_id $state_id \
+                                     -element workflow_id]
+            }
+        }
     }
 
-    if { [empty_string_p $workflow_id] } {
-        set workflow_id [workflow::state::fsm::get_element \
-                             -state_id $state_id \
-                             -element workflow_id]
-    }
+    # Parse column values
+    switch $operation {
+        insert - update {
+            set update_clauses [list]
+            set insert_names [list]
+            set insert_values [list]
 
-    set set_clauses [list]
-
-    # Handle columns in the workflow_fsm_states table
-    foreach attr { 
-        short_name pretty_name hide_fields sort_order
-    } {
-        if { [info exists row($attr)] } {
-            set varname attr_$attr
-
-            # Convert the Tcl value to something we can use in the query
-            switch $attr {
-                short_name {
-                    if { ![exists_and_not_null row(pretty_name)] } {
-                        if { [empty_string_p $row(short_name)] } {
-                            error "You cannot edit with an empty short_name without also setting pretty_name"
-                        } else {
-                            set row(pretty_name) {}
+            # Handle columns in the workflow_fsm_states table
+            foreach attr { 
+                short_name pretty_name hide_fields sort_order
+            } {
+                if { [info exists row($attr)] } {
+                    set varname attr_$attr
+                    # Convert the Tcl value to something we can use in the query
+                    switch $attr {
+                        short_name {
+                            if { ![exists_and_not_null row(pretty_name)] } {
+                                if { [empty_string_p $row(short_name)] } {
+                                    error "You cannot edit with an empty short_name without also setting pretty_name"
+                                } else {
+                                    set row(pretty_name) {}
+                                }
+                            }
+                            
+                            set $varname [workflow::state::fsm::generate_short_name \
+                                              -workflow_id $workflow_id \
+                                              -pretty_name $row(pretty_name) \
+                                              -short_name $row(short_name) \
+                                              -state_id $state_id]
+                        }
+                        default {
+                            set $varname $row($attr)
                         }
                     }
-                        
-                    set $varname [workflow::state::fsm::generate_short_name \
-                                      -workflow_id $workflow_id \
-                                      -pretty_name $row(pretty_name) \
-                                      -short_name $row(short_name) \
-                                      -state_id $state_id]
-                }
-                default {
-                    set $varname $row($attr)
+                    # Add the column to the insert/update statement
+                    switch $attr {
+                        default {
+                            lappend update_clauses "$attr = :$varname"
+                            lappend insert_names $attr
+                            lappend insert_values :$varname
+                        }
+                    }
+                    if { [info exists missing_elm($attr)] } {
+                        unset missing_elm($attr)
+                    }
                 }
             }
-
-            # Add the column to the SET clause
-            lappend set_clauses "$attr = :$varname"
-
-            unset missing_elm($attr)
         }
     }
-
-    db_transaction {
     
-        # Update state
-        if { [llength $set_clauses] > 0 } {
-            db_dml update_action "
-                update workflow_fsm_states
-                set    [join $set_clauses ", "]
-                where  state_id = :state_id
-            "
+    db_transaction {
+        # Sort_order
+        switch $operation {
+            insert - update {
+                if { [info exists row(sort_order)] } {
+                    workflow::state::fsm::update_sort_order \
+                        -workflow_id $workflow_id \
+                        -sort_order $row(sort_order)
+                }
+            }
+        }
+        # Do the insert/update/delete
+        switch $operation {
+            insert {
+                if { [empty_string_p $state_id] } {
+                    set state_id [db_nextval "workflow_fsm_states_seq"]
+                }
+
+                lappend insert_names state_id
+                lappend insert_values :state_id
+                lappend insert_names workflow_id
+                lappend insert_values :workflow_id
+
+                db_dml insert_state "
+                    insert into workflow_fsm_states
+                    ([join $insert_names ", "])
+                    values
+                    ([join $insert_values ", "])
+                "
+            }
+            update {
+                if { [llength $update_clauses] > 0 } {
+                    db_dml update_state "
+                        update workflow_fsm_states
+                        set    [join $update_clauses ", "]
+                        where  state_id = :state_id
+                    "
+                }
+            }
+            delete {
+                db_dml delete_state {
+                    delete from workflow_fsm_states
+                    where state_id = :state_id
+                }
+            }
         }
 
-        # Check that there are no unknown attributes
-        if { [llength [array names missing_elm]] > 0 } {
-            error "Trying to set illegal state attributes: [join [array names missing_elm] ", "]"
+        switch $operation {
+            insert - update {
+                # Check that there are no unknown attributes
+                if { [llength [array names missing_elm]] > 0 } {
+                    error "Trying to set illegal state attributes: [join [array names missing_elm] ", "]"
+                }
+            }
         }
 
         if { !$internal_p } {
@@ -177,6 +253,8 @@ ad_proc -public workflow::state::fsm::edit {
     }
 
     if { !$internal_p } {
+        # Flush the workflow cache, as changing an state changes the entire workflow
+        # e.g. initial_state_p, enabled_in_states.
         workflow::flush_cache -workflow_id $workflow_id
     }
 
@@ -348,7 +426,9 @@ ad_proc -private workflow::state::fsm::parse_spec {
     }
     
     # Get the info from the spec
-    array set state $spec
+    foreach { key value } $spec {
+        set state($key) [string trim $value]
+    }
 
     # Create the state
     set state_id [workflow::state::fsm::new \

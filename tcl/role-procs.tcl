@@ -18,57 +18,9 @@ namespace eval workflow::role {}
 #
 #####
 
-ad_proc -private workflow::role::insert {
-    {-workflow_id:required}
-    {-short_name {}}
-    {-pretty_name:required}
-    {-sort_order {}}
-} {
-    Inserts the DB row for a new role. You shouldn't normally be usin
-    this procedure, use workflow::role::new instead.
-    
-    @param workflow_id  The ID of the workflow the new role belongs to
-
-    @param short_name   The short_name of the new role
-
-    @param pretty_name  The pretty name of the new role
-
-    @param sort_order   The number which this role should be in the sort ordering sequence. 
-                        Leave blank to add role at the end. If you provide a sort_order number
-                        which already exists, existing roles are pushed down one number.
-
-    @return The ID of the new role
-    
-    @author Lars Pind (lars@collaboraid.biz)
-    @see workflow::role::new
-} {        
-    db_transaction {
-
-        if { [empty_string_p $sort_order] } {
-            set sort_order [workflow::default_sort_order \
-                    -workflow_id $workflow_id \
-                    -table_name "workflow_roles"]
-        } else {
-            workflow::role::update_sort_order \
-                -workflow_id $workflow_id \
-                -sort_order $sort_order
-        }
-
-        set short_name [workflow::role::generate_short_name \
-                            -workflow_id $workflow_id \
-                            -pretty_name $pretty_name \
-                            -short_name $short_name]
-
-        set role_id [db_nextval "workflow_roles_seq"]
-
-        db_dml do_insert {}
-    }
-
-    return $role_id
-}
-
 ad_proc -public workflow::role::new {
     {-workflow_id:required}
+    {-role_id {}}
     {-short_name {}}
     {-pretty_name:required}
     {-sort_order {}}
@@ -85,47 +37,46 @@ ad_proc -public workflow::role::new {
     @author Peter Marklund
     @author Lars Pind (lars@collaboraid.biz)
 } {        
-    db_transaction {
-        # Insert the role
-        set role_id [insert \
-                -workflow_id $workflow_id \
-                -short_name $short_name \
-                -pretty_name $pretty_name \
-                -sort_order $sort_order \
-                ]
+    # Wrapper for workflow::role::edit
 
-        # Callbacks
-        set edit_array(callbacks) $callbacks
-        workflow::role::edit \
-            -internal \
-            -workflow_id $workflow_id \
-            -role_id $role_id \
-            -array edit_array
+    foreach elm { short_name pretty_name sort_order callbacks } {
+        set row($elm) [set $elm]
     }
 
-    # Role info for the workflow is changed, need to flush
-    workflow::role::flush_cache -workflow_id $workflow_id
+    set role_id [workflow::role::edit \
+                     -operation "insert" \
+                     -role_id $role_id \
+                     -workflow_id $workflow_id \
+                     -array row]
 
     return $role_id
 }
 
 ad_proc -public workflow::role::edit {
-    {-role_id:required}
+    {-operation "update"}
+    {-role_id {}}
     {-workflow_id {}}
-    {-array:required}
+    {-array {}}
     {-internal:boolean}
 } {
-    Edit a workflow role. Attributes of the array are: short_name, pretty_name, sort_order, callbacks.
+    Edit a workflow role. 
 
-    @param role_id      The role to edit.
+    Attributes of the array are: 
 
-    @param workflow_id  Optionally specify the workflow_id. If not specified, we will execute a query to find it.
+    short_name
+    pretty_name
+    sort_order
+    callbacks.
+
+    @param operation    insert, update, delete
+
+    @param role_id      For update/delete: The role to update or delete. 
+                        For insert: Optionally specify a pre-generated role_id for the role.
+
+    @param workflow_id  For update/delete: Optionally specify the workflow_id. If not specified, we will execute a query to find it.
+                        For insert: The workflow_id of the new role.
     
-    @param array        Name of an array in the caller's namespace with attributes to edit.
-
-    @param internal     Set this flag if you're calling this proc from within the corresponding proc 
-                        for a particular workflow model. Will cause this proc to not flush the cache 
-                        or call workflow::definition_changed_handler, which the caller must then do.
+    @param array        For insert/update: Name of an array in the caller's namespace with attributes to insert/update.
 
     @return             role_id
     
@@ -134,87 +85,171 @@ ad_proc -public workflow::role::edit {
     @author Peter Marklund
     @author Lars Pind (lars@collaboraid.biz)
 } {        
-    upvar 1 $array row
-    foreach name [array names row] {
-        set missing_elm($name) 1
+    switch $operation {
+        update - delete {
+            if { [empty_string_p $role_id] } {
+                error "You must specify the role_id of the role to $operation."
+            }
+        }
+        insert {}
+        default {
+            error "Illegal operation '$operation'"
+        }
+    }
+    switch $operation {
+        insert - update {
+            upvar 1 $array row
+            if { ![array exists row] } {
+                error "Array $array does not exist or is not an array"
+            }
+            foreach name [array names row] {
+                set missing_elm($name) 1
+            }
+        }
+    }
+    switch $operation {
+        insert {
+            if { [empty_string_p $workflow_id] } {
+                error "You must supply workflow_id"
+            }
+            # Default sort_order
+            if { ![exists_and_not_null row(sort_order)] } {
+                set row(sort_order) [workflow::default_sort_order \
+                                         -workflow_id $workflow_id \
+                                         -table_name "workflow_roles"]
+            }
+            # Default short_name on insert
+            if { ![info exists row(short_name)] } {
+                set row(short_name) {}
+            }
+        }
+        update {
+            if { [empty_string_p $workflow_id] } {
+                set workflow_id [workflow::role::get_element \
+                                     -role_id $role_id \
+                                     -element workflow_id]
+            }
+        }
     }
 
-    set set_clauses [list]
+    # Parse column values
+    switch $operation {
+        insert - update {
+            set update_clauses [list]
+            set insert_names [list]
+            set insert_values [list]
 
-    if { [empty_string_p $workflow_id] } {
-        set workflow_id [workflow::role::get_element \
-                             -role_id $role_id \
-                             -element workflow_id]
-    }
-
-    # Handle columns in the workflow_roles table
-    foreach attr { 
-        short_name pretty_name sort_order 
-    } {
-        if { [info exists row($attr)] } {
-            set varname attr_$attr
-
-            # Convert the Tcl value to something we can use in the query
-            switch $attr {
-                short_name {
-                    if { ![exists_and_not_null row(pretty_name)] } {
-                        if { [empty_string_p $row(short_name)] } {
-                            error "You cannot edit with an empty short_name without also setting pretty_name"
-                        } else {
-                            set row(pretty_name) {}
+            # Handle columns in the workflow_roles table
+            foreach attr { 
+                short_name pretty_name sort_order 
+            } {
+                if { [info exists row($attr)] } {
+                    set varname attr_$attr
+                    # Convert the Tcl value to something we can use in the query
+                    switch $attr {
+                        short_name {
+                            if { ![exists_and_not_null row(pretty_name)] } {
+                                if { [empty_string_p $row(short_name)] } {
+                                    error "You cannot $operation with an empty short_name without also setting pretty_name"
+                                } else {
+                                    set row(pretty_name) {}
+                                }
+                            }
+                            
+                            set $varname [workflow::role::generate_short_name \
+                                              -workflow_id $workflow_id \
+                                              -pretty_name $row(pretty_name) \
+                                              -short_name $row(short_name) \
+                                              -role_id $role_id]
+                        }
+                        default {
+                            set $varname $row($attr)
                         }
                     }
-                    
-                    set $varname [workflow::role::generate_short_name \
-                                      -workflow_id $workflow_id \
-                                      -pretty_name $row(pretty_name) \
-                                      -short_name $row(short_name) \
-                                      -role_id $role_id]
-                }
-                default {
-                    set $varname $row($attr)
+                    # Add the column to the insert/update statement
+                    switch $attr {
+                        default {
+                            lappend update_clauses "$attr = :$varname"
+                            lappend insert_names $attr
+                            lappend insert_values :$varname
+                        }
+                    }
+                    if { [info exists missing_elm($attr)] } {
+                        unset missing_elm($attr)
+                    }
                 }
             }
-
-            lappend set_clauses "$attr = :$varname"
-            unset missing_elm($attr)
         }
     }
-
+    
     db_transaction {
-
-        if { [info exists row(sort_order)] } {
-            workflow::role::update_sort_order \
-                -workflow_id $workflow_id \
-                -sort_order $row(sort_order)
-        }
-        
-        # Update role
-        if { [llength $set_clauses] > 0 } {
-            db_dml update_role "
-                update workflow_roles
-                set    [join $set_clauses ", "]
-                where  role_id = :role_id
-            "
-        }
-        
-        # Callbacks
-        if { [info exists row(callbacks)] } {
-            db_dml delete_callbacks {
-                delete from workflow_role_callbacks
-                where  role_id = :role_id
+        # Sort_order
+        switch $operation {
+            insert - update {
+                if { [info exists row(sort_order)] } {
+                    workflow::role::update_sort_order \
+                        -workflow_id $workflow_id \
+                        -sort_order $row(sort_order)
+                }
             }
-            foreach callback_name $row(callbacks) {
-                workflow::role::callback_insert \
-                    -role_id $role_id \
-                    -name $callback_name
+        }
+        # Do the insert/update/delete
+        switch $operation {
+            insert {
+                if { [empty_string_p $role_id] } {
+                    set role_id [db_nextval "workflow_roles_seq"]
+                }
+
+                lappend insert_names role_id
+                lappend insert_values :role_id
+                lappend insert_names workflow_id
+                lappend insert_values :workflow_id
+
+                db_dml insert_role "
+                    insert into workflow_roles
+                    ([join $insert_names ", "])
+                    values
+                    ([join $insert_values ", "])
+                "
             }
-            unset missing_elm(callbacks)
+            update {
+                if { [llength $update_clauses] > 0 } {
+                    db_dml update_role "
+                        update workflow_roles
+                        set    [join $update_clauses ", "]
+                        where  role_id = :role_id
+                    "
+                }
+            }
+            delete {
+                db_dml delete_role {
+                    delete from workflow_roles
+                    where role_id = :role_id
+                }
+            }
         }
 
-        # Check that there are no unknown attributes
-        if { [llength [array names missing_elm]] > 0 } {
-            error "Trying to set illegal action attributes: [join [array names row] ", "]"
+        switch $operation {
+            insert - update {
+                # Callbacks
+                if { [info exists row(callbacks)] } {
+                    db_dml delete_callbacks {
+                        delete from workflow_role_callbacks
+                        where  role_id = :role_id
+                    }
+                    foreach callback_name $row(callbacks) {
+                        workflow::role::callback_insert \
+                            -role_id $role_id \
+                            -name $callback_name
+                    }
+                    unset missing_elm(callbacks)
+                }
+
+                # Check that there are no unknown attributes
+                if { [llength [array names missing_elm]] > 0 } {
+                    error "Trying to set illegal role attributes: [join [array names missing_elm] ", "]"
+                }
+            }
         }
 
         if { !$internal_p } {
@@ -223,7 +258,9 @@ ad_proc -public workflow::role::edit {
     }
 
     if { !$internal_p } {
-        workflow::role::flush_cache -workflow_id $workflow_id
+        # Flush the workflow cache, as changing an role changes the entire workflow
+        # e.g. initial_role_p, enabled_in_states.
+        workflow::flush_cache -workflow_id $workflow_id
     }
 
     return $role_id
@@ -236,10 +273,9 @@ ad_proc -public workflow::role::delete {
 
     @author Peter Marklund
 } {
-    db_dml delete_role {
-        delete from workflow_roles
-        where role_id = :role_id
-    }
+    workflow::role::edit \
+        -operation "delete" \
+        -role_id $role_id
 }
 
 ad_proc -public workflow::role::get_options {
@@ -380,7 +416,9 @@ ad_proc -private workflow::role::parse_spec {
     array set role { callbacks {} }
     
     # Get the info from the spec
-    array set role $spec
+    foreach { key value } $spec {
+        set role($key) [string trim $value]
+    }
 
     # Create the role
     set role_id [workflow::role::new \

@@ -98,6 +98,8 @@ create table workflow_roles (
                           constraint wf_roles_pk
                           primary key,
   workflow_id             integer
+                          constraint wf_roles_workflow_id_nn
+                          not null
                           constraint wf_roles_workflow_id_fk
                           references workflows(workflow_id)
                           on delete cascade,
@@ -245,6 +247,8 @@ create table workflow_action_callbacks (
 -- For the initial action, which fires when a new case is started
 create table workflow_initial_action (
   workflow_id             integer
+                          constraint wf_roles_workflow_id_nn
+                          not null
                           constraint wf_initial_acn_pk
                           primary key
                           constraint wf_initial_acn_wf_fk

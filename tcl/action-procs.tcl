@@ -91,86 +91,68 @@ ad_proc -public workflow::action::new {
 
     @return The id of the created action
 
-    @see workflow::action::fsm::new
+    @see workflow::action::edit
+    @see workflow::action::fsm::edit
     @see workflow::definition_changed_handler
 
     @author Peter Marklund
 } {
-    db_transaction {
-        # Insert basic action info
-        if { [empty_string_p $sort_order] } {
-            set sort_order [workflow::default_sort_order \
-                    -workflow_id $workflow_id \
-                    -table_name "workflow_actions"]
-        } else {
-            workflow::action::update_sort_order \
-                -workflow_id $workflow_id \
-                -sort_order $sort_order
-        }
-
-        set short_name [workflow::action::generate_short_name \
-                            -workflow_id $workflow_id \
-                            -pretty_name $pretty_name \
-                            -short_name $short_name]
-
-        if { [empty_string_p $action_id] } {
-            set action_id [db_nextval "workflow_actions_seq"]
-        }
-
-        if { [empty_string_p $assigned_role] } {
-            set assigned_role_id [db_null]
-        } else {
-            set assigned_role_id [workflow::role::get_id \
-                    -workflow_id $workflow_id \
-                    -short_name $assigned_role]
-            if { [empty_string_p $assigned_role_id] } {
-                error "Cannot find role '$assigned_role' to be the assigned role for action '$short_name'"
-            }
-        }
-
-        # Insert the action
-        db_dml insert_action {}
-
-        # Set all the other attributes
-        array set update_cols [list]
-        set update_cols(allowed_roles) $allowed_roles
-        set update_cols(privileges) $privileges
-        set update_cols(callbacks) $callbacks
-        set update_cols(initial_action_p) $initial_action_p
-        
-        workflow::action::edit \
-            -internal \
-            -action_id $action_id \
-            -workflow_id $workflow_id \
-            -array update_cols
-
-        if { !$internal_p } {
-            workflow::definition_changed_handler -workflow_id $workflow_id
-        }
-    }
-
-    if { !$internal_p } {
-        # Flush the workflow cache, as changing an action changes the entire workflow
-        # e.g. initial_action_p, enabled_in_states.
-        workflow::flush_cache -workflow_id $workflow_id
-    }
+    # Wrapper for workflow::action::edit
     
+    array set row [list]
+    foreach col { 
+        initial_action_p sort_order short_name pretty_name
+        pretty_past_tense edit_fields allowed_roles assigned_role 
+        privileges callbacks always_enabled_p description description_mime_type 
+        timeout_seconds
+    } {
+        set row($col) [set $col]
+    }
+
+    set action_id [workflow::action::edit \
+                       -operation "insert" \
+                       -action_id $action_id \
+                       -workflow_id $workflow_id \
+                       -array row]
+
     return $action_id
 }
 
 ad_proc -public workflow::action::edit {
-    {-action_id:required}
+    {-operation "update"}
+    {-action_id {}}
     {-workflow_id {}}
-    {-array:required}
+    {-array {}}
     {-internal:boolean}
 } {
     Edit an action. 
 
-    @param action_id    The action to edit.
+    Attributes of the array: 
 
-    @param workflow_id  Optionally specify the workflow_id. If not specified, we will execute a query to find it.
+    short_name
+    pretty_name
+    pretty_past_tense
+    edit_fields
+    description 
+    description_mime_type
+    sort_order
+    always_enabled_p 
+    assigned_role
+    timeout_seconds
+    privileges
+    allowed_roles
+    initial_action_p
+    callbacks
     
-    @param array        Name of an array in the caller's namespace with attributes to edit.
+    @param operation    insert, update, delete
+
+    @param action_id    For update/delete: The action to update or delete. 
+                        For insert: Optionally specify a pre-generated action_id for the action.
+
+    @param workflow_id  For update/delete: Optionally specify the workflow_id. If not specified, we will execute a query to find it.
+                        For insert: The workflow_id of the new action.
+    
+    @param array        For insert/update: Name of an array in the caller's namespace with attributes to insert/update.
 
     @param internal     Set this flag if you're calling this proc from within the corresponding proc 
                         for a particular workflow model. Will cause this proc to not flush the cache 
@@ -178,149 +160,231 @@ ad_proc -public workflow::action::edit {
 
     @return action_id
     
+    @author Lars Pind (lars@collaboraid.biz)
+
     @see workflow::action::new
 } {
-    upvar 1 $array row
-    if { ![array exists row] } {
-        error "Array $array does not exist or is not an array"
+    switch $operation {
+        update - delete {
+            if { [empty_string_p $action_id] } {
+                error "You must specify the action_id of the action to $operation."
+            }
+        }
+        insert {}
+        default {
+            error "Illegal operation '$operation'"
+        }
     }
-    foreach name [array names row] {
-        set missing_elm($name) 1
+    switch $operation {
+        insert - update {
+            upvar 1 $array row
+            if { ![array exists row] } {
+                error "Array $array does not exist or is not an array"
+            }
+            foreach name [array names row] {
+                set missing_elm($name) 1
+            }
+        }
+    }
+    switch $operation {
+        insert {
+            if { [empty_string_p $workflow_id] } {
+                error "You must supply workflow_id"
+            }
+            # Default sort_order
+            if { ![exists_and_not_null row(sort_order)] } {
+                set row(sort_order) [workflow::default_sort_order \
+                                         -workflow_id $workflow_id \
+                                         -table_name "workflow_actions"]
+            }
+            # Default short_name on insert
+            if { ![info exists row(short_name)] } {
+                set row(short_name) {}
+            }
+        }
+        update - delete {
+            if { [empty_string_p $workflow_id] } {
+                set workflow_id [workflow::action::get_element \
+                                     -action_id $action_id \
+                                     -element workflow_id]
+            }
+        }
     }
 
-    if { [empty_string_p $workflow_id] } {
-        set workflow_id [workflow::action::get_element \
-                             -action_id $action_id \
-                             -element workflow_id]
-    }
-
-    set set_clauses [list]
-
-    # Handle columns in the workflow_actions table
-    foreach attr { 
-        short_name pretty_name pretty_past_tense edit_fields description description_mime_type sort_order
-        always_enabled_p 
-        assigned_role
-        timeout_seconds
-    } {
-        if { [info exists row($attr)] } {
-            set varname attr_$attr
-            # Convert the Tcl value to something we can use in the query
-            switch $attr {
-                short_name {
-                    if { ![exists_and_not_null row(pretty_name)] } {
-                        if { [empty_string_p $row(short_name)] } {
-                            error "You cannot edit with an empty short_name without also setting pretty_name"
-                        } else {
-                            set row(pretty_name) {}
+    # Parse column values
+    switch $operation {
+        insert - update {
+            set update_clauses [list]
+            set insert_names [list]
+            set insert_values [list]
+            # Handle columns in the workflow_actions table
+            foreach attr { 
+                short_name pretty_name pretty_past_tense edit_fields description description_mime_type sort_order
+                always_enabled_p
+                assigned_role
+                timeout_seconds
+            } {
+                if { [info exists row($attr)] } {
+                    set varname attr_$attr
+                    # Convert the Tcl value to something we can use in the query
+                    switch $attr {
+                        short_name {
+                            if { ![exists_and_not_null row(pretty_name)] } {
+                                if { [empty_string_p $row(short_name)] } {
+                                    error "You cannot edit with an empty short_name without also setting pretty_name"
+                                } else {
+                                    set row(pretty_name) {}
+                                }
+                            }
+                                
+                            set $varname [workflow::action::generate_short_name \
+                                              -workflow_id $workflow_id \
+                                              -pretty_name $row(pretty_name) \
+                                              -short_name $row(short_name) \
+                                              -action_id $action_id]
+                        }
+                        always_enabled_p {
+                            set $varname [db_boolean [template::util::is_true $row($attr)]]
+                        }
+                        assigned_role {
+                            if { [empty_string_p $row($attr)] } {
+                                set $varname [db_null]
+                            } else {
+                                # Get role_id by short_name
+                                set $varname [workflow::role::get_id \
+                                                  -workflow_id $workflow_id \
+                                                  -short_name $row($attr)]
+                            }
+                        }
+                        default {
+                            set $varname $row($attr)
                         }
                     }
-                        
-                    set $varname [workflow::action::generate_short_name \
-                                      -workflow_id $workflow_id \
-                                      -pretty_name $row(pretty_name) \
-                                      -short_name $row(short_name) \
-                                      -action_id $action_id]
-                }
-                always_enabled_p {
-                    set $varname [db_boolean [template::util::is_true $row($attr)]]
-                }
-                assigned_role {
-                    if { [empty_string_p $row($attr)] } {
-                        set $varname [db_null]
-                    } else {
-                        # Get role_id by short_name
-                        set $varname [workflow::role::get_id \
-                                          -workflow_id $workflow_id \
-                                          -short_name $row($attr)]
+                    # Add the column to the insert/update statement
+                    switch $attr {
+                        timeout_seconds {
+                            lappend update_clauses "[db_map update_timeout_seconds_name] = [db_map update_timeout_seconds_value]"
+                            lappend insert_names [db_map update_timeout_seconds_name]
+                            lappend insert_values [db_map update_timeout_seconds_value]
+                        }
+                        default {
+                            lappend update_clauses "$attr = :$varname"
+                            lappend insert_names $attr
+                            lappend insert_values :$varname
+                        }
+                    }
+                    if { [info exists missing_elm($attr)] } {
+                        unset missing_elm($attr)
                     }
                 }
-                default {
-                    set $varname $row($attr)
-                }
             }
-            # Add the column to the SET clause
-            switch $attr {
-                timeout_seconds {
-                    lappend set_clauses [db_map update_timeout_seconds]
-                }
-                default {
-                    lappend set_clauses "$attr = :$varname"
-                }
-            }
-            unset missing_elm($attr)
         }
     }
     
     db_transaction {
-        if { [info exists row(sort_order)] } {
-            workflow::action::update_sort_order \
-                -workflow_id $workflow_id \
-                -sort_order $row(sort_order)
-        }
-        
-        # Update action
-        if { [llength $set_clauses] > 0 } {
-            db_dml update_action "
-                update workflow_actions
-                set    [join $set_clauses ", "]
-                where  action_id = :action_id
-            "
-        }
-        
-        # Record which roles are allowed to take action
-        if { [info exists row(allowed_roles)] } {
-            db_dml delete_allowed_roles {
-                delete from workflow_action_allowed_roles
-                where  action_id = :action_id
-            }
-            foreach allowed_role $row(allowed_roles) {
-                db_dml insert_allowed_role {}
-            }
-            unset missing_elm(allowed_roles)
-        }
-        
-        # Record which privileges enable the action
-        if { [info exists row(privileges)] } {
-            db_dml delete_privileges {
-                delete from workflow_action_privileges
-                where  action_id = :action_id
-            }
-            foreach privilege $row(privileges) {
-                db_dml insert_privilege {}
-            }
-            unset missing_elm(privileges)
-        }
-             
-        # Record if this is an initial action
-        if { [info exists row(initial_action_p)] } {
-            if { [template::util::is_true $row(initial_action_p)] } {
-                db_dml delete_initial_action {
-                    delete from workflow_initial_action
-                    where  workflow_id = :workflow_id
+        # Sort_order
+        switch $operation {
+            insert - update {
+                if { [info exists row(sort_order)] } {
+                    workflow::action::update_sort_order \
+                        -workflow_id $workflow_id \
+                        -sort_order $row(sort_order)
                 }
-                db_dml insert_initial_action {}
             }
-            unset missing_elm(initial_action_p)
         }
+        # Do the insert/update/delete
+        switch $operation {
+            insert {
+                if { [empty_string_p $action_id] } {
+                    set action_id [db_nextval "workflow_actions_seq"]
+                }
 
-        # Callbacks
-        if { [info exists row(callbacks)] } {
-            db_dml delete_callbacks {
-                delete from workflow_action_callbacks
-                where  action_id = :action_id
+                lappend insert_names action_id
+                lappend insert_values :action_id
+                lappend insert_names workflow_id
+                lappend insert_values :workflow_id
+
+                db_dml insert_action "
+                    insert into workflow_actions
+                    ([join $insert_names ", "])
+                    values
+                    ([join $insert_values ", "])
+                "
             }
-            foreach callback_name $row(callbacks) {
-                workflow::action::callback_insert \
-                    -action_id $action_id \
-                    -name $callback_name
+            update {
+                if { [llength $update_clauses] > 0 } {
+                    db_dml update_action "
+                        update workflow_actions
+                        set    [join $update_clauses ", "]
+                        where  action_id = :action_id
+                    "
+                }
             }
-            unset missing_elm(callbacks)
+            delete {
+                db_dml delete_action {
+                    delete from workflow_actions
+                    where action_id = :action_id
+                }
+            }
         }
+        
+        switch $operation {
+            insert - update {
+                # Record which roles are allowed to take action
+                if { [info exists row(allowed_roles)] } {
+                    db_dml delete_allowed_roles {
+                        delete from workflow_action_allowed_roles
+                        where  action_id = :action_id
+                    }
+                    foreach allowed_role $row(allowed_roles) {
+                        db_dml insert_allowed_role {}
+                    }
+                    unset missing_elm(allowed_roles)
+                }
+                
+                # Record which privileges enable the action
+                if { [info exists row(privileges)] } {
+                    db_dml delete_privileges {
+                        delete from workflow_action_privileges
+                        where  action_id = :action_id
+                    }
+                    foreach privilege $row(privileges) {
+                        db_dml insert_privilege {}
+                    }
+                    unset missing_elm(privileges)
+                }
+                     
+                # Record if this is an initial action
+                if { [info exists row(initial_action_p)] } {
+                    if { [template::util::is_true $row(initial_action_p)] } {
+                        db_dml delete_initial_action {
+                            delete from workflow_initial_action
+                            where  workflow_id = :workflow_id
+                        }
+                        db_dml insert_initial_action {}
+                    }
+                    unset missing_elm(initial_action_p)
+                }
 
-        # Check that there are no unknown attributes
-        if { [llength [array names missing_elm]] > 0 } {
-            error "Trying to set illegal action attributes: [join [array names missing_elm] ", "]"
+                # Callbacks
+                if { [info exists row(callbacks)] } {
+                    db_dml delete_callbacks {
+                        delete from workflow_action_callbacks
+                        where  action_id = :action_id
+                    }
+                    foreach callback_name $row(callbacks) {
+                        workflow::action::callback_insert \
+                            -action_id $action_id \
+                            -name $callback_name
+                    }
+                    unset missing_elm(callbacks)
+                }
+
+                # Check that there are no unknown attributes
+                if { [llength [array names missing_elm]] > 0 } {
+                    error "Trying to set illegal action attributes: [join [array names missing_elm] ", "]"
+                }
+            }
         }
 
         if { !$internal_p } {
@@ -335,6 +399,16 @@ ad_proc -public workflow::action::edit {
     }
 
     return $action_id
+}
+
+ad_proc -public workflow::action::delete {
+    {-action_id:required}
+} {
+    Delete action with given id.
+
+    @author Peter Marklund
+} {
+    workflow::action::edit -operation "delete" -action_id $action_id
 }
 
 ad_proc -public workflow::action::get_assigned_role {
@@ -625,175 +699,254 @@ ad_proc -public workflow::action::fsm::new {
 
     @return the new action_id.
 
-    @see workflow::action::new
+    @see workflow::action::fsm::edit
 
     @author Peter Marklund
 } {        
+    # Wrapper for workflow::action::edit
 
-    db_transaction {
-        # Generic workflow data:
-        set action_id [workflow::action::new \
-                           -internal \
-                           -initial_action_p $initial_action_p \
-                           -workflow_id $workflow_id \
-                           -action_id $action_id \
-                           -sort_order $sort_order \
-                           -short_name $short_name \
-                           -pretty_name $pretty_name \
-                           -pretty_past_tense $pretty_past_tense \
-                           -edit_fields $edit_fields \
-                           -allowed_roles $allowed_roles \
-                           -assigned_role $assigned_role \
-                           -privileges $privileges \
-                           -callbacks $callbacks \
-                           -always_enabled_p $always_enabled_p \
-                           -description $description \
-                           -description_mime_type $description_mime_type \
-                           -timeout_seconds $timeout_seconds]
-
-        # FSM specific information below
-
-        # Record whether the action changes state
-        if { ![empty_string_p $new_state] } {
-            if { ![empty_string_p $new_state_id] } {
-                error "You cannot supply both new_state (takes short_name) and new_state_id (takes state_id)"
-            }
-            set new_state_id [workflow::state::fsm::get_id \
-                    -workflow_id $workflow_id \
-                    -short_name $new_state]
+    array set row [list]
+    foreach col { 
+        initial_action_p sort_order short_name pretty_name
+        pretty_past_tense edit_fields allowed_roles assigned_role 
+        privileges callbacks always_enabled_p description description_mime_type 
+        timeout_seconds 
+    } {
+        set row($col) [set $col]
+    }
+    foreach elm { 
+        new_state new_state_id
+        enabled_states assigned_states
+        enabled_state_ids assigned_state_ids
+    } {
+        if { [exists_and_not_null $elm] } {
+            set row($elm) [set $elm]
         }
-        db_dml insert_fsm_action {}
+    }
 
-        array set update_cols [list]
-        foreach col { enabled_states enabled_state_ids assigned_states assigned_state_ids } {
-            if { ![empty_string_p [set $col]] } {
-                set update_cols($col) [set $col]
-            }
-        }
-
-        workflow::action::fsm::edit \
-            -internal \
-            -action_id $action_id \
-            -workflow_id $workflow_id \
-            -array update_cols
-
-        workflow::definition_changed_handler -workflow_id $workflow_id
-    }   
-    
-    # Flush the workflow cache, as changing an action changes the entire workflow
-    # e.g. initial_action_p, enabled_in_states.
-    workflow::flush_cache -workflow_id $workflow_id
+    set action_id [workflow::action::fsm::edit \
+                       -operation "insert" \
+                       -action_id $action_id \
+                       -workflow_id $workflow_id \
+                       -array row]
 
     return $action_id
 }
 
 ad_proc -public workflow::action::fsm::edit {
-    {-action_id:required}
+    {-operation "update"}
+    {-action_id {}}
     {-workflow_id {}}
-    {-array:required}
+    {-array {}}
     {-internal:boolean}
 } {
-    Edit an FSM action.
+    Edit an action. 
 
-    @param action_id    The action to edit.
+    @param operation    insert, update, delete
 
-    @param workflow_id  Optionally specify  the workflow_id. If not specified, we will execute a query to find it.
+    @param action_id    For update/delete: The action to update or delete. 
+                        For insert: Optionally specify a pre-generated action_id for the action.
+
+    @param workflow_id  For update/delete: Optionally specify the workflow_id. If not specified, we will execute a query to find it.
+                        For insert: The workflow_id of the new action.
     
-    @param array        Name of an array in the caller's namespace with attributes to edit.
+    @param array        For insert/update: Name of an array in the caller's namespace with attributes to insert/update.
 
-    @param internal               Set this flag if you're calling this proc from within the corresponding proc 
-                                  for a particular workflow model. Will cause this proc to not flush the cache 
-                                  or call workflow::definition_changed_handler, which the caller must then do.
+    @param internal     Set this flag if you're calling this proc from within the corresponding proc 
+                        for a particular workflow model. Will cause this proc to not flush the cache 
+                        or call workflow::definition_changed_handler, which the caller must then do.
 
     @return action_id
     
-    @see workflow::action::fsm::new
+    @see workflow::action::edit
 } {
-    upvar 1 $array org_row
-    if { ![array exists org_row] } {
-        error "Array $array does not exist or is not an array"
+    switch $operation {
+        update - delete {
+            if { [empty_string_p $action_id] } {
+                error "You must specify the action_id of the action to $operation."
+            }
+        }
+        insert {}
+        default {
+            error "Illegal operation '$operation'"
+        }
+    }
+    switch $operation {
+        insert - update {
+            upvar 1 $array org_row
+            if { ![array exists org_row] } {
+                error "Array $array does not exist or is not an array"
+            }
+            array set row [array get org_row]
+        }
+    }
+    switch $operation {
+        insert {
+            if { [empty_string_p $workflow_id] } {
+                error "You must supply workflow_id"
+            }
+        }
+        update - delete {
+            if { [empty_string_p $workflow_id] } {
+                set workflow_id [workflow::action::get_element \
+                                     -action_id $action_id \
+                                     -element workflow_id]
+            }
+        }
     }
 
-    # We make a copy here and work on that, so the check for illegal attributes in workflow::action::edit works properly, 
-    # i.e. we delete from 'row' before calling workflow::action::edit, but we don't touch the caller's row
-    array set row [array get org_row]
+    # Parse column values
+    switch $operation {
+        insert - update {
+            # Special-case: array entry new_state (short_name) and new_state_id (state_id) -- DB column is new_state (state_id)
+            if { [info exists row(new_state)] } {
+                if { [info exists row(new_state_id)] } {
+                    error "You cannot supply both new_state (takes short_name) and new_state_id (takes state_id)"
+                }
+                if { ![empty_string_p $row(new_state)] } {
+                    set row(new_state_id) [workflow::state::fsm::get_id \
+                                               -workflow_id $workflow_id \
+                                               -short_name $row(new_state)]
+                } else {
+                    set row(new_state_id) [db_null]
+                }
+                unset row(new_state)
+            }
 
-    if { [empty_string_p $workflow_id] } {
-        set workflow_id [workflow::action::get_element \
-                             -action_id $action_id \
-                             -element workflow_id]
+            set update_clauses [list]
+            set insert_names [list]
+            set insert_values [list]
+
+            # Handle columns in the workflow_fsm_actions table
+            foreach attr { 
+                new_state_id
+            } {
+                if { [info exists row($attr)] } {
+                    set varname attr_$attr
+                    # Convert the Tcl value to something we can use in the query
+                    switch $attr {
+                        new_state_id {
+                            set varname attr_new_state
+                            set $varname $row($attr)
+                            unset row($attr)
+                            set attr new_state
+                        }
+                        default {
+                            set $varname $row($attr)
+                        }
+                    }
+                    # Add the column to the insert/update statement
+                    switch $attr {
+                        default {
+                            lappend update_clauses "$attr = :$varname"
+                            lappend insert_names $attr
+                            lappend insert_values :$varname
+                        }
+                    }
+                    if { [info exists row($attr)] } {
+                        unset row($attr)
+                    }
+                }
+            }
+
+            if { [info exists row(enabled_states)] } {
+                if { [info exists row(enabled_state_ids)] } {
+                    error "You cannot supply both enabled_states and enabled_state_ids"
+                }
+                set row(enabled_state_ids) [list]
+                foreach state_short_name $row(enabled_states) {
+                    lappend row(enabled_state_ids) [workflow::state::fsm::get_id \
+                                                        -workflow_id $workflow_id \
+                                                        -short_name $state_short_name]
+                }
+                unset row(enabled_states)
+            }
+            if { [info exists row(assigned_states)] } {
+                if { [info exists row(assigned_state_ids)] } {
+                    error "You cannot supply both assigned_states and assigned_state_ids"
+                }
+                set row(assigned_state_ids) [list]
+                foreach state_short_name $row(assigned_states) {
+                    lappend row(assigned_state_ids) [workflow::state::fsm::get_id \
+                                                        -workflow_id $workflow_id \
+                                                        -short_name $state_short_name]
+                }
+                unset row(assigned_states)
+            }
+
+            # Handle auxillary rows
+            array set aux [list]
+            foreach attr { 
+                enabled_state_ids assigned_state_ids
+            } {
+                if { [info exists row($attr)] } {
+                    set aux($attr) $row($attr)
+                    unset row($attr)
+                }
+            }
+        }
     }
-
+    
     db_transaction {
+        # Base row
+        set action_id [workflow::action::edit \
+                           -internal \
+                           -operation $operation \
+                           -action_id $action_id \
+                           -workflow_id $workflow_id \
+                           -array row]
 
-        # Record whether the action changes state
-        if { [info exists row(new_state)] } {
-            if { [info exists row(new_state_id)] } {
-                error "You cannot supply both new_state (takes short_name) and new_state_id (takes state_id)"
+        # FSM action row
+        switch $operation {
+            insert {
+                lappend insert_names action_id
+                lappend insert_values :action_id
+
+                db_dml insert_action "
+                    insert into workflow_fsm_actions
+                    ([join $insert_names ", "])
+                    values
+                    ([join $insert_values ", "])
+                "
             }
-            if { ![empty_string_p $row(new_state)] } {
-                set row(new_state_id) [workflow::state::fsm::get_id \
-                                      -workflow_id $workflow_id \
-                                      -short_name $new_state]
-            } else {
-                set row(new_state_id) [db_null]
+            update {
+                if { [llength $update_clauses] > 0 } {
+                    db_dml update_action "
+                        update workflow_fsm_actions
+                        set    [join $update_clauses ", "]
+                        where  action_id = :action_id
+                    "
+                }
             }
-            unset row(new_state)
+            delete {
+                # Handled through cascading delete
+            }
         }
-
-        if { [info exists row(new_state_id)] } {
-            set new_state_id $row(new_state_id)
-            db_dml update_fsm_action {}
-            unset row(new_state_id)
+        
+        # Auxilliary rows
+        switch $operation {
+            insert - update {
+                # Record in which states the action is enabled but not assigned
+                if { [info exists aux(enabled_state_ids)] } {
+                    set assigned_p "f"
+                    db_dml delete_enabled_states {}
+                    foreach enabled_state_id $aux(enabled_state_ids) {
+                        db_dml insert_enabled_state {}
+                    }
+                    unset aux(enabled_state_ids)
+                }
+                
+                # Record where the action is both enabled and assigned
+                if { [info exists aux(assigned_state_ids)] } {
+                    set assigned_p "t"
+                    db_dml delete_enabled_states {}
+                    foreach enabled_state_id $aux(assigned_state_ids) {
+                        db_dml insert_enabled_state {}
+                    }
+                    unset aux(assigned_state_ids)
+                }
+            }
         }
-
-
-        # Record in which states the action is enabled but not assigned
-        if { [info exists row(enabled_states)] } {
-            set assigned_p "f"
-            db_dml delete_enabled_states {}
-            foreach state_short_name $row(enabled_states) {
-                set enabled_state_id [workflow::state::fsm::get_id \
-                                          -workflow_id $workflow_id \
-                                          -short_name $state_short_name]
-                db_dml insert_enabled_state {}
-            }
-            unset row(enabled_states)
-        } elseif { [info exists row(enabled_state_ids)] } {
-            set assigned_p "f"
-            db_dml delete_enabled_states {}
-            foreach enabled_state_id $row(enabled_state_ids) {
-                db_dml insert_enabled_state {}
-            }
-            unset row(enabled_state_ids)
-        }
-
-        # Record where the action is both enabled and assigned
-        if { [info exists row(assigned_states)] } {
-            set assigned_p "t"
-            db_dml delete_enabled_states {}
-            foreach state_short_name $row(assigned_states) {
-                set enabled_state_id [workflow::state::fsm::get_id \
-                                          -workflow_id $workflow_id \
-                                          -short_name $state_short_name]
-                db_dml insert_enabled_state {}
-            }
-            unset row(assigned_states)
-        } elseif { [info exists row(assigned_state_ids)] } {
-            set assigned_p "t"
-            db_dml delete_enabled_states {}
-            foreach enabled_state_id $row(assigned_state_ids) {
-                db_dml insert_enabled_state {}
-            }
-            unset row(assigned_state_ids)
-        }
- 
-        # This will error if there are attributes it doesn't know about, so we remove the attributes we know above
-        workflow::action::edit \
-            -internal \
-            -action_id $action_id \
-            -workflow_id $workflow_id \
-            -array row
 
         if { !$internal_p } {
             workflow::definition_changed_handler -workflow_id $workflow_id
@@ -801,12 +954,11 @@ ad_proc -public workflow::action::fsm::edit {
     }
 
     if { !$internal_p } {
-        # Flush the workflow cache, as changing an action changes the entire workflow
-        # e.g. initial_action_p, enabled_in_states.
         workflow::flush_cache -workflow_id $workflow_id
     }
-}
 
+    return $action_id
+}
 
 ad_proc -public workflow::action::fsm::delete {
     {-action_id:required}
@@ -815,10 +967,7 @@ ad_proc -public workflow::action::fsm::delete {
 
     @author Peter Marklund
 } {
-    db_dml delete_action {
-        delete from workflow_actions
-        where action_id = :action_id
-    }
+    workflow::action::fsm::edit -operation delete -action_id $action_id
 }
 
 ad_proc -public workflow::action::fsm::get_new_state {
@@ -896,25 +1045,27 @@ ad_proc -private workflow::action::fsm::parse_spec {
     }
     
     # Get the info from the spec
-    array set action $spec
+    foreach { key value } $spec {
+        set action($key) [string trim $value]
+    }
 
     # Create the action
     set action_id [workflow::action::fsm::new \
-            -workflow_id $workflow_id \
-            -short_name $short_name \
-            -pretty_name $action(pretty_name) \
-            -pretty_past_tense $action(pretty_past_tense) \
-            -edit_fields $action(edit_fields) \
-            -allowed_roles $action(allowed_roles) \
-            -assigned_role $action(assigned_role) \
-            -privileges $action(privileges) \
-            -always_enabled_p $action(always_enabled_p) \
-            -enabled_states $action(enabled_states) \
-            -assigned_states $action(assigned_states) \
-            -new_state $action(new_state) \
-            -callbacks $action(callbacks) \
-            -initial_action_p $action(initial_action_p)
-            ]
+                       -workflow_id $workflow_id \
+                       -short_name $short_name \
+                       -pretty_name $action(pretty_name) \
+                       -pretty_past_tense $action(pretty_past_tense) \
+                       -edit_fields $action(edit_fields) \
+                       -allowed_roles $action(allowed_roles) \
+                       -assigned_role $action(assigned_role) \
+                       -privileges $action(privileges) \
+                       -always_enabled_p $action(always_enabled_p) \
+                       -enabled_states $action(enabled_states) \
+                       -assigned_states $action(assigned_states) \
+                       -new_state $action(new_state) \
+                       -callbacks $action(callbacks) \
+                       -initial_action_p $action(initial_action_p)
+                  ]
 }
 
 ad_proc -private workflow::action::fsm::parse_actions_spec {

@@ -12,9 +12,15 @@
     </querytext>
   </fullquery>
 
-  <partialquery name="workflow::action::edit.update_timeout_seconds">
+  <partialquery name="workflow::action::edit.update_timeout_seconds_name">
     <querytext>
-     timeout_seconds =  :attr_timeout_seconds
+      timeout_seconds
+    </querytext>
+  </partialquery>
+
+  <partialquery name="workflow::action::edit.update_timeout_seconds_value">
+    <querytext>
+      :attr_timeout_seconds
     </querytext>
   </partialquery>
 

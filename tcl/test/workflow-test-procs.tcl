@@ -116,6 +116,7 @@ ad_proc workflow::test::get_message_key_spec {} {
         pretty_name "#acs-subsite.About_You#"
         package_key "acs-automated-testing"
         object_type "acs_object"
+        description_mime_type "text/plain"
         roles {
             short_name {
                 pretty_name "#acs-subsite.Bad_Password#"
@@ -146,6 +147,7 @@ ad_proc workflow::test::workflow_get_array_style_spec {} {
         pretty_name "Bug Test"
         package_key "acs-automated-testing"
         object_type "acs_object"
+        description_mime_type "text/plain"
         roles {
             submitter {
                 pretty_name "Submitter"
@@ -462,9 +464,10 @@ ad_proc workflow::test::run_bug_tracker_test {
 
         set generated_spec [workflow::fsm::generate_spec -workflow_id $workflow_id]
         
-        aa_true "Checking that generated spec 1 is identical to the spec that we created from (except for ordering)" \
-                [array_lists_equal_p $generated_spec [workflow_get_array_style_spec]]
-        
+        if { ![aa_true "Checking that generated spec 1 is identical to the spec that we created from (except for ordering)" \
+                   [array_lists_equal_p $generated_spec [workflow_get_array_style_spec]]] } {
+            ns_log Error "Workflow test case failed: \nDesired spec: [workflow_get_array_style_spec]\n\nActual spec:\n\n[util::array_list_spec_pretty $generated_spec]"
+        }
     
         # Create the workflow case in open state
         set object_id [workflow::test::workflow_object_id]
@@ -717,8 +720,10 @@ aa_register_case workflow_spec_with_message_keys {
 
         set generated_spec [workflow::fsm::generate_spec -workflow_id $workflow_id]
         
-        aa_true "Checking that generated spec 2 is identical to the spec that we created from (except for ordering)" \
-            [array_lists_equal_p $generated_spec [workflow::test::get_message_key_spec]]
+        if { ![aa_true "Checking that generated spec 2 is identical to the spec that we created from (except for ordering)" \
+                   [array_lists_equal_p $generated_spec [workflow::test::get_message_key_spec]]] } {
+            ns_log Error "Workflow test case failed: \nDesired spec: [workflow::test::get_message_key_spec]\n\nActual spec:\n\n[util::array_list_spec_pretty $generated_spec]"
+        }
     }
 
     set teardown_chunk {
