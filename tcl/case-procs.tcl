@@ -2184,7 +2184,6 @@ ad_proc -private workflow::case::action::enable {
             }
         }
 
-
         switch $action(trigger_type) {
             "workflow" {
                 # Find and execute child init action
@@ -2214,13 +2213,7 @@ ad_proc -private workflow::case::action::enable {
             }
             "parallel" {
                 # Find and enable child actions
-                # TODO: Move this to action::get
-                set child_actions [db_list child_actions { 
-                    select action_id
-                    from   workflow_actions
-                    where  parent_action_id = :action_id
-                }]
-                foreach child_action_id $child_actions {
+                foreach child_action_id $action(child_action_ids) {
                     workflow::case::action::enable \
                         -case_id $case_id \
                         -action_id $child_action_id \
@@ -2230,29 +2223,22 @@ ad_proc -private workflow::case::action::enable {
                 }
             }
             "dynamic" {
-                # HACK: just pick each user from the assigned role ...
-                # TODO: Move this to action::get
-                set child_actions [db_list child_actions { 
-                    select action_id
-                    from   workflow_actions
-                    where  parent_action_id = :action_id
-                }]
-                
-                foreach child_action_id $child_actions {
-
+                # Find and enable all child actions, once for each party assigned to the role
+                foreach child_action_id $action(child_action_ids) {
+                    
                     set child_role_id [workflow::action::get_element \
-                                        -action_id $child_action_id \
-                                        -element assigned_role_id]
-
+                                           -action_id $child_action_id \
+                                           -element assigned_role_id]
+                    
                     set parties [workflow::case::role::get_assignees \
                                      -case_id $case_id \
                                      -role_id $child_role_id]
-
-
+                    
+                    
                     foreach elm $parties {
                         array unset party 
                         array set party $elm
-
+                        
                         workflow::case::action::enable \
                             -case_id $case_id \
                             -action_id $child_action_id \
