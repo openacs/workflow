@@ -292,7 +292,6 @@ create table workflow_fsm_actions (
 );
 
 -- If an action is enabled in all states it won't have any entries in this table
--- it is enabled in all states
 create table workflow_fsm_action_en_in_st (
   action_id               integer
                           constraint wf_fsm_acn_enb_in_st_acn_id_nn
@@ -426,24 +425,22 @@ create table workflow_case_fsm (
 -- Case level, Activity Log
 ---------------------------------
 
-begin;
-    select content_type__create_type (
-        'workflow_activity_log', -- content_type
-	'content_revision',      -- supertype
-	'Workflow Activity Log', -- pretty_name
-	'Workflow Activity Log', -- pretty_plural
-	'workflow_case_log',     -- table_name
-	'entry_id',              -- id_column
-    );
-end;
+--begin;
+--    select content_type__create_type (
+--        'workflow_activity_log', -- content_type
+--	'content_revision',      -- supertype
+--	'Workflow Activity Log', -- pretty_name
+--	'Workflow Activity Log', -- pretty_plural
+--	'workflow_case_log',     -- table_name
+--	'entry_id'              -- id_column
+--    );
+--end;
 
 
 create sequence workflow_case_log_seq;
 
 create table workflow_case_log (
   entry_id                integer
-                          constraint wf_case_log_eid_fk
-                          references cr_revisions on delete cascade
                           constraint wf_case_log_pk
                           primary key,
   case_id                 integer
@@ -454,6 +451,15 @@ create table workflow_case_log (
                           constraint wf_case_log_acn_id_fk
                           references workflow_actions(action_id)
                           on delete cascade,
+  user_id                 integer
+                          constraint workflow_case_log_user_id_fk
+                          references users(user_id)
+                          on delete cascade,
+  action_date             timestamp
+                          constraint workflow_case_log_acn_date_nn
+                          not null 
+                          default now(),
+  comment                 text,
   comment_format          varchar(50) 
                           default 'text/plain'
                           constraint wf_clog_comment_format_nn
