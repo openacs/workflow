@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <queryset>
 
-  <fullquery name="workflow::get_id.select_workflow_id_by_object_id">
+  <fullquery name="workflow::get_id_not_cached.select_workflow_id_by_object_id">
     <querytext>
       select workflow_id
       from   workflows
@@ -10,31 +10,45 @@
     </querytext>
   </fullquery>
 
-  <fullquery name="workflow::get.workflow_info">
+  <fullquery name="workflow::get_not_cached.workflow_info">
     <querytext>
-      select workflow_id,
-             short_name,
-             pretty_name,
-             object_id,
-             package_key,
-             object_type
-      from   workflows
-      where  workflow_id = :workflow_id
+      select w.workflow_id,
+             w.short_name,
+             w.pretty_name,
+             w.object_id,
+             w.package_key,
+             w.object_type,
+             a.short_name as initial_action,
+             a.action_id as initial_action_id
+      from   workflows w,
+             workflow_initial_action wia,
+             workflow_actions a
+      where  w.workflow_id = :workflow_id
+        and  w.workflow_id = wia.workflow_id
+        and  a.action_id = wia.action_id
     </querytext>
   </fullquery>
 
-  <fullquery name="workflow::get.workflow_callbacks">
+  <fullquery name="workflow::get_not_cached.workflow_callbacks">
     <querytext>
-        select impl.impl_owner_name || '.' || impl.impl_name
-        from   acs_sc_impls impl,
-               workflow_callbacks c
-        where  c.workflow_id = :workflow_id
-        and    impl.impl_id = c.acs_sc_impl_id
-        order  by c.sort_order
+      select impl.impl_id,
+             impl.impl_name,
+             impl.impl_owner_name,
+             ctr.contract_name,
+             wc.sort_order
+      from   workflow_callbacks wc,
+             acs_sc_impls impl,
+             acs_sc_bindings bind,
+             acs_sc_contracts ctr
+      where  wc.workflow_id = :workflow_id
+      and    impl.impl_id = wc.acs_sc_impl_id
+      and    impl.impl_id = bind.impl_id
+      and    bind.contract_id = ctr.contract_id
+      order  by wc.sort_order
     </querytext>
   </fullquery>
 
-  <fullquery name="workflow::get_id.select_workflow_id_by_package_key">
+  <fullquery name="workflow::get_id_not_cached.select_workflow_id_by_package_key">
     <querytext>
       select workflow_id
       from   workflows
@@ -44,32 +58,6 @@
     </querytext>
   </fullquery>
 
-  <fullquery name="workflow::get_initial_action.select_initial_action">
-    <querytext>
-      select action_id
-      from   workflow_initial_action
-      where  workflow_id = :workflow_id
-    </querytext>
-  </fullquery>
-  
-  <fullquery name="workflow::get_roles.select_role_ids">
-    <querytext>
-      select role_id
-      from   workflow_roles
-      where  workflow_id = :workflow_id
-      order  by sort_order
-    </querytext>
-  </fullquery>
-  
-  <fullquery name="workflow::get_actions.select_action_ids">
-    <querytext>
-      select action_id
-      from   workflow_actions
-      where  workflow_id = :workflow_id
-      order by sort_order
-    </querytext>
-  </fullquery>
-  
   <fullquery name="workflow::default_sort_order.max_sort_order">
     <querytext>
         select max(sort_order)
@@ -90,24 +78,6 @@
     <querytext>
         insert into workflow_callbacks (workflow_id, acs_sc_impl_id, sort_order)
         values (:workflow_id, :acs_sc_impl_id, :sort_order)
-    </querytext>
-  </fullquery>
-
-  <fullquery name="workflow::fsm::get_states.select_state_ids">
-    <querytext>
-      select state_id
-      from   workflow_fsm_states
-      where  workflow_id = :workflow_id
-      order by sort_order
-    </querytext>
-  </fullquery>
-
-  <fullquery name="workflow::service_contract::get_impl_id.select_impl_id">
-    <querytext>
-        select impl_id
-        from   acs_sc_impls
-        where  impl_owner_name = :impl_owner_name
-        and    impl_name = :impl_name
     </querytext>
   </fullquery>
 

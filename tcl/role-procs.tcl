@@ -92,6 +92,10 @@ ad_proc -public workflow::role::new {
                     -name $callback_name
         }
     }
+
+    # Role info for the workflow is changed, need to flush
+    workflow::role::flush_cache -workflow_id $workflow_id
+
     return $role_id
 }
 
@@ -107,7 +111,40 @@ ad_proc -public workflow::role::get_id {
 
     @author Lars Pind (lars@collaboraid.biz)
 } {
-    return [db_string select_role_id {} -default {}]
+    # Get role info from cache
+    array set role_data [workflow::role::get_all_info -workflow_id $workflow_id]
+
+    foreach role_id $role_data(role_ids) {
+        array set one_role $role_data($role_id)
+        
+        if { [string equal $one_role(short_name) $short_name] } {
+            return $one_role(role_id)
+        }
+    }
+    
+    error "workflow::role::get_id role with short_name $short_name not found for workflow $workflow_id"
+}
+
+ad_proc -public workflow::role::get_workflow_id {
+    {-role_id:required}
+} {
+    Lookup the workflow_id of a certain role_id.
+
+    @author Peter Marklund
+} {
+    return [util_memoize \
+            [list workflow::role::get_workflow_id_not_cached -role_id $role_id]]
+}
+
+ad_proc -private workflow::role::get_workflow_id_not_cached {
+    {-role_id:required}
+} {
+    This is a proc that should only be used internally by the workflow
+    API, applications should use workflow::role::get_workflow_id instead.
+
+    @author Peter Marklund
+} {
+    return [db_string select_workflow_id {}]
 }
 
 ad_proc -public workflow::role::get {
@@ -119,13 +156,16 @@ ad_proc -public workflow::role::get {
     @param role_id The ID of the workflow
     @param array Name of the array you want the info returned in
 
-    @author Lars Pind (lars@collaboraid.biz)
+    @Author Lars Pind (lars@collaboraid.biz)
 } {
+    set workflow_id [workflow::role::get_workflow_id -role_id $role_id]
+
     upvar $array row
 
-    db_1row role_info {} -column_array row
+    # Get info about all roles for this workflow
+    array set role_data [workflow::role::get_all_info -workflow_id $workflow_id]
 
-    set row(callbacks) [db_list role_callbacks {}]
+    array set row $role_data($role_id)
 }
 
 ad_proc -public workflow::role::get_element {
@@ -141,6 +181,26 @@ ad_proc -public workflow::role::get_element {
 } {
     get -role_id $role_id -array row
     return $row($element)
+}
+
+ad_proc -private workflow::role::get_callbacks {
+    {-role_id:required}
+    {-contract_name:required}
+} {
+    Get the impl_names of callbacks of a given contract for a given role.
+    
+    @param role_id the ID of the role to assign.
+    @param contract_name the name of the contract
+
+    @author Lars Pind (lars@collaboraid.biz)
+} {
+    array set callback_impl_names [get_element -role_id $role_id -element callback_impl_names]
+
+    if { [info exists callback_impl_names($contract_name)] } {
+        return $callback_impl_names($contract_name)
+    } else {
+        return {}
+    }
 }
 
 ad_proc -private workflow::role::parse_spec {
@@ -208,6 +268,10 @@ ad_proc -private workflow::role::generate_spec {
     array unset row role_id
     array unset row workflow_id
     array unset row sort_order
+    array unset row role_ids
+    array unset row callbacks_array
+    array unset row callback_ids
+    array unset row callback_impl_names
     
     # Get rid of empty strings
     foreach name [array names row] {
@@ -236,16 +300,16 @@ ad_proc -private workflow::role::generate_roles_spec {
     @author Lars Pind (lars@collaboraid.biz)
 } {
     # roles(short_name) { ... role-spec ... }
-    set roles [list]
+    array set roles [list]
 
     foreach role_id [workflow::get_roles -workflow_id $workflow_id] {
-        lappend roles [get_element -role_id $role_id -element short_name] [generate_spec -role_id $role_id]
+        lappend roles_list [get_element -role_id $role_id -element short_name] [generate_spec -role_id $role_id]
     }
-    
-    return $roles
+
+    return $roles_list
 }
 
-ad_proc -private workflow::role::callback_insert {
+ad_proc -public workflow::role::callback_insert {
     {-role_id:required}
     {-name:required}
     {-sort_order}
@@ -274,4 +338,99 @@ ad_proc -private workflow::role::callback_insert {
     }
 
     return $acs_sc_impl_id
+}
+
+ad_proc -private workflow::role::flush_cache {
+    {-workflow_id:required}
+} {
+    Flush all caches related to roles for the given
+    workflow. Used internally by the workflow API only.
+
+    @author Peter Marklund
+} {
+    # TODO: Flush request cache
+    # ...
+
+    # Flush the thread global cache
+    util_memoize_flush [list workflow::role::get_all_info_not_cached -workflow_id $workflow_id]    
+}
+
+ad_proc -private workflow::role::get_all_info {
+    {-workflow_id:required}
+} {
+    This proc is for internal use in the workflow API only.
+    Returns all information related to roles for a certain
+    workflow instance. Uses util_memoize to cache values.
+
+    @see workflow::role::get_all_info_not_cached
+
+    @author Peter Marklund
+} {
+    return [util_memoize [list workflow::role::get_all_info_not_cached \
+            -workflow_id $workflow_id] [workflow::cache_timeout]]
+}
+
+ad_proc -private workflow::role::get_all_info_not_cached {
+    {-workflow_id:required}
+} {
+    This proc is for internal use in the workflow API only and
+    should not be invoked directly from application code. Returns
+    all information related to roles for a certain workflow instance.
+    Goes to the database on every invocation and should be used together
+    with util_memoize.
+
+    @author Peter Marklund
+} {
+    # For performance we avoid nested queries in this proc
+    set role_ids [list]
+
+    db_foreach role_info {} -column_array row {
+        set role_id $row(role_id)
+
+        lappend role_ids $role_id
+
+        # store in role,$role_id arrays
+        foreach name [array names row] {
+            set role,${role_id}($name) $row($name)
+        }
+
+        # Cache the mapping role_id -> workflow_id
+        util_memoize_seed \
+                [list workflow::role::get_workflow_id_not_cached -role_id $role_id] \
+                $workflow_id
+    }
+    unset row
+    
+    # Get the callbacks of all roles of the workflow
+    foreach role_id $role_ids {
+        set role,${role_id}(callbacks) {}
+        set role,${role_id}(callback_ids) {}
+        array set callback_impl_names,$role_id [list]
+        array set callbacks_array,$role_id [list]
+    }
+
+    db_foreach role_callbacks {} -column_array row {
+        set role_id $row(role_id)
+
+        lappend role,${role_id}(callbacks) "$row(impl_owner_name).$row(impl_name)"
+        lappend role,${role_id}(callback_ids) $row(impl_id)
+
+        lappend callback_impl_names,${role_id}(${row(contract_name)}) $row(impl_name)
+        set callbacks_array,${role_id}($row(impl_id)) [array get row]
+    } 
+    unset row
+
+    foreach role_id $role_ids {
+        set role,${role_id}(callback_impl_names) [array get callback_impl_names,$role_id]
+        set role,${role_id}(callbacks_array) [array get callbacks_array,$role_id]
+    }
+
+    # Build up the master role_data array
+    foreach role_id $role_ids {
+        set role_data($role_id) [array get role,$role_id]
+    }
+
+    set role_data(role_ids) $role_ids
+
+    return [array get role_data]
 }

@@ -52,6 +52,10 @@ ad_proc -public workflow::state::fsm::new {
         
         db_dml do_insert {}
     }
+
+    # State info for the workflow changed, flush whole state cache
+    workflow::state::flush_cache -workflow_id $workflow_id
+ 
     return $state_id
 }
 
@@ -99,9 +103,33 @@ ad_proc -public workflow::state::fsm::get_id {
     return [db_string select_id {}]
 }
 
+ad_proc -public workflow::state::fsm::get_workflow_id {
+    {-state_id:required}
+} {
+    Lookup the workflow that the given state belongs to.
+
+    @return The id of the workflow the state belongs to.
+
+    @author Peter Marklund
+} {
+    return [util_memoize \
+            [list workflow::state::fsm::get_workflow_id_not_cached -state_id $state_id]]
+}
+
 #####
 # Private procs
 #####
+
+ad_proc -private workflow::state::fsm::get_workflow_id_not_cached {
+    {-state_id:required}
+} {
+    This proc is used internally by the workflow API only. Use the proc
+    workflow::state::fsm::get_workflow_id instead.
+
+    @author Peter Marklund
+} {
+    return [db_string select_workflow_id {}]
+}
 
 ad_proc -private workflow::state::fsm::parse_spec {
     {-workflow_id:required}
@@ -198,11 +226,73 @@ ad_proc -private workflow::state::fsm::generate_states_spec {
     @author Lars Pind (lars@collaboraid.biz)
 } {
     # states(short_name) { ... state-spec ... }
-    set states [list]
+    array set states [list]
 
     foreach state_id [workflow::fsm::get_states -workflow_id $workflow_id] {
-        lappend states [get_element -state_id $state_id -element short_name] [generate_spec -state_id $state_id]
+        lappend states_list [get_element -state_id $state_id -element short_name] [generate_spec -state_id $state_id]
     }
     
-    return $states
+    return $states_list
+
+}
+
+ad_proc -private workflow::state::flush_cache {
+    {-workflow_id:required}
+} {
+    Flush all caches related to state information for
+    the given workflow. Used internally by the workflow API
+    only.
+
+    @author Peter Marklund
+} {
+    # TODO: Flush request cache
+    # ...
+
+    # Flush the thread global cache
+    util_memoize_flush [list workflow::state::get_all_info_not_cached -workflow_id $workflow_id]    
+}
+
+ad_proc -private workflow::state::fsm::get_all_info {
+    {-workflow_id:required}
+} {
+    This proc is for internal use in the workflow API only.
+    Returns all information related to states for a certain
+    workflow instance. Uses util_memoize to cache values.
+
+    @see workflow::state::fsm::get_all_info_not_cached
+
+    @author Peter Marklund
+} {
+    return [util_memoize [list workflow::state::fsm::get_all_info_not_cached \
+            -workflow_id $workflow_id] [workflow::cache_timeout]]
+}
+
+ad_proc -private workflow::state::fsm::get_all_info_not_cached {
+    {-workflow_id:required}
+} {
+    This proc is for internal use in the workflow API only and
+    should not be invoked directly from application code. Returns
+    all information related to states for a certain workflow instance.
+    Goes to the database on every invocation and should be used together
+    with util_memoize.
+
+    @author Peter Marklund
+} {
+    array set state_data {}
+
+    # Use a list to be able to retrieve states in sort order
+    set state_ids [list]
+    db_foreach select_states {} -column_array state_row {
+        # Cache the state_id -> workflow_id lookup
+
+        util_memoize_seed \
+                [list workflow::state::fsm::get_workflow_id_not_cached -state_id $state_row(state_id)] \
+                $workflow_id
+
+        set state_data($state_row(state_id)) [array get state_row]
+        lappend state_ids $state_row(state_id)
+    }
+    set state_data(state_ids) $state_ids
+
+    return [array get state_data]
 }

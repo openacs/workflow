@@ -49,4 +49,25 @@
     </querytext>
   </fullquery>
 
+  <fullquery name="workflow::state::fsm::get_all_info_not_cached.select_states">
+    <querytext>
+      select state_id,
+             sort_order,
+             short_name,
+             pretty_name,
+             hide_fields
+      from   workflow_fsm_states
+      where  workflow_id = :workflow_id
+      order by sort_order
+    </querytext>
+  </fullquery>
+
+  <fullquery name="workflow::state::fsm::get_workflow_id_not_cached.select_workflow_id">
+    <querytext>
+        select workflow_id
+        from   workflow_fsm_states
+        where  state_id = :state_id
+    </querytext>
+  </fullquery>
+
 </queryset>

@@ -11,45 +11,23 @@
 -- Drop all data in workflow tables by dropping the acs objects of all workflows in the system.
 -- This is sufficient since all workflow data ultimately
 -- hangs on workflow instances and will be dropped on cascade
-create function inline_0 ()
-returns integer as '
-declare
-        row     record;
 begin
-        for row in select object_id from acs_objects
-                          where object_type = ''workflow_lite''
-        loop
-                perform acs_object__delete(row.object_id);
-        end loop;
-
-        return 1;
-end;' language 'plpgsql';
-select inline_0 ();
-drop function inline_0();
-
--- Drop the workflow object type
-create function inline_0 ()
-returns integer as '
-begin
-        perform acs_object_type__drop_type(''workflow_lite'', ''t'');
-
-        return 1;
-end;' language 'plpgsql';
-select inline_0 ();
-drop function inline_0();
+  for row in (select object_id from acs_objects
+              where object_type = 'workflow_lite')
+  loop
+    acs_object.delete(row.object_id);
+  end loop;
+ 
+  acs_object_type.drop_type('workflow_lite', 't');
+end;
+/
+show errors
 
 -- Drop all tables
 drop table workflow_case_fsm;
 drop table workflow_case_role_party_map;
 drop table workflow_case_log_data;
 drop table workflow_case_log;
-
-select content_type__drop_type (
-  'workflow_case_log_entry',         -- content_type
-  't',                               -- drop_children_p
-  't'                                -- drop_table_p
-);
-
 drop table workflow_cases;
 drop table workflow_fsm_action_en_in_st;
 drop table workflow_fsm_actions;
@@ -71,5 +49,4 @@ drop sequence workflow_roles_seq;
 drop sequence workflow_actions_seq;
 drop sequence workflow_fsm_states_seq;
 drop sequence workflow_cases_seq;
-
-
+drop sequence workflow_case_log_seq;

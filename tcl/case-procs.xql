@@ -74,33 +74,7 @@
     </querytext>
   </fullquery>
 
-  <fullquery name="workflow::case::get_activity_html.select_log">
-    <querytext>
-        select l.entry_id,
-               l.case_id,
-               l.action_id,
-               a.short_name as action_short_name,
-               a.pretty_name as action_pretty_name,
-               a.pretty_past_tense as action_pretty_past_tense,
-               l.user_id,
-               u.first_names as user_first_names,
-               u.last_name as user_last_name,
-               u.email as user_email,
-               l.action_date,
-               to_char(l.action_date, 'fmMM/DDfm/YYYY') as action_date_pretty,
-               l.comment,
-               l.comment_format
-        from   workflow_case_log l,
-               workflow_actions a,
-               cc_users u
-        where  l.case_id = :case_id
-        and    a.action_id = l.action_id
-        and    u.user_id = l.user_id
-    </querytext>
-  </fullquery>
-
-
-  <fullquery name="workflow::case::role::set_default_assignees.select_callbacks">
+  <fullquery name="workflow::case::role::get_callbacks.select_callbacks">
     <querytext>
       select impl.impl_name
       from   workflow_role_callbacks r,
@@ -113,6 +87,23 @@
       and    bind.contract_id = ctr.contract_id
       and    ctr.contract_name = :contract_name
       order  by r.sort_order
+    </querytext>
+  </fullquery>
+
+  <fullquery name="workflow::case::role::get_picklist.select_options">
+    <querytext>
+        select acs_object__name(p.party_id) || ' (' || p.email || ')'  as label, p.party_id
+        from   parties p
+        where  p.party_id in ([join $party_id_list ", "])
+        order  by label
+    </querytext>
+  </fullquery>
+
+  <fullquery name="workflow::case::role::assignee_insert.delete_assignees">
+    <querytext>
+        delete from workflow_case_role_party_map
+        where  case_id = :case_id
+        and    role_id = :role_id
     </querytext>
   </fullquery>
 
@@ -200,30 +191,16 @@
   <fullquery name="workflow::case::action::execute.update_fsm_state">
     <querytext>
       update workflow_case_fsm
-      set    current_state = :new_state
+      set    current_state = :new_state_id
       where  case_id = :case_id
-    </querytext>
-  </fullquery>
-
-  <fullquery name="workflow::case::action::execute.insert_log_entry">
-    <querytext>
-      insert into workflow_case_log 
-        (entry_id, case_id, action_id, user_id, comment, comment_format)
-      values
-        (:entry_id, :case_id, :action_id, :user_id, :comment, :comment_format)
     </querytext>
   </fullquery>
 
   <fullquery name="workflow::case::action::execute.log_entry_exists_p">
     <querytext>
         select count(*)
-        from   workflow_case_log
-        where  entry_id = :entry_id
-        and    case_id = :case_id
-        and    action_id = :action_id
-        and    user_id = :user_id
-        and    comment = :comment
-        and    comment_format = :comment_format
+        from   cr_revisions
+        where  revision_id = :entry_id
     </querytext>
   </fullquery>
 

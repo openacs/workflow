@@ -134,35 +134,27 @@ ad_proc -public workflow::action::get_assigned_role {
     @param action_id The action_id of the action.
     @return role_id of the assigned role.
 } {
-    return [db_string select_assigned_role {}]
+    return [get_from_request_cache $action_id "assigned_role"]
 }
 
 ad_proc -public workflow::action::get_allowed_roles {
     {-action_id:required}
 } {
-    Return the assigned role of the given action
+    Return the allowed roles of the given action
     @param action_id The action_id of the action.
     @return List of role_id of the allowed roles
 } {
-    return [db_list select_allowed_roles {}]
+    return [get_from_request_cache $action_id "allowed_roles"]
 }
 
 ad_proc -public workflow::action::get_privileges {
     {-action_id:required}
-    {-no_admin:boolean}
 } {
     Return the assigned role of the given action
     @param action_id The action_id of the action.
     @return List of privileges that give permission to do this action
 } {
-    set privileges [db_list select_privileges {}]
-
-    # Admins always have privilege
-    if { !$no_admin_p } {
-        lappend privileges "admin"
-    }
-
-    return $privileges
+    return [get_from_request_cache $action_id "privileges"]
 }
 
 ad_proc -public workflow::action::get_id {
@@ -175,7 +167,40 @@ ad_proc -public workflow::action::get_id {
     @param short_name The short_name of the action
     @return action_id of the desired action, or the empty string if it can't be found.
 } {
-    return [db_string select_action_id {} -default {}]
+    workflow::action::refresh_request_cache $workflow_id
+    global __workflow_action_data,${workflow_id}
+
+    foreach action_id [set __workflow_action_data,${workflow_id}(action_ids)] {
+        array set one_action [set __workflow_action_data,${workflow_id}($action_id)]
+        
+        if { [string equal $one_action(short_name) $short_name] } {
+            return $action_id
+        }
+    }
+
+    error "workflow::action::get_id role with short_name $short_name not found for workflow $workflow_id"
+}
+
+ad_proc -public workflow::action::get_workflow_id {
+    {-action_id:required}
+} {
+    Lookup the workflow_id of a certain action_id.
+
+    @author Peter Marklund
+} {
+    return [util_memoize \
+            [list workflow::action::get_workflow_id_not_cached -action_id $action_id]]
+}
+
+ad_proc -private workflow::action::get_workflow_id_not_cached {
+    {-action_id:required}
+} {
+    This is a proc that should only be used internally by the workflow
+    API, applications should use workflow::action::get_workflow_id instead.
+
+    @author Peter Marklund
+} {
+    return [db_string select_workflow_id {}]
 }
 
 ad_proc -public workflow::action::get {
@@ -194,12 +219,7 @@ ad_proc -public workflow::action::get {
     # Select the info into the upvar'ed Tcl Array
     upvar $array row
 
-    db_1row action_info {} -column_array row
-
-    set row(callbacks) [db_list action_callbacks {}]
-    set row(allowed_roles) [db_list action_allowed_roles {}]
-    set row(privileges) [get_privileges -action_id $action_id -no_admin]
-    
+    array set row [get_from_request_cache $action_id]
 }
 
 ad_proc -public workflow::action::get_element {
@@ -246,10 +266,40 @@ ad_proc -public workflow::action::callback_insert {
         # Insert the callback
         db_dml insert_callback {}
     }
+
+    # Action related data changed - need to flush
+    set workflow_id [workflow::action::get_workflow_id -action_id $action_id]
+    workflow::action::flush_cache -workflow_id $workflow_id
+
     return $acs_sc_impl_id
 }
 
+ad_proc -private workflow::action::get_callbacks {
+    {-action_id:required}
+    {-contract_name:required}
+} {
+    Return a list of implementation names for the callbacks of a given workflow action.
 
+    @see workflow::case::role::get_callbacks
+
+    @author Peter Marklund
+} {
+    array set callbacks [get_from_request_cache $action_id callbacks_array]
+    set callback_ids [get_from_request_cache $action_id callback_ids]
+    
+    # Loop over the callbacks and return the impl_names of those with a matching
+    # contract name
+    set impl_names [list]
+    foreach callback_id $callback_ids {
+        array set one_callback $callbacks($callback_id)
+
+        if { [string equal $one_callback(contract_name) $contract_name] } {
+            lappend impl_names $one_callback(impl_name)            
+        }
+    }
+
+    return $impl_names
+}
 
 
 
@@ -321,16 +371,19 @@ ad_proc -public workflow::action::fsm::new {
             db_dml insert_enabled_state {}
         }
     }   
+
+    # Action info for this workflow changed, need to flush
+    workflow::action::flush_cache -workflow_id $workflow_id
 }
 
 ad_proc -public workflow::action::fsm::get_new_state {
     {-action_id:required}
 } {
-    Return the new state for an action
+    Return the ID of the new state for an action
     @param action_id The action_id of the action.
-    @return The new state after executing this action, or the empty string if the action doesn't change the state.
+    @return The ID of the new state after executing this action, or the empty string if the action doesn't change the state.
 } {
-    return [db_string select_new_state {} -default {}]
+    return [workflow::action::get_from_request_cache $action_id "new_state_id"]
 }
 
 ad_proc -public workflow::action::fsm::get {
@@ -347,14 +400,6 @@ ad_proc -public workflow::action::fsm::get {
     upvar $array row
     
     workflow::action::get -action_id $action_id -array row
-    
-    # Get new_state
-    db_0or1row action_fsm_info {} -column_array additional_row
-    array set row [array get additional_row]
-    
-    # Get enabled_states
-    set row(enabled_states) [db_list action_enabled_short_name {}]
-
 }
 
 ad_proc -public workflow::action::fsm::get_element {
@@ -465,6 +510,10 @@ ad_proc -private workflow::action::fsm::generate_spec {
     array unset row workflow_id
     array unset row sort_order
     array unset row assigned_role_short_name
+    array unset row new_state_id
+    array unset row callbacks_array
+    array unset row callback_ids
+    array unset row allowed_roles_array
     
     # Get rid of a few defaults
     array set defaults { initial_action_p f always_enabled_p f }
@@ -489,7 +538,79 @@ ad_proc -private workflow::action::fsm::generate_spec {
 
     return $spec
 }
+
+ad_proc -private workflow::action::flush_cache {
+    {-workflow_id:required}
+} {
+    Flush all caches related to actions for the given
+    workflow_id. Used internally by the workflow API only.
+
+    @author Peter Marklund
+} {
+    # Flush the request cache
+    global __workflow_action_data,${workflow_id}
+    if { [info exists __workflow_action_data,${workflow_id}] } {
+        foreach action_id [set __workflow_action_data,${workflow_id}(action_ids)] {
+            global __workflow_one_action,$action_id
+            
+            if { [info exists __workflow_one_action,$action_id] } {
+                unset __workflow_one_action,$action_id
+            }
+        }
+
+        unset __workflow_action_data,${workflow_id}
+    }
+
+    # Flush the thread global cache
+    util_memoize_flush [list workflow::action::get_all_info_not_cached -workflow_id $workflow_id]    
+}
+
+ad_proc -private workflow::action::refresh_request_cache { workflow_id } {
+    Initializes the cached array with information about actions for a certain workflow
+    so that it can be reused within one request.
+
+    @author Peter Marklund
+} {
+    global __workflow_action_data,${workflow_id}
+
+    if { ![info exists __workflow_action_data,${workflow_id}] } {
+        array set __workflow_action_data,${workflow_id} [workflow::action::get_all_info -workflow_id $workflow_id]
+    }
+}
     
+ad_proc -private workflow::action::get_from_request_cache {
+    action_id
+    {element ""}
+} {
+    This provides some abstraction for the Workflow API cache
+    and also some optimization - we only convert lists to 
+    arrays once per request. Should be used internally
+    by the workflow API only.
+
+    @author Peter Marklund
+} {
+    # Get the cache with all actions
+    set workflow_id [workflow::action::get_workflow_id -action_id $action_id]
+    refresh_request_cache $workflow_id
+    global __workflow_action_data,${workflow_id}
+
+    array set workflow_data [workflow::action::get_all_info -workflow_id $workflow_id]
+
+    # A single action
+    set action_var_name __workflow_one_action,${action_id}
+    global $action_var_name
+
+    if { ![info exists $action_var_name] } {
+        array set $action_var_name [set __workflow_action_data,${workflow_id}($action_id)]
+    }
+
+    if { [empty_string_p $element] } {
+        return [array get $action_var_name]
+    } else {
+        return [set "${action_var_name}($element)"]
+    }
+}
+
 ad_proc -private workflow::action::fsm::generate_actions_spec {
     {-workflow_id:required}
 } {
@@ -502,11 +623,138 @@ ad_proc -private workflow::action::fsm::generate_actions_spec {
     @author Lars Pind (lars@collaboraid.biz)
 } {
     # actions(short_name) { ... action-spec ... }
-    set actions [list]
+    array set actions [list]
 
     foreach action_id [workflow::get_actions -workflow_id $workflow_id] {
-        lappend actions [get_element -action_id $action_id -element short_name] [generate_spec -action_id $action_id]
+        lappend actions_list [get_element -action_id $action_id -element short_name] [generate_spec -action_id $action_id]
+    }
+
+    return $actions_list
+
+}
+
+ad_proc -private workflow::action::get_all_info {
+    {-workflow_id:required}
+} {
+    This proc is for internal use in the workflow API only.
+    Returns all information related to actions for a certain
+    workflow instance. Uses util_memoize to cache values.
+
+    @see workflow::action::get_all_info_not_cached
+
+    @author Peter Marklund
+} {
+    # LARS HACK
+#    return [workflow::action::get_all_info_not_cached \
+ #           -workflow_id $workflow_id]
+
+    return [util_memoize [list workflow::action::get_all_info_not_cached \
+            -workflow_id $workflow_id] [workflow::cache_timeout]]
+}
+
+ad_proc -private workflow::action::get_all_info_not_cached {
+    {-workflow_id:required}
+} {
+    This proc is for internal use in the workflow API only and
+    should not be invoked directly from application code. Returns
+    all information related to actions for a certain workflow instance.
+    Goes to the database on every invocation and should be used together
+    with util_memoize.
+
+    @author Peter Marklund
+} {
+    # We avoid nested db queries in this proc to enhance performance
+
+    # Put scalar action data into the master array and use
+    # a list of action_id:s for sorting purposes
+    array set action_data {}
+    set action_ids [list]
+    db_foreach action_info {} -column_array action_row {
+
+        # Cache the mapping action_id -> workflow_id
+        util_memoize_seed \
+                [list workflow::action::get_workflow_id_not_cached -action_id $action_row(action_id)] \
+                $workflow_id
+
+        set action_data($action_row(action_id)) [array get action_row]
+        lappend action_ids $action_row(action_id)
     }
     
-    return $actions
+    # Build a separate array for all action callbacks of the workflow
+    array set callbacks_array {}
+    array set callbacks {}
+    array set callback_ids_array {}
+    set callback_ids [list]
+    set last_action_id ""
+    db_foreach action_callbacks {} -column_array callback_row {
+        set callbacks_array($callback_row(action_id),$callback_row(impl_id)) [array get callback_row]
+        lappend callbacks($callback_row(action_id)) \
+                "$callback_row(impl_owner_name).$callback_row(impl_name)"
+        
+        if { ![string equal $last_action_id $callback_row(action_id)] } {
+            set callback_ids_array($last_action_id) $callback_ids
+            set callback_ids [list]
+        }
+        lappend callback_ids $callback_row(impl_id)
+        set last_action_id $callback_row(action_id)
+    } 
+    # Peter had forgotten this at the end of the loop
+    set callback_ids_array($last_action_id) $callback_ids
+
+    # Build an array for all allowed roles for all actions
+    array set allowed_roles_array {}
+    array set allowed_roles {}
+    db_foreach action_allowed_roles {} -column_array allowed_role_row {
+        set allowed_roles_array($allowed_role_row(action_id),$allowed_role_row(role_id)) [array get allowed_role_row]
+        lappend allowed_roles($allowed_role_row(action_id)) $allowed_role_row(short_name)
+    }
+
+    # Build an array  of privileges for all actions
+    array set privileges {}
+    db_foreach select_privileges {} {
+        lappend privileges($action_id) $privilege
+    }
+
+    # Build an erray of enabled state short names for all actions
+    array set enabled_states {}
+    db_foreach action_enabled_short_name {} {
+        lappend enabled_states($action_id) $short_name
+    }
+
+    # For each action_id, add to the array of that action the contents of the
+    # sub arrays (callbacks, allowed_roles, privileges)
+    foreach action_id $action_ids {
+        array set one_action $action_data($action_id)
+
+        foreach array_name { privileges enabled_states callbacks allowed_roles } {
+            if { [info exists ${array_name}($action_id)] } {
+                set one_action(${array_name}) [set ${array_name}($action_id)]
+            } else {
+                set one_action(${array_name}) {}
+            }
+        }
+
+        set id_len [expr [string length $action_id] + 1]
+        foreach array_name { callbacks_array allowed_roles_array } {
+            set one_action($array_name) [list]
+            foreach { key value } [array get $array_name "${action_id},*"] {
+                lappend one_action($array_name) [string range $key $id_len end] $value
+            }
+        }
+
+        if { [info exists callback_ids_array($action_id)] } {
+            set one_action(callback_ids) $callback_ids_array($action_id)
+        } else {
+            set one_action(callback_ids) [list]
+        }
+
+        set action_data($action_id) [array get one_action]
+
+        # Have to unset the array as otherwise array set will append to previous values
+        unset one_action
+    }
+
+    set action_data(action_ids) $action_ids
+
+    return [array get action_data]
 }

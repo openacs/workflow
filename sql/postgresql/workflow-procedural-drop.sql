@@ -13,12 +13,28 @@
 
 -- Drop all functions
 drop function workflow__delete (integer);
-drop function workflow__new (varchar, -- short_name
-                               varchar, -- pretty_name
-                               varchar, -- package_key
-                               integer, -- object_id
-                               varchar, -- object_type
-                               integer, -- creation_user
-                               varchar, -- creation_ip
-                               integer  -- context_id
-                              );
+
+drop function workflow__new (
+    varchar, -- short_name
+    varchar, -- pretty_name
+    varchar, -- package_key
+    integer, -- object_id
+    varchar, -- object_type
+    integer, -- creation_user
+    varchar, -- creation_ip
+    integer  -- context_id
+);
+
+drop function workflow_case_log_entry__new (
+    integer,                  -- item_id
+    varchar,                  -- content_type
+    integer,                  -- case_id
+    integer,                  -- action_id
+    varchar,                  -- content
+    varchar,                  -- mime_type
+    integer,                  -- creation_user
+    varchar                   -- creation_ip
+);
+
+delete from acs_function_args
+where  function = 'workflow_case_log_entry__new';

@@ -17,6 +17,12 @@ ad_proc workflow::test::workflow_name {} {
     return "bug_test"
 }
 
+ad_proc workflow::test::initial_action_short_name {} {
+    The short name of the initial action of the test workflow
+} {
+    return "open"
+}
+
 ad_proc workflow::test::workflow_object_id {} {
 
 } {
@@ -100,11 +106,10 @@ ad_proc workflow::test::assert_case_state {
             [empty_string_p $user_roles]
 }
 
-ad_proc workflow::test::workflow_setup_array_style {} {
-    Create a test workflow for the Bug Tracker 
+ad_proc workflow::test::workflow_get_array_style_spec {} {
+    Get the array-style spec for a workflow for the Bug Tracker 
     Bug use case.
 } {
-
     set spec {
         pretty_name "Bug Test"
         package_key "acs-automated-testing"
@@ -114,7 +119,7 @@ ad_proc workflow::test::workflow_setup_array_style {} {
             submitter {
                 pretty_name "Submitter"
                 callbacks { 
-                    workflow.CreationUser 
+                    workflow.Role_DefaultAssignees_CreationUser
                 }
             }
             assignee {
@@ -160,7 +165,7 @@ ad_proc workflow::test::workflow_setup_array_style {} {
             resolve {
                 pretty_name "Resolve"
                 pretty_past_tense "Resolved"
-                assigned_roles { assignee }
+                assigned_role assignee
                 enabled_states { open resolved }
                 new_state "resolved"
                 privileges { write }
@@ -169,7 +174,7 @@ ad_proc workflow::test::workflow_setup_array_style {} {
             close {
                 pretty_name "Close"
                 pretty_past_tense "Closed"
-                assigned_roles { submitter }
+                assigned_role submitter
                 enabled_states { resolved }
                 new_state "closed"
                 privileges { write }
@@ -186,13 +191,73 @@ ad_proc workflow::test::workflow_setup_array_style {} {
     }
     set spec [list [workflow::test::workflow_name] $spec]
     
+    return $spec
+}
+
+ad_proc workflow::test::workflow_setup_array_style {} {
+    Create a test workflow for the Bug Tracker 
+    Bug use case.
+} {
     # Cannot use bt_bug as we cannot assume Bug Tracker to be installed
 
     set workflow_id [workflow::fsm::new_from_spec \
             -object_id [workflow::test::workflow_object_id] \
-            -spec $spec]
+            -spec [workflow::test::workflow_get_array_style_spec]]
 
     return $workflow_id
+}
+
+ad_proc workflow::test::array_lists_equal_p { list1 list2 } {
+    Are the two lists equal?
+} {
+    set len1 [llength $list1]
+    set len2 [llength $list2]
+
+    ns_log Notice "LARS2: lists_equal_p, len1=$len1, len2=$len2\nList1=$list1\nList2=$list2"
+    
+    if { $len1 != $len2 } {
+        return 0
+    }
+
+    if { $len1 == 1 } {
+
+        # Single element list
+
+        return [string equal [lindex $list1 0] [lindex $list2 0]]
+    } elseif { [expr $len1 % 2] == 0 } {
+
+        # List, treat as array-list
+
+        array set array1 $list1
+        array set array2 $list2
+        
+        foreach name [lsort [array names array1]] {
+            if { ![info exists array2($name)] } {
+                # Element in 1 doesn't exist in 2
+                return 0
+            }
+
+            set elm1 $array1($name)
+            set elm2 $array2($name)
+
+            if { ![array_lists_equal_p $elm1 $elm2] } {
+                return 0
+            }
+        }
+    } else {
+        
+        # List, treat as normal list
+        
+        foreach elm1 $list1 elm2 $list2 {
+            ns_log Notice "LARS2: foreach, len1=[llength $elm1], len2=[llength $elm2]\nElm1=$elm1\nElm2=$elm2"
+            
+            if { ![array_lists_equal_p $elm1 $elm2] } {
+                return 0
+            }
+        }
+    }
+
+    return 1
 }
 
 ad_proc workflow::test::workflow_setup {} {
@@ -224,7 +289,7 @@ ad_proc workflow::test::workflow_setup {} {
     workflow::role::new -workflow_id $workflow_id \
             -short_name "submitter" \
             -pretty_name "Submitter" \
-            -callbacks { workflow.CreationUser }
+            -callbacks { workflow.Role_DefaultAssignees_CreationUser }
 
     workflow::role::new -workflow_id $workflow_id \
             -short_name "assignee" \
@@ -261,7 +326,7 @@ ad_proc workflow::test::workflow_setup {} {
     workflow::action::fsm::new \
             -initial_action_p t \
             -workflow_id $workflow_id \
-            -short_name "open" \
+            -short_name [workflow::test::initial_action_short_name] \
             -pretty_name "Open" \
             -pretty_past_tense "Opened" \
             -new_state "open"                              
@@ -289,7 +354,7 @@ ad_proc workflow::test::workflow_setup {} {
             -short_name "resolve" \
             -pretty_name "Resolve" \
             -pretty_past_tense "Resolved" \
-            -assigned_role { assignee } \
+            -assigned_role assignee \
             -enabled_states { open resolved } \
             -new_state "resolved" \
             -privileges { write } \
@@ -300,7 +365,7 @@ ad_proc workflow::test::workflow_setup {} {
             -short_name "close" \
             -pretty_name "Close" \
             -pretty_past_tense "Closed" \
-            -assigned_role { submitter } \
+            -assigned_role submitter \
             -enabled_states { resolved } \
             -new_state "closed" \
             -privileges { write }
@@ -310,7 +375,7 @@ ad_proc workflow::test::workflow_setup {} {
             -short_name "reopen" \
             -pretty_name "Reopen" \
             -pretty_past_tense "Closed" \
-            -allowed_roles { submitter } \
+            -allowed_roles submitter \
             -enabled_states { resolved closed } \
             -new_state "open" \
             -privileges { write }    
@@ -340,7 +405,7 @@ ad_proc workflow::test::case_setup {} {
     set case_id [workflow::case::new -workflow_id $workflow_id \
                                      -object_id [workflow::test::workflow_object_id] \
                                      -comment "Test workflow case" \
-                                     -comment_format "plain" \
+                                     -comment_mime_type "text/plain" \
                                      -user_id [workflow::test::admin_owner_id]]
 
     return $case_id
@@ -356,6 +421,15 @@ ad_proc workflow::test::run_bug_tracker_test {
         # if any catch did so in the executed code.
         # set error_p [catch workflow::test::workflow_setup error]
         set workflow_id [$create_proc]
+
+        set generated_spec [workflow::fsm::generate_spec -workflow_id $workflow_id]
+        
+        ns_log Notice "LARS: Generated spec: $generated_spec"
+        ns_log Notice "LARS: Hard-coded spec: [workflow_get_array_style_spec]"
+
+        aa_true "Checking that generated spec is identical to the spec that we created from (except for ordering)" \
+                [array_lists_equal_p $generated_spec [workflow_get_array_style_spec]]
+        
     
         # Create the workflow case in open state
         set object_id [workflow::test::workflow_object_id]
@@ -366,14 +440,48 @@ ad_proc workflow::test::run_bug_tracker_test {
                 -object_id $object_id \
                 -workflow_short_name [workflow::test::workflow_name]]
         
-        #set retrieved_object_id \
-        \#  [workflow::case::get_object_id $case_id
+        # Test the workflow::get proc
+        workflow::get -workflow_id $workflow_id -array workflow_array
+        aa_equals "checking the short_name retrieved with workflow::get of workflow" \
+                $workflow_array(short_name) \
+                [workflow::test::workflow_name]
+        
+        set retrieved_initial_action_name [workflow::action::get_element \
+                                            -action_id $workflow_array(initial_action_id) \
+                                            -element short_name]
+
+        aa_equals "Checking initial action short name from workflow::get and workflow::action::get_element" \
+                $retrieved_initial_action_name [workflow::test::initial_action_short_name]
 
         
+        # Test changing the short_name and check that the flush is cached
+        # TODO...
+
+        # Get the role short_names
+        set expect_role_names [list submitter assignee]
+        foreach role_id [workflow::get_roles -workflow_id $workflow_id] {
+            workflow::role::get -role_id $role_id -array role
+
+            aa_true "checking that role names of workflow can be fetched with workflow::get_roles and workflow::role::get" \
+                  [expr [lsearch -exact $expect_role_names $role(short_name)] != -1]
+
+        }
+
+        # Get the action short names
+        set expect_action_names [list open comment edit resolve close reopen]
+        foreach action_id [workflow::get_actions -workflow_id $workflow_id] {
+            workflow::action::get -action_id $action_id -array action
+
+            aa_true "checking retrieval of action names with workflow::get_actions and workflow::get" \
+                    [expr [lsearch -exact $expect_action_names $action(short_name)] != -1]
+
+        }
+
+        # Get the state short names
+        # TODO
+
         aa_true "case_id of a created workflow case should be retrievable" \
                 [string equal $case_id $retrieved_case_id]
-        #aa_true "object_id of a created workflow case should be retrievable" \
-        \#        [string equal $object_id $retrieved_object_id]
     
         set expect_enabled_actions [list comment edit resolve]
         workflow::test::assert_case_state \
@@ -390,7 +498,7 @@ ad_proc workflow::test::run_bug_tracker_test {
                 -action_id [workflow::action::get_id -workflow_id $workflow_id \
                 -short_name "resolve"] \
                 -comment "Resolving Bug" \
-                -comment_format plain \
+                -comment_mime_type "text/plain" \
                 -user_id [workflow::test::admin_owner_id]
         
         set expect_enabled_actions [list comment edit resolve reopen close]
@@ -408,7 +516,7 @@ ad_proc workflow::test::run_bug_tracker_test {
                 -action_id [workflow::action::get_id -workflow_id $workflow_id \
                 -short_name "close"] \
                 -comment "Closing Bug" \
-                -comment_format plain \
+                -comment_mime_type "text/plain" \
                 -user_id [workflow::test::admin_owner_id]
     
         set expect_enabled_actions [list comment edit reopen]
@@ -424,13 +532,13 @@ ad_proc workflow::test::run_bug_tracker_test {
 
     set error_p [catch $test_chunk errMsg]
 
+    # Teardown
+    workflow::test::workflow_teardown
+
     if { $error_p } {    
         global errorInfo
         aa_false "error during setup: $errMsg - $errorInfo" $error_p
     }
-        
-    # Teardown
-    # workflow::test::workflow_teardown
 }
 
 
@@ -466,11 +574,13 @@ aa_register_case bugtracker_workflow_clone {
     @author Lars Pind
     @creation-date 22 January 2003
 } {
+    set workflow_id_list [list]
     set test_chunk {
         set workflow_id_1 [workflow::test::workflow_setup]
-    
+        lappend workflow_id_list $workflow_id_1
         set workflow_id_2 [workflow::fsm::clone -workflow_id $workflow_id_1 -object_id [workflow::test::workflow_object_id_2]]
-        
+        lappend workflow_id_list $workflow_id_2
+
         set spec_1 [workflow::fsm::generate_spec -workflow_id $workflow_id_1]
         set spec_2 [workflow::fsm::generate_spec -workflow_id $workflow_id_2]
 
@@ -479,16 +589,15 @@ aa_register_case bugtracker_workflow_clone {
     } 
 
     set error_p [catch $test_chunk errMsg]
-    
+
+    # Teardown
+    foreach workflow_id $workflow_id_list {
+        workflow::delete -workflow_id $workflow_id
+    }
+
     if { $error_p } {    
         global errorInfo
         aa_false "error during setup: $errMsg - $errorInfo" $error_p
     }
-        
-    catch { 
-        workflow::delete -workflow_id $workflow_id_1
-        workflow::delete -workflow_id $workflow_id_2
-    }
-
 }
 

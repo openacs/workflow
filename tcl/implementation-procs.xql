@@ -17,14 +17,21 @@
     </querytext>
   </fullquery>
 
-
-  <fullquery name="workflow::impl::role_assignee_pick_list::select_current_assignees">
+  <fullquery name="workflow::impl::role_assignee_pick_list::current_assignees::get_pick_list.select_current_assignees">
     <querytext>
-      select party_id
-      from   workflow_case_role_party_map
-      where  role_id = :role_id 
-      and    case_id = :case_id
+        select m.party_id
+        from   workflow_case_role_party_map m, 
+               workflow_cases c
+        where  m.role_id = :role_id 
+        and    m.case_id = c.case_id
+        and    c.workflow_id = (select workflow_id from workflow_cases where case_id = :case_id)
     </querytext>
   </fullquery>
+
+  <partialquery name="workflow::impl::role_assignee_subquery::registered_users::get_subquery_name.cc_users">
+    <querytext>
+        cc_users
+    </querytext>
+  </partialquery>
 
 </queryset>

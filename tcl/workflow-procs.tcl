@@ -82,6 +82,11 @@ ad_proc -public workflow::new {
         }
     }
 
+    # The lookup proc might have cached that there is no workflow
+    # with the short name of the workflow we have now created so
+    # we need to flush
+    util_memoize_flush_regexp {^workflow::get_id_not_cached}    
+
     return $workflow_id
 }
 
@@ -94,6 +99,8 @@ ad_proc -public workflow::delete {
 
     @author Peter Marklund
 } {
+    workflow::flush_cache -workflow_id $workflow_id
+
     return [db_string do_delete {}]
 }
 
@@ -109,26 +116,12 @@ ad_proc -public workflow::get_id {
 
     @author Lars Pind (lars@collaboraid.biz)
 } {
-    if { [empty_string_p $package_key] } {
-        if { [empty_string_p $object_id] } {
-            if { [ad_conn isconnected] } {
-                set package_key [ad_conn package_key]
-            } else {
-                error "You must supply either package_key or object_id, or there must be a current connection"
-                set query_name select_workflow_id_by_package_key
-            }
-        } else {
-            set query_name select_workflow_id_by_object_id
-        }
-    } else {
-        if { [empty_string_p $object_id] } {
-            set query_name select_workflow_id_by_package_key
-        } else {
-            error "You must supply only one of either package_key or object_id"
-        }
-    }
 
-    set workflow_id [db_string $query_name {} -default {}]
+    set workflow_id [util_memoize [list workflow::get_id_not_cached \
+                                       -package_key $package_key \
+                                       -object_id $object_id \
+                                       -short_name $short_name] [workflow::cache_timeout]]
+
     if { ![empty_string_p $workflow_id] } {
         return $workflow_id
     } else {
@@ -140,22 +133,24 @@ ad_proc -public workflow::get {
     {-workflow_id:required}
     {-array:required}
 } {
-    Return information about a workflow.
+    Return information about a workflow. Uses util_memoize
+    to cache values from the database.
 
     @author Lars Pind (lars@collaboraid.biz)
 
     @param workflow_id ID of workflow
     @param array name of array in which the info will be returned
-    @return An array list with info
+    @return An array list with keys workflow_id, short_name,
+            pretty_name, object_id, package_key, object_type, initial_action,
+            and callbacks.
+
 } {
     # Select the info into the upvar'ed Tcl Array
     upvar $array row
 
-    db_1row workflow_info {} -column_array row
-
-    set row(callbacks) [db_list workflow_callbacks {}]
+    array set row \
+            [util_memoize [list workflow::get_not_cached -workflow_id $workflow_id] [workflow::cache_timeout]]
 }
-
 
 ad_proc -public workflow::get_element {
     {-workflow_id:required}
@@ -172,19 +167,6 @@ ad_proc -public workflow::get_element {
     return $row($element)
 }
 
-ad_proc -public workflow::get_initial_action {
-    {-workflow_id:required}
-} {
-    Get the action_id of the special 'open' action of a workflow.
-    
-    @param workflow_id The ID of the workflow
-    @return action_id of the magic 'open' action
-
-    @author Lars Pind (lars@collaboraid.biz)
-} {
-    return [db_string select_initial_action {}]
-}
-
 ad_proc -public workflow::get_roles {
     {-workflow_id:required}
 } {
@@ -195,7 +177,10 @@ ad_proc -public workflow::get_roles {
 
     @author Lars Pind (lars@collaboraid.biz)
 } {
-    return [db_list select_role_ids {}]
+    # Use cached data about roles
+    array set role_data [workflow::role::get_all_info -workflow_id $workflow_id]
+
+    return $role_data(role_ids)
 }
 
 ad_proc -public workflow::get_actions {
@@ -208,7 +193,10 @@ ad_proc -public workflow::get_actions {
 
     @author Lars Pind (lars@collaboraid.biz)
 } {
-    return [db_list select_action_ids {}]
+    # Use cached data about actions
+    array set action_data [workflow::action::get_all_info -workflow_id $workflow_id]
+
+    return $action_data(action_ids)
 }
 
 
@@ -218,6 +206,101 @@ ad_proc -public workflow::get_actions {
 #####
 # Private procs
 #####
+
+
+
+ad_proc -private workflow::flush_cache {
+    {-workflow_id:required}
+} {
+    Flush all cached data related to the given
+    workflow instance.
+} {
+    # The workflow instance that we are flushing may be in the get_id lookup
+    # cache so we have to flush it
+    util_memoize_flush_regexp {^workflow::get_id_not_cached}
+
+    # Flush workflow scalar attributes and workflow callbacks
+    util_memoize_flush [list workflow::get_not_cached -workflow_id $workflow_id]
+
+    # Delegating flushing of info related to roles, actions, and states
+    workflow::role::flush_cache -workflow_id $workflow_id
+    workflow::action::flush_cache -workflow_id $workflow_id
+    workflow::state::flush_cache -workflow_id $workflow_id
+}
+
+ad_proc -private workflow::cache_timeout {} {
+    Returns the timeout to give to util_memoize (max_age parameter)
+    for all workflow level data. Should probably
+    be an APM parameter.
+
+    @author Peter Marklund
+} {
+    return ""
+}
+
+ad_proc -private workflow::get_id_not_cached {
+    {-package_key {}}
+    {-object_id {}}
+    {-short_name:required}
+} {
+    Private proc not to be used by applications, use workflow::get_id
+    instead.
+} {
+    if { [empty_string_p $package_key] } {
+        if { [empty_string_p $object_id] } {
+            if { [ad_conn isconnected] } {
+                set package_key [ad_conn package_key]
+                set query_name select_workflow_id_by_package_key
+            } else {
+                error "You must supply either package_key or object_id, or there must be a current connection"
+            }
+        } else {
+            set query_name select_workflow_id_by_object_id
+        }
+    } else {
+        if { [empty_string_p $object_id] } {
+            set query_name select_workflow_id_by_package_key
+        } else {
+            error "You must supply only one of either package_key or object_id"
+        }
+    }
+
+    return [db_string $query_name {} -default {}]
+}
+
+ad_proc -private workflow::get_not_cached {
+    {-workflow_id:required}
+} {
+    Private procedure that should never be used by application code - use
+    workflow::get instead.
+    Returns info about the workflow in an array list. Always
+    goes to the database.
+
+    @see workflow::get
+
+    @author Peter Marklund
+} {
+    db_1row workflow_info {} -column_array row
+
+    set callbacks [list]
+    set callback_ids [list]
+    array set callback_impl_names [list]
+    array set callbacks_array [list]
+
+    db_foreach workflow_callbacks {} -column_array callback_row {
+        lappend callbacks "$callback_row(impl_owner_name).$callback_row(impl_name)"
+        lappend callback_ids $callback_row(impl_id)
+        lappend callback_impl_names($callback_row(contract_name)) $callback_row(impl_name)
+        set callbacks_array($callback_row(impl_id)) [array get callback_row]
+    } 
+
+    set row(callbacks) $callbacks
+    set row(callback_ids) $callback_ids
+    set row(callback_impl_names) [array get callback_impl_names]
+    set row(callbacks_array) [array get callbacks_array]
+
+    return [array get row]
+}
 
 ad_proc -private workflow::default_sort_order {
     {-workflow_id:required}
@@ -261,9 +344,30 @@ ad_proc -private workflow::callback_insert {
         # Insert the callback
         db_dml insert_callback {}
     }
+
+    # Flush workflow scalar attributes and workflow callbacks
+    util_memoize_flush [list workflow::get_not_cached -workflow_id $workflow_id]
+
     return $acs_sc_impl_id
 }
 
+ad_proc -private workflow::get_callbacks {
+    {-workflow_id:required}
+    {-contract_name:required}
+} {
+    Return the implementation names for a certain contract and a 
+    given workflow.
+
+    @author Peter Marklund
+} {
+    array set callback_impl_names [workflow::get_element -workflow_id $workflow_id -element callback_impl_names]
+
+    if { [info exists callback_impl_names($contract_name)] } {
+        return $callback_impl_names($contract_name)
+    } else {
+        return {}
+    }
+}
 
 
 #####
@@ -299,6 +403,11 @@ ad_proc -public workflow::fsm::new_from_spec {
                     -spec $spec]
         }
     }
+
+    # The lookup proc might have cached that there is no workflow
+    # with the short name of the workflow we have now created so
+    # we need to flush
+    util_memoize_flush_regexp {^workflow::get_id_not_cached}    
 
     return $workflow_id
 }
@@ -350,6 +459,11 @@ ad_proc -public workflow::fsm::generate_spec {
     array unset row object_id
     array unset row workflow_id
     array unset row short_name
+    array unset row callbacks_array
+    array unset row callback_ids
+    array unset row callback_impl_names
+    array unset row initial_action
+    array unset row initial_action_id
 
     set spec [list]
 
@@ -367,14 +481,17 @@ ad_proc -public workflow::fsm::generate_spec {
 ad_proc -public workflow::fsm::get_states {
     {-workflow_id:required}
 } {
-    Get the state_id's of all the states in the workflow.
+    Get the state_id's of all the states in the workflow. 
     
     @param workflow_id The ID of the workflow
     @return list of state_id's.
 
     @author Lars Pind (lars@collaboraid.biz)
 } {
-    return [db_list select_state_ids {}]
+    # Use cached data
+    array set state_data [workflow::state::fsm::get_all_info -workflow_id $workflow_id]
+
+    return $state_data(state_ids)
 }
 
 ad_proc -public workflow::fsm::get_initial_state {
@@ -385,10 +502,13 @@ ad_proc -public workflow::fsm::get_initial_state {
 
     @author Peter Marklund
 } {
-    set initial_action_id [workflow::get_initial_action -workflow_id $workflow_id]
+    set initial_action_id [workflow::get_element \
+            -workflow_id $workflow_id \
+            -element initial_action_id]
 
-    set initial_state [workflow::action::fsm::get_element -action_id $initial_action_id \
-                                                          -element new_state_id]
+    set initial_state [workflow::action::fsm::get_element \
+            -action_id $initial_action_id \
+            -element new_state_id]
 
     return $initial_state
 }
@@ -491,10 +611,5 @@ ad_proc -public workflow::service_contract::get_impl_id {
 } {
     set namev [split $name "."]
 
-    set impl_owner_name [lindex $namev 0]
-    set impl_name [lindex $namev 1]
-
-    set acs_sc_impl_id [db_string select_impl_id {}]
-
-    return $acs_sc_impl_id
+    return [acs_sc::impl::get_id -owner [lindex $namev 0] -name [lindex $namev 1]]
 }

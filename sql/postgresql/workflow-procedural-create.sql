@@ -11,7 +11,7 @@
 -- Workflow level, Generic Model
 ---------------------------------
 
-create function workflow__delete (integer)
+create or replace function workflow__delete (integer)
 returns integer as '
 declare
   delete_workflow_id            alias for $1;
@@ -97,57 +97,86 @@ begin
 end;
 ' language 'plpgsql';
 
-create function workflow_activity_log__new (integer, --case_id
-                                            integer, --action_id
-                                            varchar  -- comment_format
-                                           ) returns integer as '
+select define_function_args ('workflow_case_log_entry__new','item_id,content_type;workflow_case_log_entry,case_id,action_id,comment,comment_mime_type,creation_user,creation_ip');
+
+create or replace function workflow_case_log_entry__new (
+    integer,                  -- item_id
+    varchar,                  -- content_type
+    integer,                  -- case_id
+    integer,                  -- action_id
+    varchar,                  -- comment
+    varchar,                  -- comment_mime_type
+    integer,                  -- creation_user
+    varchar                   -- creation_ip
+) returns integer as '
 declare
-    new__case_id           alias for $1;
-    new__action_id         alias for $2;
-    new__comment_format    alias for $3;
-    
+    p_item_id           alias for $1;
+    p_content_type      alias for $2;
+    p_case_id           alias for $3;
+    p_action_id         alias for $4;
+    p_comment           alias for $5;
+    p_comment_mime_type alias for $6;
+    p_creation_user     alias for $7;
+    p_creation_ip       alias for $8;
         
-    v_item_id		   cr_items.item_id%TYPE;
-    v_revision_id	   cr_revisions.revision_id%TYPE;
+    v_name                        varchar;
+    v_action_short_name           varchar;
+    v_action_pretty_past_tense    varchar;
+    v_case_object_id              integer;
+    v_item_id                     integer;
+    v_revision_id                 integer;
 begin
+    select short_name, pretty_past_tense
+    into   v_action_short_name, v_action_pretty_past_tense
+    from   workflow_actions
+    where  action_id = p_action_id;
+
+    -- use case object as context_id
+    select object_id
+    into   v_case_object_id
+    from   workflow_cases
+    where  case_id = p_case_id;
+
+    -- build the unique name
+    if p_item_id is not null then
+        v_item_id := p_item_id;
+    else
+        select nextval
+        into   v_item_id
+        from   acs_object_id_seq;
+    end if;
+    v_name := v_action_short_name || '' '' || v_item_id;
 
     v_item_id := content_item__new (
-      new__name,
-      new__parent_id,
-      new__item_id,
-      new__locale,
-      new__creation_date,
-      new__creation_user,	
-      new__context_id,
-      new__creation_ip,
-      ''content_item'',
-      new__content_type,
-      null,
-      null,
-      null,
-      null,
-      null
+        v_item_id,                   -- item_id
+        v_name,                      -- name
+        0,                           -- parent_id
+        v_action_pretty_past_tense,  -- title
+        now(),                       -- creation_date
+        p_creation_user,             -- creation_user
+        v_case_object_id,            -- context_id
+        p_creation_ip,               -- creation_ip
+        ''t'',                       -- is_live
+        p_comment_mime_type,         -- mime_type
+        p_comment,                   -- text
+        ''text'',                    -- storage_type
+        ''t'',                       -- security_inherit_p
+        ''CR_FILES'',                -- storage_area_key
+        ''content_item'',            -- item_subtype
+        p_content_type               -- content_type
     );
 
-    v_revision_id := content_revision__new (
-      new__title,
-      new__description,
-      new__publish_date,
-      new__mime_type,
-      new__nls_language,
-      null,
-      v_item_id,
-      new__revision_id,
-      new__creation_date,
-      new__creation_user,
-      new__creation_ip
+    -- insert the row into the single-column entry revision table
+    select content_item__get_live_revision (v_item_id)
+    into v_revision_id;
 
-    );
+    insert into workflow_case_log_rev (entry_rev_id)
+    values (v_revision_id);
 
-    insert into workflow_case_log
-             (entry_id, case_id, action_id, comment_format)
-      values (v_revision_id, new__case_id, new__action_id, new__comment_format);
+    -- insert into workflow-case-log
+    insert into workflow_case_log (entry_id, case_id, action_id)
+    values (v_item_id, p_case_id, p_action_id);
 
-    PERFORM content_item__set_live_revision (v_revision_id);        
-
-end; ' language 'plpgsql';
+    -- return id of newly created item
+    return v_item_id;
+end;' language 'plpgsql';

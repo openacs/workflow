@@ -15,6 +15,11 @@ namespace eval workflow::impl::role_default_assignees::static_assignees {}
 namespace eval workflow::impl::role_assignee_pick_list {}
 namespace eval workflow::impl::role_assignee_pick_list::current_assignees {}
 
+namespace eval workflow::impl::role_assignee_subquery {}
+namespace eval workflow::impl::role_assignee_subquery::registered_users {}
+
+namespace eval workflow::impl::notification {}
+
 #####
 #
 # Generic service contract implementation procs
@@ -67,7 +72,6 @@ ad_proc -public workflow::impl::role_default_assignees::static_assignees::get_as
 } {
     Return the static assignees for this role
 } {
-    error "IMPL: [db_list select_static_assignees {}]"
     return [db_list select_static_assignees {}]
 }
 
@@ -90,3 +94,47 @@ ad_proc -public workflow::impl::role_assignee_pick_list::current_assignees::get_
 } {
     return [db_list select_current_assignees {}]
 }
+
+
+
+
+#####
+#
+# Search Subquery - registered users
+#
+#####
+
+ad_proc -public workflow::impl::role_assignee_subquery::registered_users::pretty_name {} {
+    return "All registered users"
+}
+
+ad_proc -public workflow::impl::role_assignee_subquery::registered_users::get_subquery {
+    case_id
+    object_id
+    role_id
+} {
+    Return a subquery for all registered users.
+} {
+    return [db_map cc_users]
+}
+
+
+
+#####
+#
+# Notifications
+#
+#####
+
+ad_proc -public workflow::impl::notification::get_url {
+    object_id
+} {
+    # Todo: Implement this proc
+}
+
+ad_proc -public workflow::impl::notification::process_reply {
+    reply_id
+} {
+    # Todo: Implement this proc
+}    
+

@@ -28,16 +28,15 @@
     </querytext>
   </fullquery>
 
-  <fullquery name="workflow::role::get_id.select_role_id">
+  <fullquery name="workflow::role::get_workflow_id_not_cached.select_workflow_id">
     <querytext>
-        select role_id 
-        from   workflow_roles 
-        where  workflow_id = :workflow_id 
-        and    short_name = :short_name
+        select workflow_id
+        from workflow_roles
+        where role_id = :role_id
     </querytext>
   </fullquery>
 
-  <fullquery name="workflow::role::get.role_info">
+  <fullquery name="workflow::role::get_all_info_not_cached.role_info">
     <querytext>
         select role_id,
                workflow_id,
@@ -45,18 +44,30 @@
                pretty_name,
                sort_order
         from   workflow_roles
-        where  role_id = :role_id
+        where  workflow_id = :workflow_id
+        order by sort_order
     </querytext>
   </fullquery>
 
-  <fullquery name="workflow::role::get.role_callbacks">
+  <fullquery name="workflow::role::get_all_info_not_cached.role_callbacks">
     <querytext>
-        select impl.impl_owner_name || '.' || impl.impl_name
-        from   acs_sc_impls impl,
-               workflow_role_callbacks c
-        where  c.role_id = :role_id
+        select c.role_id,
+               impl.impl_id,
+               impl.impl_owner_name,
+               impl.impl_name,  
+               ctr.contract_name,
+               c.sort_order
+        from   workflow_roles r,
+               workflow_role_callbacks c,
+               acs_sc_impls impl,
+               acs_sc_bindings bind,
+               acs_sc_contracts ctr
+        where  r.workflow_id = :workflow_id
+        and    c.role_id = r.role_id
         and    impl.impl_id = c.acs_sc_impl_id
-        order  by c.sort_order
+        and    bind.impl_id = impl.impl_id
+        and    ctr.contract_id = bind.contract_id
+        order  by r.role_id, c.sort_order
     </querytext>
   </fullquery>
 

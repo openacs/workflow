@@ -82,7 +82,7 @@ ad_proc -private workflow::install::delete_service_contracts {} {
         acs_sc::contract::delete -name [workflow::service_contract::role_assignee_subquery]
 
         acs_sc::contract::delete -name [workflow::service_contract::action_side_effect]
-
+        
         acs_sc::contract::delete -name [workflow::service_contract::activity_log_format_title]
     
     }
@@ -165,20 +165,19 @@ ad_proc -private workflow::install::create_assignee_subquery_service_contract {}
                 iscachable_p "t"
             }
             GetPrettyName {
-                description "Get the pretty name of this implementation. Will be localized, so i may contain #...#."
+                description "Get the pretty name of this implementation. Will be localized, so it may contain #...#."
                 output { pretty_name:string }
                 iscachable_p "t"
             }
-            GetSubQueryName {
-                description "Get the Query Dispatcher query name of the query which will return the list of parties who can be assigned to the role, and optionally bind variables to be filled in. Names of bind variables cannot start with an underscore (_)."
+            GetSubquery {
+                description "Get a subquery which will return the list of parties who can be assigned to the role, e.g. simply the name of a view of users/parties, or a subquery enclosed in parenthesis such as '(select * from parties where ...)'"
                 input {
                     case_id:integer
                     object_id:integer
                     role_id:integer
                 }
                 output {
-                    subquery_name:string
-                    bind:string,multiple
+                    subquery:string
                 }
             }
         }
@@ -271,7 +270,14 @@ ad_proc -private workflow::install::register_implementations {} {
         workflow::install::register_default_assignees_static_assignee_impl
 
         workflow::install::register_pick_list_current_assignee_impl 
+        
+        workflow::install::register_search_query_registered_users_impl
+
+        workflow::install::register_notification_impl
+
+        workflow::install::register_notification_types
     }
+
 }
 
 ad_proc -private workflow::install::unregister_implementations {} {
@@ -291,6 +297,14 @@ ad_proc -private workflow::install::unregister_implementations {} {
         acs_sc::impl::delete \
                 -contract_name [workflow::service_contract::role_assignee_pick_list] \
                 -impl_name "Role_PickList_CurrentAssignees"
+
+        acs_sc::impl::delete \
+                -contract_name [workflow::service_contract::role_assignee_subquery] \
+                -impl_name "Role_AssigneeSubquery_RegisteredUsers"
+
+        acs_sc::impl::delete \
+                -contract_name "NotificationType" \
+                -impl_name "WorkflowNotificationType"
     }
 }
 
@@ -334,8 +348,8 @@ ad_proc -private workflow::install::register_pick_list_current_assignee_impl {} 
         name "Role_PickList_CurrentAssignees"
         aliases {
             GetObjectType workflow::impl::acs_object
-            GetPrettyName workflow::impl::role_assignee_pick_list::pretty_name
-            GetPickList   workflow::impl::role_assignee_pick_list::get_pick_list 
+            GetPrettyName workflow::impl::role_assignee_pick_list::current_assignees::pretty_name
+            GetPickList   workflow::impl::role_assignee_pick_list::current_assignees::get_pick_list 
         }  
     }
 
@@ -343,4 +357,82 @@ ad_proc -private workflow::install::register_pick_list_current_assignee_impl {} 
     lappend spec owner [workflow::package_key]
 
     acs_sc::impl::new_from_spec -spec $spec
+}
+
+ad_proc -private workflow::install::register_search_query_registered_users_impl {} {
+
+    set spec {
+        name "Role_AssigneeSubquery_RegisteredUsers"
+        aliases {
+            GetObjectType   workflow::impl::acs_object
+            GetPrettyName   workflow::impl::role_assignee_subquery::registered_users::pretty_name
+            GetSubquery     workflow::impl::role_assignee_subquery::registered_users::get_subquery
+        }  
+    }
+    
+    lappend spec contract_name [workflow::service_contract::role_assignee_subquery]
+    lappend spec owner [workflow::package_key]
+    
+    acs_sc::impl::new_from_spec -spec $spec
+}
+
+ad_proc -private workflow::install::register_notification_impl {} {
+    
+    set spec {
+        contract_name "NotificationType"
+        name "WorkflowNotificationType"
+        aliases {
+            GetURL       workflow::impl::notification::get_url
+            ProcessReply workflow::impl::notification::process_reply
+        }  
+    }
+    
+    lappend spec owner [workflow::package_key]
+    
+    acs_sc::impl::new_from_spec -spec $spec
+}
+
+
+#####
+#
+# Notifications
+#
+#####
+
+ad_proc -public workflow::install::register_notification_types {} {
+    Register workflow notification types
+} {
+    set sc_impl_id [acs_sc::impl::get_id -owner [workflow::package_key] -name "WorkflowNotificationType"]
+    
+    set type_id [list]
+    
+    lappend type_ids [notification::type::new \
+            -sc_impl_id $sc_impl_id \
+            -short_name "workflow_assignee" \
+            -pretty_name "Workflow Assignee" \
+            -description "Notification of people who are assigned to an action in a workflow."]
+    
+    lappend type_ids [notification::type::new \
+            -sc_impl_id $sc_impl_id \
+            -short_name "workflow_my_cases" \
+            -pretty_name "Workflow My Cases" \
+            -description "Notification on all activity in any case you're participating in."]
+
+    lappend type_ids [notification::type::new \
+            -sc_impl_id $sc_impl_id \
+            -short_name "workflow_case" \
+            -pretty_name "Workflow Case" \
+            -description "Notification on all activity in a specific case that you're interested in."]
+
+    lappend type_ids [notification::type::new \
+            -sc_impl_id $sc_impl_id \
+            -short_name "workflow" \
+            -pretty_name "Workflow" \
+            -description "Notification on all activity in any case in a particular workflow (typically an instance of a package)."]
+
+    # Enable all available intervals and delivery methods    
+    foreach type_id $type_ids {
+        db_dml enable_all_intervals {}
+        db_dml enable_all_delivery_methods {}
+    }
 }
