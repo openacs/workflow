@@ -307,12 +307,15 @@ create sequence workflow_fsm_states_seq;
 
 create table workflow_fsm_actions (
   action_id               integer
+                          constraint workflow_fsm_actions_aid_fk
+                          references workflow_actions(action_id)
+                          on delete cascade
                           constraint workflow_fsm_actions_pk
                           primary key,
   new_state               integer
                           constraint workflow_fsm_actions_new_state_fk
                           references workflow_fsm_states(state_id)
-                          on delete set null
+                          on delete cascade
   -- can be null
 );
 
