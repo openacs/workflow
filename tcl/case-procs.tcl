@@ -865,10 +865,10 @@ ad_proc -public workflow::case::role::set_assignee_values {
             array set cur_assignee [lindex $assignees 0]
         }
 
-        if { [uplevel info exists bug:$element] } {
+        if { [uplevel info exists $form_name:$element] } {
             # Set normal value
-            if { [uplevel template::form is_request bug] || [string equal [uplevel [list element get_property bug $element mode]] "display"] } {
-                uplevel [list element set_value bug $element $cur_assignee(party_id)]
+            if { [uplevel template::form is_request $form_name] || [string equal [uplevel [list element get_property $form_name $element mode]] "display"] } {
+                uplevel [list element set_value $form_name $element $cur_assignee(party_id)]
             }
             
             # Set display value
@@ -1129,7 +1129,7 @@ ad_proc -public workflow::case::action::permission_p {
     if { !$permission_p } {
         set privileges [concat "admin" [workflow::action::get_privileges -action_id $action_id]]
         foreach privilege $privileges {
-            if { [permission::permission_p -object_id $object_id -privilege $privilege] } {
+            if { [permission::permission_p -object_id $object_id -privilege $privilege -party_id $user_id] } {
                 set permission_p 1
                 break
             }
