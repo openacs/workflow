@@ -242,6 +242,46 @@ create table workflow_initial_action (
                           on delete cascade
 );
 
+-- TODO: Test these
+create table workflow_action_children(
+  child_id                  integer
+                            constraint wf_action_children_pk
+                            primary key,
+  action_id                 integer
+                            constraint wf_action_children_nn
+                            not null
+                            constraint wf_action_children_action_fk
+                            references workflow_actions(action_id)
+                            on delete cascade,
+  child_workflow            integer
+                            constraint wf_action_children_workflow_fk
+                            references workflows(workflow_id)
+                            on delete cascade
+);
+
+create table workflow_action_child_role_map(
+  child_id                  integer
+                            constraint wf_act_child_rl_map_child_fk
+                            references workflow_action_children(child_id),
+  parent_role               integer
+                            constraint wf_act_child_rl_map_prnt_rl_fk
+                            references workflow_roles(role_id),
+  child_role                integer
+                            constraint wf_act_child_rl_map_chld_rl_fk
+                            references workflow_roles(role_id),
+  mapping_type              char(40)
+                            constraint wf_act_child_rl_map_type_ck
+                            check (mapping_type in 
+                                ('per_role','per_user')),
+  constraint wf_act_chld_rl_map_pk
+  primary key (child_id, parent_role)
+);
+
+comment on column workflow_action_child_role_map.mapping_type is '
+  If per user, we create a child workflow per user who is a member of any of the parties assigned to the parent_role.
+  If per role, we create just one child workflow, with the exact same parties that are in the parent_role.
+  If more than one child_role has a mapping_type other than per_role, the cartesian product of these roles will be created.
+';
 
 ---------------------------------
 -- Workflow level, Finite State Machine Model
