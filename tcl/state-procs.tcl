@@ -140,7 +140,8 @@ ad_proc -public workflow::state::fsm::edit {
                     set $varname [workflow::state::fsm::generate_short_name \
                                       -workflow_id $workflow_id \
                                       -pretty_name $row(pretty_name) \
-                                      -short_name $row(short_name)]
+                                      -short_name $row(short_name) \
+                                      -state_id $state_id]
                 }
                 default {
                     set $varname $row($attr)

@@ -168,7 +168,8 @@ ad_proc -public workflow::role::edit {
                     set $varname [workflow::role::generate_short_name \
                                       -workflow_id $workflow_id \
                                       -pretty_name $row(pretty_name) \
-                                      -short_name $row(short_name)]
+                                      -short_name $row(short_name) \
+                                      -role_id $role_id]
                 }
                 default {
                     set $varname $row($attr)
