@@ -133,6 +133,10 @@ ad_proc -public workflow::action::edit {
     {-array {}}
     {-internal:boolean}
     {-no_complain:boolean}
+    {-handlers { 
+        roles "workflow::role" 
+        actions "workflow::action"
+    }}
 } {
     Edit an action. 
 
@@ -429,21 +433,38 @@ ad_proc -public workflow::action::edit {
                 }
 
                 # Child actions
-                if { [info exists row(child_actions)] } {
-                    foreach existing_action_id [workflow::get_actions \
-                                                    -workflow_id $workflow_id \
-                                                    -parent_action_id $parent_action_id]  {
-                        workflow::action::delete -action_id $existing_action_id
-                    }
+                foreach { type namespace } $handlers {
+                    # type is 'roles', 'actions', 'states', etc.
+                    if { [info exists row(child_${type})] } {
 
-                    foreach { short_name spec } $row(child_actions) {
-                        workflow::action::fsm::parse_spec \
-                            -parent_action_id $action_id \
-                            -workflow_id $workflow_id \
-                            -short_name $short_name \
-                            -spec $spec
+                        # First, delete existing objects
+                        foreach existing_action_id [${namespace}::get_ids \
+                                                        -workflow_id $workflow_id \
+                                                        -parent_action_id $action_id]  {
+                            # LARS: Ugly as hell with the string range to cut from 'actions' to 'action_id'
+                            ${namespace}::edit -[string range $type 0 end-1]_id $existing_action_id
+                        }
+
+                        foreach { child_short_name child_spec } $row(child_${type}) {
+                            array unset child
+                            array set child $child_spec
+                            set child(short_name) $child_short_name 
+                            set child(parent_action_id) $action_id
+
+                            # string trim everything
+                            foreach key [array names child] { 
+                                set child($key) [string trim $child($key)]
+                            }
+                            
+                            ${namespace}::edit \
+                                -internal \
+                                -handlers $handlers \
+                                -operation "insert" \
+                                -workflow_id $workflow_id \
+                                -array child
+                        }
+                        unset missing_elm(child_${type})
                     }
-                    unset missing_elm(child_actions)
                 }
 
                 # Check that there are no unknown attributes
@@ -889,6 +910,11 @@ ad_proc -public workflow::action::fsm::edit {
     {-workflow_id {}}
     {-array {}}
     {-internal:boolean}
+    {-handlers { 
+        roles "workflow::role" 
+        actions "workflow::action::fsm"
+        states "workflow::state::fsm"
+    }}
 } {
     Edit an action. 
 
@@ -1038,7 +1064,7 @@ ad_proc -public workflow::action::fsm::edit {
             # Handle auxillary rows
             array set aux [list]
             foreach attr { 
-                enabled_state_ids assigned_state_ids child_states child_actions
+                enabled_state_ids assigned_state_ids
             } {
                 if { [info exists row($attr)] } {
                     set aux($attr) $row($attr)
@@ -1052,6 +1078,7 @@ ad_proc -public workflow::action::fsm::edit {
         # Base row
         set action_id [workflow::action::edit \
                            -internal \
+                           -handlers $handlers \
                            -operation $operation \
                            -action_id $action_id \
                            -workflow_id $workflow_id \
@@ -1117,42 +1144,6 @@ ad_proc -public workflow::action::fsm::edit {
                         db_dml insert_enabled_state {}
                     }
                     unset aux(assigned_state_ids)
-                }
-
-                # Child states
-                if { [info exists aux(child_states)] } {
-                    foreach existing_state_id [workflow::fsm::get_states \
-                                                    -workflow_id $workflow_id \
-                                                    -parent_action_id $action_id]  {
-                        workflow::state::fsm::delete -state_id $existing_state_id
-                    }
-                    
-                    foreach { short_name spec } $aux(child_states) {
-                        workflow::state::fsm::parse_spec \
-                            -parent_action_id $action_id \
-                            -workflow_id $workflow_id \
-                            -short_name $short_name \
-                            -spec $spec
-                    }
-                    unset aux(child_states)
-                }
-
-                # Child actions
-                if { [info exists aux(child_actions)] } {
-                    foreach existing_action_id [workflow::get_actions \
-                                                    -workflow_id $workflow_id \
-                                                    -parent_action_id $action_id]  {
-                        workflow::action::delete -action_id $existing_action_id
-                    }
-                    
-                    foreach { short_name spec } $aux(child_actions) {
-                        workflow::action::fsm::parse_spec \
-                            -parent_action_id $action_id \
-                            -workflow_id $workflow_id \
-                            -short_name $short_name \
-                            -spec $spec
-                    }
-                    unset aux(child_actions)
                 }
             }
         }
@@ -1346,6 +1337,7 @@ ad_proc -private workflow::action::fsm::parse_spec {
 ad_proc -private workflow::action::fsm::generate_spec {
     {-action_id {}}
     {-one_id {}}
+    {-handlers {}}
 } {
     Generate the spec for an individual action definition.
 
@@ -1385,28 +1377,24 @@ ad_proc -private workflow::action::fsm::generate_spec {
     array unset row assigned_state_ids
     array unset row parent_action
     array unset row parent_action_id
-    array unset row child_actions
-    array unset row child_states
 
-    foreach child_action_id $row(child_action_ids) {
-        set child_short_name [workflow::action::fsm::get_element \
-                                  -one_id $child_action_id \
-                                  -element short_name]
-        set child_spec [workflow::action::fsm::generate_spec -action_id $child_action_id]
-        
-        lappend row(child_actions) $child_short_name $child_spec
-    }
-    array unset row child_action_ids
+    foreach { type namespace } $handlers {
+        # type is 'roles', 'actions', 'states', etc.
 
-    foreach child_state_id $row(child_state_ids) {
-        set child_short_name [workflow::state::fsm::get_element \
-                                  -one_id $child_state_id \
-                                  -element short_name]
-        set child_spec [workflow::state::fsm::generate_spec -state_id $child_state_id]
-        
-        lappend row(child_states) $child_short_name $child_spec
+        # LARS: Ugly as hell with the string range to cut from 'actions' to 'action_ids'
+
+        if { [info exists row(child_[string range $type 0 end-1]_ids)] } {
+            set row(child_${type}) [list]
+            foreach child_id $row(child_[string range $type 0 end-1]_ids) {
+                set child_short_name [${namespace}::get_element \
+                                          -one_id $child_id \
+                                          -element short_name]
+                set child_spec [${namespace}::generate_spec -one_id $child_id -handlers $handlers]
+                lappend row(child_${type}) $child_short_name $child_spec
+            }
+            unset row(child_[string range $type 0 end-1]_ids)
+        }
     }
-    array unset row child_state_ids
 
     if { ![exists_and_not_null row(description)] } {
         array unset row description_mime_type

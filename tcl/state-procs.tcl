@@ -72,6 +72,7 @@ ad_proc -public workflow::state::fsm::edit {
     {-array {}}
     {-internal:boolean}
     {-no_complain:boolean}
+    {-handlers {}}
 } {
     Edit a workflow state. 
 
@@ -598,6 +599,7 @@ ad_proc -private workflow::state::fsm::parse_spec {
 ad_proc -private workflow::state::fsm::generate_spec {
     {-state_id {}}
     {-one_id {}}
+    {-handlers {}}
 } {
     Generate the spec for an individual state definition.
 

@@ -456,6 +456,7 @@ ad_proc -private workflow::role::parse_spec {
 ad_proc -private workflow::role::generate_spec {
     {-role_id {}}
     {-one_id {}}
+    {-handlers {}}
 } {
     Generate the spec for an individual role definition.
 

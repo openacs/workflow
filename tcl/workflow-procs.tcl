@@ -596,7 +596,7 @@ ad_proc -public workflow::generate_spec {
             set sub_short_name [${namespace}::get_element \
                                 -one_id $sub_id \
                                 -element short_name]
-            set elm_spec [${namespace}::generate_spec -one_id $sub_id]
+            set elm_spec [${namespace}::generate_spec -one_id $sub_id -handlers $handlers]
             
             if { $deep_p } {
                 if { [string equal $key "actions"] } {
@@ -838,6 +838,7 @@ ad_proc -private workflow::parse_spec {
                     set cmd [list ${namespace}::edit \
                                  -internal \
                                  -workflow_id $workflow_id \
+                                 -handlers $handlers \
                                  -array row]
 
                     if { $counter($type) == 1 } {
