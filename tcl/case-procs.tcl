@@ -580,7 +580,10 @@ ad_proc -private workflow::case::get_activity_log_info_not_cached {
             -contract_name $contract_name]
 
     # First, we build up a multirow so we have all the data in memory, which lets us peek ahead at the contents
-    db_multirow -extend {comment} -local entries select_log {} { set comment $comment_string }
+    db_multirow -extend {comment} -local entries select_log {} {
+       set comment $comment_string
+       set action_pretty_past_tense [lang::util::localize $action_pretty_past_tense]
+    }
 
     
     set rowcount [template::multirow -local size entries]
