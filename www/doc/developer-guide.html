@@ -18,10 +18,17 @@
   th {
     background-color: #ffcccc;
   }
+  th.header {
+    background-color: #eeeeee;
+    color: black;
+    font-size: 125%;
+    padding: 8px;
+  }
   tr {
     background-color: white;
   }
   table {
+    font-size: 85%;
     margin-left: 24px;
     background-color: #999999; 
   }
@@ -133,6 +140,28 @@ bug-tracker. </p>
     user who opened the bug should also close it.
   </li>
 </ul>
+
+<h3>Finite State Machines (FSMs)</h3>
+
+<p>
+  As mentioned, workflow is designed to support workflows based on any
+  model, however the only model currently implemented is the finite
+  state machine.
+</p>
+
+<p>
+  The workflow API is designed so that whenver you're using features
+  that are specific to finite state machines, the procedure name will
+  include the letters "fsm" in the name, as in
+  <code>workflow::case::fsm::get</code>. That way you'll know when
+  you're hard-wiring a dependency on the particular workflow model.
+</p>
+
+<p>
+  It's considered good practice to only use non-fsm API calls, but in
+  practice, it can be hard to create good user experiences without. So
+  feel free.
+</p>
 
 <blockquote class="note">
   <b>Notation:</b>
@@ -331,6 +360,9 @@ set workflow_id [workflow::fsm::new_from_spec -spec $spec]
 
 <table cellspacing="1">
   <tr>
+    <th colspan="2" class="header">Workflow Attributes</th>
+  </tr>
+  <tr>
     <th>Attribute</th>
     <th>Description</th>
   </tr>
@@ -402,6 +434,9 @@ set workflow_id [workflow::fsm::new_from_spec -spec $spec]
 
 <table cellspacing="1">
   <tr>
+    <th colspan="2" class="header">Role Attributes</th>
+  </tr>
+  <tr>
     <th>Attribute</th>
     <th>Description</th>
   </tr>
@@ -427,6 +462,9 @@ set workflow_id [workflow::fsm::new_from_spec -spec $spec]
 </p>
 
 <table cellspacing="1">
+  <tr>
+    <th colspan="2" class="header">Examples of States</th>
+  </tr>
   <tr>
     <th>Application</th>
     <th>States</th>
@@ -462,6 +500,9 @@ set workflow_id [workflow::fsm::new_from_spec -spec $spec]
 </p>
 
 <table cellspacing="1">
+  <tr>
+    <th colspan="2" class="header">State Attributes</th>
+  </tr>
   <tr>
     <th>Attribute</th>
     <th>Description</th>
@@ -546,6 +587,9 @@ set workflow_id [workflow::fsm::new_from_spec -spec $spec]
 </p>
 
 <table cellspacing="1">
+  <tr>
+    <th colspan="2" class="header">Action Attributes</th>
+  </tr>
   <tr>
     <th>Attribute</th>
     <th>Description</th>
@@ -781,6 +825,9 @@ ad_proc -private bug_tracker::bug::workflow_create {} {
 
 <table cellspacing="1">
   <tr>
+    <th colspan="3" class="header">Service contracts</th>
+  </tr>
+  <tr>
     <th>Service Contract</th>
     <th>Applies To</th>
     <th>Description</th>
@@ -793,7 +840,8 @@ ad_proc -private bug_tracker::bug::workflow_create {} {
     <td>
       Used to get the default assignees for a role. Called for all
       roles when a case is started. Also called for roles with no
-      assignees, when that role is assigned to an action.
+      assignees, when that role is assigned to an action. Should return a
+      list of party_id's.
     </td>
   </tr>
   <tr>
@@ -804,7 +852,8 @@ ad_proc -private bug_tracker::bug::workflow_create {} {
     <td>
       Used when the users wants to reassign a role to populate a
       drop-down list of the most likely users/groups to assign this role
-    to. Should return less than 25 users/groups.
+      to. Should return less than 25 users/groups. Should return a
+      list of party_id's.
     </td>
   </tr>
   <tr>
@@ -817,6 +866,12 @@ ad_proc -private bug_tracker::bug::workflow_create {} {
       new assignee for a role. Could typically be used to limit the
       search to members of a particular group, organizers of a
       particular event, etc.
+      <p>
+      Should return a subquery ready to be
+      included in the from-clause of a query, which will be used when
+      querying for users, for example '(select * from parties where
+      ...)', (sub-selects must be in parenthesis), or simply
+      'cc_users' or 'parties'. Defaults to 'cc_users'.
     </td>
   </tr>
   <tr>
@@ -827,7 +882,14 @@ ad_proc -private bug_tracker::bug::workflow_create {} {
     <td>
       This is executed whenever the given action is executed. If
       specified for the workflow, it will be executed whenever any
-      action is executed on the workflow.
+      action is executed on the workflow. For details about how to use
+      this in conjunction with log entry data and format log title,
+      see below.
+      <p>
+      Side-effects are executed after the application object has been
+      updated, after the workflow state has been changed, after the
+      log entry has been crated, and roles assigned, but before
+      notifications have been sent out.
     </td>
   </tr>
   <tr>
@@ -839,6 +901,10 @@ ad_proc -private bug_tracker::bug::workflow_create {} {
       Used to format the title of the case log. In bug-tracker, this
       is used to get the resolution code displayed in the case log as
       "Resolved (Fixed)" or "Resolved (Not Reproducable)".
+      <p>
+      The implementation should return the text string that should go
+      into the parenthesis. The parenthesis are automatically added 
+      if the returned string is non-empty.
     </td>
   </tr>
   <tr>
@@ -849,26 +915,409 @@ ad_proc -private bug_tracker::bug::workflow_create {} {
     <td>
       Allows the application to supply information about the case
       object for the notification.
+      <p>
+
+      Should return the notification information as a 4-element list
+      containing: 
+      <ol>
+        <li>url
+        <li>one-line summary
+        <li>details about the object in
+            the form of an array-list with label/value
+        <li>tag for the notification subject (optional). If present,
+            it will be put inside brackets [].
+      </ol>
     </td>
   </tr>
 </table>
 
 <p>
-  $$$ service contract operations, input, output
+  All the service contracts have 3 operations each. The first two are
+  the same for all service contracts, and they really just act like
+  static variables:
+</p>
+
+<table cellspacing="1">
+  <tr>
+    <th colspan="4" class="header">Common service contract operations</th>
+  </tr>
+  <tr>
+    <th>Operation</th>
+    <th>Input</th>
+    <th>Output</th>
+    <th>Description</th>
+  </tr>
+  <tr>
+    <td>GetObjectType</td>
+    <td>
+      <i>None</i>
+    </td>
+    <td>
+      object_type:string
+    </td>
+    <td>
+      Get the object type for which this implementation is valid. If
+      your implementation is valid for any object, return
+      'acs_object', otherwise return the object type.
+    </td>
+  </tr>
+  <tr>
+    <td>GetPrettyName</td>
+    <td>
+      <i>None</i>
+    </td>
+    <td>
+      pretty_name:string
+    </td>
+    <td>
+      Get the pretty name of this implementation. This will be used in
+      the user interface to let the workflow designer pick which
+      implementation to use.
+    </td>
+  </tr>
+</table>
+
+<p>
+  The third operation is the one that does the real work. Here are the
+  inputs and outputs:
+</p>
+
+<table cellspacing="1">
+  <tr>
+    <th colspan="4" class="header">Specific service contract operations</th>
+  </tr>
+  <tr>
+    <th>Contract</th>
+    <th>Operation</th>
+    <th>Input</th>
+    <th>Output</th>
+  </tr>
+  <tr>
+    <td>
+      Workflow.Role_DefaultAssignees
+    </td>
+    <td>
+      GetAssignees
+    </td>
+    <td>
+      case_id:integer<br>
+      object_id:integer<br>
+      role_id:integer
+    </td>
+    <td>
+      party_ids:integer,multiple
+    </td>
+  </tr>
+  <tr>
+    <td>Workflow.Role_AssigneePickList</td>
+    <td>
+      GetPickList
+    </td>
+    <td>
+      case_id:integer<br>
+      object_id:integer<br>
+      role_id:integer
+    </td>
+    <td>
+      party_ids:integer,multiple
+    </td>
+  </tr>
+  <tr>
+    <td>Workflow.Role_AssigneeSubQuery</td>
+    <td>
+      GetSubquery
+    </td>
+    <td>
+      case_id:integer<br>
+      object_id:integer<br>
+      role_id:integer
+    </td>
+    <td>
+      subquery:string
+    </td>
+  </tr>
+  <tr>
+    <td>Workflow.Action_SideEffect</td>
+    <td>
+      DoSideEffect
+    </td>
+    <td>
+      case_id:integer
+      object_id:integer
+      action_id:integer
+      entry_id:integer
+    </td>
+    <td>
+      <i>None</i>
+    </td>
+  </tr>
+  <tr>
+    <td>Workflow.ActivityLog_FormatTitle</td>
+    <td>
+      GetTitle
+    </td>
+    <td>
+      case_id:integer
+      object_id:integer
+      action_id:integer
+      entry_id:integer
+      data_arraylist:string,multiple
+    </td>
+    <td>
+      title:string 
+    </td>
+  </tr>
+  <tr>
+    <td>Workflow.NotificationInfo</td>
+    <td>
+      GetNotificationInfo
+    </td>
+    <td>
+      case_id:integer
+      object_id:integer
+    </td>
+    <td>
+      info:string,multiple
+    </td>
+  </tr>
+</table>
+
+<p>
+  For the most up-to-date information about the service contracts,
+  your safest bet is to refer to the user-visible pages of the
+  acs-service-contract package itself, which will let you view your
+  currently installed contracts and implementations.
+</p>
+
+<h3>Log Entry Data and Log Entry Titles</h3>
+
+<p>
+  One noteworthy thing that side-effects can be used for, is to
+  record information about a log entry for use later in displaying a
+  more detailed log entry title, or can be used to e.g. tie a workflow
+  log entry to a particular content repository revision, etc.
 </p>
 
 <p>
-  $$$ linking implementations to object types.
+  Using workflow::case::add_log_data, you can add arbitrary key/value
+  pairs to a log entry. These can the be retrieved later using
+  workflow::case::get_log_data_by_key, and workflow::case::get_log_data.
 </p>
 
 
-<h2>Installing and Instantiating</h2>
+<h2>Installing and Instantiating (APM Tcl Callbacks)</h2>
+
+<p>
+  Here are the workflow-related operations that you'll typically want
+  your application to do from the APM Tcl Callbacks:
+</p>
+
+<dl>
+  <dt>after-install</dt>
+  <dd>
+    <ul>
+      <li>Register service contract implementations
+      <li>Create default workflow (<code>workflow::fsm::new_from_spec</code>)
+    </ul>
+  </dd>
+  
+  <dt>before-uninstall</dt>
+  <dd>
+    <ul>
+      <li>Delete default workflow (<code>workflow::delete</code>)
+      <li>Unregister service contract implementations
+    </ul>
+  </dd>
+
+  <dt>before-upgrade</dt>
+  <dd>
+    <ul>
+      <li>Add new service contract implementations
+      <li>Add new workflows
+      <li>Make changes to existing default workflows (if the installed
+  verison is not modified) (this isn't yet supported on the workflow API)
+    </ul>
+  </dd>
+
+  <dt>after-instantiate</dt>
+  <dd>
+    <ul>
+      <li>
+        Clone default workflow to create a new workflow attached to
+        the instance (<code>workflow::fsm::clone</code>)
+      </li>
+    </ul>
+  </dd>
+
+  <dt>before-uninstantiate</dt>
+  <dd>
+    <ul>
+      <li>
+        Delete the workflow attached to the instance (<code>workflow::delete</code>)
+      </li>
+    </ul>
+  </dd>
+</dl>
+
+<p>
+  To see what this could look like in practice, check out
+  <code>packages/bug-tracker/tcl/install-procs.tcl</code>.
+</p>
+
 
 <h2>Integrating With Your Application's API</h2>
 
-<h2>Integrating With Your Application's User Interface</h2>
+<p>
+  Newer applications will define a namespace for each of the objects
+  it defines, which will contain procs like "get", "new", "delete",
+  etc., to manipulate these objects.
+</p>
+
+<p>
+  Given such a setup, here are the procs that you want to integrate
+  workflow into for your workflow-integrated objects. For a real-life 
+  example, see <code>packages/bug-tracker/tcl/bug-procs.tcl</code> and
+  search for "workflow::".
+</p>
+
+<dl>
+  <dt>get</dt>
+  <dd>
+    In addition to your application's object data, you'll want to call
+    <code>workflow::case::get_id</code> to get the case_id for your
+    object, and then either <code>workflow::case::get</code> or
+    <code>workflow::case::fsm::get</code> in order to get state
+    information from workflow to include in the data set returned by
+    your API proc.
+  </dd>
+
+  <dt>new</dt>
+  <dd>
+    When creating a new object, you should also start a new workflow
+    case for that object using <code>workflow::case::new</code>.
+  </dd>
+
+  <dt>edit</dt>
+  <dd>
+    Editing an object should only happen through a workflow action, if
+    you want to have a complete audit log (workflow case log). Thus,
+    your edit proc should take the following arguments, in addition to
+    the object_id and the array containing the object data:
+    <pre>
+      -action_id:required
+      -comment:required
+      -comment_format:required
+      {-entry_id {}}
+    </pre>
+    (entry_id is for double-click protection).
+    <p>
+    First, you should update your application object data as normal.
+    Then you'll probably want to use
+    <code>workflow::case::get_id</code> to find the case_id. If you
+    have assignment integrated in your form, you'll want to call 
+    <code>workflow::case::role::assign</code> to pass these on to
+    workflow, and finally you'll say 
+    <code>workflow::case::action::execute</code> to execute the
+    action, including state changes, side-effects, and notifications.
+  </dd>
+</dl>
+
+<h2>Integrating With Your Application's User Interface</h2> 
+
+<p>
+  Usually, you'll want one page that lists all the objects in your
+  package instance, and another that lets the user view/edit one
+  object, called the object form page. This section is about the
+  object form page, the next section is about the object listing page.
+</p>
+
+<p>
+  For a real-life example, look at
+  <code>packages/bug-tracker/www/bug.tcl</code>. You may want to have
+  that handy while reading through this.
+</p>
+
+<p>
+  We're hoping to make some streamlining of both ad_form and workflow
+  to make this form page integration even easier at some point. But no promises.
+</p>
+
+<p>
+  Use <code>workflow::case::get_id</code> to get the case_id.
+</p>
+
+<p>
+  If you want buttons along the bottom of the form like bug-tracker,
+  use the new 'action' feature of the form builder. What you do is
+  pass a list of possible actions to the form builder as a
+  list-of-lists with { label value }. These will be
+  displayed as buttons at the bottom of the form.
+</p>
+
+<p>
+  When one of these buttons are clicked, the form will be in
+  edit-mode, and you can use <code>form get_action</code> to get the
+  value of the action chosen.
+</p>
+
+<p>
+  So up top, you'll want to ask the form if an action is in progress,
+  and which one it is, by saying <code>set action_id [form get_action
+  <i>form-id</i>]</code>. If no action is in progress this will return
+  the empty string.
+</p>
+
+<p>
+  Then you should check that this action is currently available to
+  this user by saying
+  <code>workflow::case::action::available_p</code>.
+</p>
+
+<p>
+  To get the currently available actions so you can offer them to the
+  user, use <code>workflow::case::get_available_actions</code> which
+  will return the action_id's, then <code>workflow::action::get</code>
+  to get the details about each of the actions.
+</p>
+
+<p>
+  If you're using <code>ad_form</code>, and you want only one assignee
+  per role, and you want assignment integrated with your form, use
+  <code>workflow::case::role::add_assignee_widgets</code> to add the
+  widgets. It'll do an <code>ad_form -extend</code>, so they'll appear
+  at the point at which you call this proc.
+</p>
+
+<p>
+  To set the editable fields as defined for the action, do this:
+</p>
+
+<pre>
+if { ![empty_string_p $action_id] } {
+    foreach field [workflow::action::get_element -action_id $action_id -element edit_fields] { 
+	element set_properties bug $field -mode edit 
+    }
+}
+</pre>
+
+<p>
+  Similarly, on submit, you'll want to set the value of the editable fields.
+</p>
+
+<p>
+  To populate values of the assignee widgets, use
+  <code>workflow::case::role::set_assignee_values</code> in your
+  <code>on_request</code> block.
+</p>
+
+<p>
+  To add the case log to the comment field, use <code>workflow::case::get_activity_html</code>.
+</p>
+
+
 
 <h2>Integrating With Your Application's Queries</h2>
+
 
 
 
