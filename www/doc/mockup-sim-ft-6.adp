@@ -31,33 +31,18 @@
         </div>
       </td>
     </tr>
-    <tr class="form-element">
+        <tr class="form-element">
                   <td class="form-label">
-                Time Limit
+                Mode
                </td>
                   <td class="form-widget">
-                <font face="tahoma,verdana,arial,helvetica,sans-serif" size="-1">
-                     <input type="text" name="timeout" size="10" /> 
+              <font face="tahoma,verdana,arial,helvetica,sans-serif" size="-1">
+                <input type="radio">Trigger instantly</input><br/>
+                <input type="radio" checked><span style="color:green">Wait for a trigger</span></input><br/>
+                <input type="radio"><span style="color:red">Start another workflow</span></input>
                 </font>
                 <div class="form-help-text">
                   <img src="/shared/images/info.gif" width="12" height="9" alt="[i]" title="Help text" border="0">
-                  The action will automatically execute its Transformation this long after it is enabled. Leave blank to never timeout
-                </div>
-            </td>
-          </tr>
-          <tr class="form-element">
-            <td class="form-label">
-              Transformation
-            </td>
-            <td class="form-widget">
-              <font face="tahoma,verdana,arial,helvetica,sans-serif" size="-1">
-                <input type="radio"><span style="color:blue">Automatic</span></input><br/>
-                <input type="radio" checked><span style="color:green">Conditional</span></input><br/>
-                <input type="radio"><span style="color:red">Child Workflow</span></input>
-              </font>
-              <div class="form-help-text">
-                <img src="/shared/images/info.gif" width="12" height="9" alt="[i]" title="Help text" border="0">
-                  What happens when this task is executed?
                 </div>
             </td>
           </tr>
@@ -76,86 +61,34 @@
               </div>
             </td>
           </tr>
-          <tr class="form-element">
-            <td class="form-label" style="background-color:lightgreen">
-              Conditional function
-            </td>
-            <td class="form-widget">
-              <select>
-                <option>Random, 2 outcomes</option>
-                <option>Random, 3 outcomes</option>
-                <option selected>contains(input string, test string)</option>
-                </select>
-              <div class="form-help-text">
-                <img src="/shared/images/info.gif" width="12" height="9" alt="[i]" title="Help text" border="0"/>
-                Execute this function to determine the next state of "Elementary Private Law Template" 
-              </div>
-            </td>
-          </tr>
-          <tr class="form-element">
-            <td class="form-label" style="background-color:lightgreen">
-              Input
-            </td>
-            <td class="form-widget">
-              <select>
-                <option>$foo</option>
-                <option>$bar</option>
-                <option selected">$baz</option>
-                </select>
-              <div class="form-help-text">
-                <img src="/shared/images/info.gif" width="12" height="9" alt="[i]" title="Help text" border="0"/>
-                "Parse Input for value" requires an input value
-              </div>
-            </td>
-          </tr>
-          <tr class="form-element">
-            <td class="form-label" style="background-color:lightgreen">
-              Test String
-            </td>
-            <td class="form-widget">
-              <input type="text" size="20" value="deposition"></input>
-              <div class="form-help-text">
-                <img src="/shared/images/info.gif" width="12" height="9" alt="[i]" title="Help text" border="0"/>
-                "Parse Input for value" requires a test string
-              </div>
-            </td>
-          </tr>
-          <tr class="form-element">
-                  <td class="form-label" style="background-color:lightgreen">
-                    Condition True
+        <tr class="form-element">
+                  <td class="form-label">
+                Duration
                </td>
                   <td class="form-widget">
-                <font face="tahoma,verdana,arial,helvetica,sans-serif" size="-1">
-              <select>
-                <option>No Change</option>
-                <option>Inactive</option>
-                <option>Active</option>
-                <option>Complete</option>
-                </select>
-                </font>
+              <font face="tahoma,verdana,arial,helvetica,sans-serif" size="-1">
+                <input type="radio" checked>No time limit</input><br/>
+                <input type="radio">Trigger after <input type="text" name="timeout" size="10" /></input></input><br/>
                 <div class="form-help-text">
                   <img src="/shared/images/info.gif" width="12" height="9" alt="[i]" title="Help text" border="0">
-                    If Input String contains Test String, set "Prepare Report for Basic Legal Case" to true
-                </div>
+                  Duration is of the form '1 hour' or '1 day' etc
+                  
+                  </div>
+                                  </font>
             </td>
           </tr>
           <tr class="form-element">
-                  <td class="form-label" style="background-color:lightgreen">
-                    Condition False
-               </td>
-                  <td class="form-widget">
-                <font face="tahoma,verdana,arial,helvetica,sans-serif" size="-1">
-              <select>
-                <option>No Change</option>
-                <option>Inactive</option>
-                <option>Active</option>
-                <option>Complete</option>
-                </select>
-                </font>
-                <div class="form-help-text">
-                  <img src="/shared/images/info.gif" width="12" height="9" alt="[i]" title="Help text" border="0">
-                    If Input String does not contain Test String, set "Prepare Report for Basic Legal Case" to true
-                </div>
+            <td class="form-label">
+              Outcome
+            </td>
+            <td class="form-widget">
+            <input type="radio" name="outcome">Don't change state</input><br>
+            <input type="radio" name="outcome" checked>Change to state:</input>
+               <select>
+                 <option>Asking for Information</option>
+                 <option>Waiting for Response</option>
+                 <option selected>Completed</option>
+                 </select><br/>
             </td>
           </tr>
           <tr class="form-element">

@@ -26,6 +26,7 @@ multirow create states name state
 
 multirow append states "Asking for Information" "<input type=\"checkbox\">"
 multirow append states "Waiting for Response" "<input type=\"checkbox\" checked=1>"
+multirow append states "Completed" "<input type=\"checkbox\">"
         
 set task_state_options [list [list "Pass/Fail" ""] [list "A B C D F" ""] [list "Completed/Cancelled/Out of Time"]]
 

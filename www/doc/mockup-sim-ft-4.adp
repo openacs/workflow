@@ -31,22 +31,6 @@
         </div>
       </td>
     </tr>
-    <tr class="form-element">
-                  <td class="form-label">
-                Time Limit
-               </td>
-                  <td class="form-widget">
-                <font face="tahoma,verdana,arial,helvetica,sans-serif" size="-1">
-                     <input type="text" name="timeout" size="10" /> 
-                </font>
-                <div class="form-help-text">
-                  <img src="/shared/images/info.gif" width="12" height="9" alt="[i]" title="Help text" border="0">
-                  The action will automatically execute its Transformation this long after it is enabled. Leave blank to never timeout
-                </div>
-            </td>
-          </tr>
-
-
         <tr class="form-element">
                   <td class="form-label">
                 Mode
@@ -71,8 +55,7 @@
                 <font face="tahoma,verdana,arial,helvetica,sans-serif" size="-1">
               <select>
                 <option>Prepare Report for Legal Case</option>
-                <option selected>AskInfo/Give INfo</option>
-                <option>Give Info</option>
+                <option selected>AskInfo/Give Info</option>
                 </select> <input type="submit" value="..."> <a
     href="mockup-sim-ft-5">Edit this task</a>
                 </font>
@@ -145,10 +128,14 @@
               Outcome
             </td>
             <td class="form-widget">
-            <input type="radio" name="outcome">Don't change state</input><br>
-            <input type="radio" name="outcome">Change to state:
-                                  </input><select><option>Getting
-                                  Information from client</option><option>Complete</option></select><br/>
+            <input type="radio" name="outcome" checked>Don't change state</input><br>
+            <input type="radio" name="outcome">Change to state:</input>
+               <select>
+                 <option>Getting Information from client</option>
+                 <option>Researching Report</option>
+                 <option>Editing Report</option>
+                 <option>Completed</option>
+                 </select><br/>
             </td>
           </tr>
           <tr class="form-element">

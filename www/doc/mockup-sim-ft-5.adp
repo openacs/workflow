@@ -8,6 +8,3 @@
 <p>
 <h3>States and Tasks</h3>
 <p><listtemplate name="tasks"></listtemplate></p>
-
-<h3>Counters</h3>
-<p><listtemplate name="counters"></listtemplate></p>
