@@ -948,14 +948,12 @@ ad_proc -private workflow::action::fsm::generate_spec {
 } {
     get -action_id $action_id -array row
 
-    set row(assigned_role) $row(assigned_role_short_name)
-    
     # Get rid of elements that shouldn't go into the spec
     array unset row short_name 
     array unset row action_id
     array unset row workflow_id
     array unset row sort_order
-    array unset row assigned_role_short_name
+    array unset row assigned_role_id
     array unset row new_state_id
     array unset row callbacks_array
     array unset row callback_ids
