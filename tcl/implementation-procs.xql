@@ -19,7 +19,7 @@
 
   <fullquery name="workflow::impl::role_assignee_pick_list::current_assignees::get_pick_list.select_current_assignees">
     <querytext>
-        select m.party_id
+        select distinct m.party_id
         from   workflow_case_role_party_map m, 
                workflow_cases c
         where  m.role_id = :role_id 
