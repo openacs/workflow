@@ -72,7 +72,7 @@ ad_proc -public workflow::new {
         
         # Callbacks
         foreach callback_name $callbacks {
-            ns_log Notice "callback_name = $callback_name"
+            ns_log Debug "callback_name = $callback_name"
             workflow::callback_insert \
                     -workflow_id $workflow_id \
                     -name $callback_name
