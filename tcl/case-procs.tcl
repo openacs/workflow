@@ -1629,6 +1629,7 @@ ad_proc -public workflow::case::action::do_side_effects {
 
     # Invoke them
     foreach impl_name $impl_names {
+
         acs_sc::invoke \
                 -contract $contract_name \
                 -operation "DoSideEffect" \
