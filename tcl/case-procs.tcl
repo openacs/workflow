@@ -878,8 +878,9 @@ ad_proc -public workflow::case::role::set_assignee_values {
                 set display_value [acs_community_member_link \
                         -user_id $cur_assignee(party_id) \
                         -label $cur_assignee(name)] 
-                
-                append display_value " (<a href=\"mailto:$cur_assignee(email)\">$cur_assignee(email)</a>)"
+                if { [ad_conn user_id] != 0 } {
+                    append display_value " (<a href=\"mailto:$cur_assignee(email)\">$cur_assignee(email)</a>)"
+                }
             }
 
             uplevel [list element set_properties $form_name $element -display_value $display_value]
