@@ -22,7 +22,7 @@
   <fullquery name="workflow::delete.do_delete">
     <querytext>
         begin
-            :1 := workflow.delete(:workflow_id);
+            :1 := workflow.del(:workflow_id);
         end;
     </querytext>
   </fullquery>

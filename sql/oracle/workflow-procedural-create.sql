@@ -17,7 +17,7 @@ as
     object_id in integer
     ) return varchar;
   
-  function delete(
+  function del(
     delete_case_id in integer
   ) return integer;
 
@@ -53,7 +53,7 @@ as
 
   end get_pretty_state;    
 
-  function delete(
+  function del(
     delete_case_id in integer
   ) return integer
   is
@@ -64,7 +64,7 @@ as
                 and wcl.case_id = delete_case_id)
     loop
         delete from workflow_case_log where entry_id = rec.item_id;
-        content_item.delete(rec.item_id);
+        content_item.del(rec.item_id);
     end loop;
 
     -- All workflow data cascades from the case id
@@ -72,7 +72,7 @@ as
         where object_id = delete_case_id;
 
     return 0;
-  end delete;
+  end del;
 
 end workflow_case_pkg;
 /
@@ -81,7 +81,7 @@ show errors
 
 create or replace package workflow 
 as 
-  function delete(
+  function del(
     delete_workflow_id in integer
     ) return integer;
 
@@ -103,7 +103,7 @@ show errors
 
 create or replace package body workflow
 as 
-  function delete(
+  function del(
     delete_workflow_id in integer
   ) return integer 
   is
@@ -114,13 +114,13 @@ as
              from workflow_cases
              where workflow_id = delete_workflow_id)
     loop
-        foo := workflow_case_pkg.delete(rec.case_id);
+        foo := workflow_case_pkg.del(rec.case_id);
     end loop;
 
-    acs_object.delete(delete_workflow_id);
+    acs_object.del(delete_workflow_id);
 
     return 0;
-  end delete;
+  end del;
  
 
   -- Function for creating a workflow

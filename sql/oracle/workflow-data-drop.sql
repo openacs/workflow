@@ -5,7 +5,7 @@ declare
 begin
   for row in (select workflow_id from workflows)
   loop
-    foo := workflow.delete(row.workflow_id);
+    foo := workflow.del(row.workflow_id);
   end loop;
 end;
 /
