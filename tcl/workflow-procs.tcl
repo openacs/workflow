@@ -753,6 +753,11 @@ ad_proc -private workflow::parse_spec {
                     array unset row
                     array set row $subspec
                     set row(short_name) $subshort_name
+
+                    # string trim everything
+                    foreach key [array names row] { 
+                        set row($key) [string trim $row($key)]
+                    }
     
 #                    ns_log Notice "LARS: ${namespace}::edit -- short_name $row(short_name) -- [array get row] -- [db_list select_roles { select short_name from workflow_roles where workflow_id = :workflow_id }]"
                     ${namespace}::edit \
