@@ -47,7 +47,6 @@
         from   workflow_actions a,
                workflow_fsm_actions fa
         where  a.workflow_id = :workflow_id
-          and  fa.action_id = a.action_id
           and  a.action_id = fa.action_id (+)
         order by a.sort_order
     </querytext>

@@ -853,22 +853,7 @@ ad_proc -public workflow::case::enabled_action_get {
     # Select the info into the upvar'ed Tcl Array
     upvar $array row
 
-    db_1row select_enabled_action {
-        select enabled_action_id,
-               case_id,
-               action_id,
-               assigned_p,
-               completed_p,
-               parent_enabled_action_id,
-               to_char(execution_time, 'YYYY-MM-DD HH24:MI:SS') as execution_time_ansi,
-               coalesce((select a2.trigger_type
-                from   workflow_case_enabled_actions e2,
-                       workflow_actions a2
-                where  e2.enabled_action_id = e.parent_enabled_action_id
-                and    a2.action_id = e2.action_id), 'workflow') as parent_trigger_type
-        from   workflow_case_enabled_actions e
-        where  enabled_action_id = :enabled_action_id
-    } -column_array row
+    db_1row select_enabled_action {} -column_array row
 }
 
 ad_proc -public workflow::case::enabled_action_get_element {

@@ -5,67 +5,38 @@
   <fullquery name="workflow::case::fsm::get_info_not_cached.select_case_info">
     <querytext>
       select c.case_id,
-             c.top_case_id,
              c.workflow_id,
-             top.object_id,
+             c.object_id,
              s.state_id,
              s.short_name as state_short_name,
              s.pretty_name as pretty_state,
              s.hide_fields as state_hide_fields
       from   workflow_cases c,
-             workflow_cases top,
              workflow_case_fsm cfsm,
              workflow_fsm_states s
       where  c.case_id = :case_id
       and    cfsm.case_id = c.case_id
-      and    top.case_id = c.top_case_id
-      and    s.state_id (+) = cfsm.current_state
+      and    cfsm.current_state = s.state_id (+)
+      and    cfsm.parent_enabled_action_id = :parent_enabled_action_id
     </querytext>
   </fullquery>
 
   <fullquery name="workflow::case::fsm::get_info_not_cached.select_case_info_null_parent_id">
     <querytext>
-
-        TODO: Oracle
-            select c.case_id,
-                   c.workflow_id,
-                   c.object_id,
-                   s.state_id,
-                   s.short_name as state_short_name,
-                   s.pretty_name as pretty_state,
-                   s.hide_fields as state_hide_fields
-            from   workflow_cases c,
-                   workflow_case_fsm cfsm left outer join
-                   workflow_fsm_states s on (s.state_id = cfsm.current_state) 
-            where  c.case_id = :case_id
-            and    cfsm.case_id = c.case_id
-            and    cfsm.parent_action_id is null
-    </querytext>
-  </fullquery>
-
-  <fullquery name="workflow::case::timed_actions_sweeper.select_timed_out_actions">
-    <querytext>
-        select enabled_action_id
-        from   workflow_case_enabled_actions
-        where  execution_time <= sysdate
-        and    completed_p = 'f'
-    </querytext>
-  </fullquery>
-
-  <fullquery name="workflow::case::fsm::get_state_info_not_cached.select_state_info">
-    <querytext>
-
-        TODO: PORT to Oracle
-
-      select cfsm.parent_action_id,
-             a.short_name as parent_action,
-             cfsm.current_state as current_state_id,
-             s.short_name as current_state
-      from   workflow_case_fsm cfsm left outer join
-             workflow_actions a on (a.action_id = cfsm.parent_action_id),
-             workflow_states s,
-      where  cfsm.case_id = :case_id
-      and    s.state_id = cfsm.current_state
+      select c.case_id,
+             c.workflow_id,
+             c.object_id,
+             s.state_id,
+             s.short_name as state_short_name,
+             s.pretty_name as pretty_state,
+             s.hide_fields as state_hide_fields
+      from   workflow_cases c,
+             workflow_case_fsm cfsm,
+             workflow_fsm_states s
+      where  c.case_id = :case_id
+      and    cfsm.case_id = c.case_id
+      and    cfsm.current_state = s.state_id (+)
+      and    cfsm.parent_enabled_action_id is null
     </querytext>
   </fullquery>
 
@@ -117,6 +88,20 @@
     </querytext>
   </fullquery>
 
+  <fullquery name="workflow::case::timed_actions_sweeper.select_timed_out_actions">
+    <querytext>
+        select enabled_action_id
+        from   workflow_case_enabled_actions
+        where  execution_time <= sysdate
+        and    completed_p = 'f'
+    </querytext>
+  </fullquery>
+
+  <fullquery name="workflow::case::action::notify.select_object_name">
+    <querytext>
+        select acs_object.name(:object_id) as name from dual
+    </querytext>
+   </fullquery>
 
   <partialquery name="workflow::case::role::get_search_query.select_search_results">
     <querytext>
@@ -136,47 +121,11 @@
     </querytext>
   </fullquery>
 
-  <fullquery name="workflow::case::state_changed_handler.select_enabled_actions">
-    <querytext>
-      select a.action_id
-      from   workflow_cases c,
-             workflow_actions a
-      where  c.case_id = :case_id
-      and    a.workflow_id = c.workflow_id
-      and    a.trigger_type != 'init'
-      and    (a.always_enabled_p = 't' 
-             or exists (select 1 
-                        from   workflow_case_fsm cfsm,
-                               workflow_fsm_action_en_in_st waeis
-                        where  cfsm.case_id = c.case_id
-                        and    waeis.state_id = cfsm.current_state
-                        and    waeis.action_id = a.action_id))
-      order by a.sort_order
-    </querytext>
-  </fullquery>
-
-  <fullquery name="workflow::case::action::notify.select_object_name">
-    <querytext>
-        select acs_object.name(:object_id) as name from dual
-    </querytext>
-   </fullquery>
-
    <fullquery name="workflow::case::delete.delete_case">
     <querytext>
         begin
             :1 := workflow_case_pkg.del(:case_id);
         end;
-    </querytext>
-  </fullquery>
-
-  <fullquery name="workflow::case::action::execute.set_completed">
-    <querytext>
-       update workflow_case_enabled_actions
-       set    enabled_state = 'completed',
-              executed_date = sysdate
-       where  case_id = :case_id
-       and    action_id = :action_id
-       and    enabled_state = 'enabled'
     </querytext>
   </fullquery>
 
@@ -202,15 +151,34 @@
 
   <fullquery name="workflow::case::action::enabled_p.select_enabled_p">
     <querytext>
-        TODO PORT
-
-      select 1
-      from   workflow_case_enabled_actions ean
-      where  ean.action_id = :action_id
-      and    ean.case_id = :case_id
-      and    completed_p = 'f'
-      limit 1
+      select q.*
+      from  (select 1
+             from   workflow_case_enabled_actions ean
+             where  ean.action_id = :action_id
+             and    ean.case_id = :case_id
+             and    completed_p = 'f'
+            ) q
+      where rownum = 1
     </querytext>
   </fullquery>
+
+  <fullquery name="workflow::case::enabled_action_get.select_enabled_action">
+    <querytext>
+        select enabled_action_id,
+               case_id,
+               action_id,
+               assigned_p,
+               completed_p,
+               parent_enabled_action_id,
+               to_char(execution_time, 'YYYY-MM-DD HH24:MI:SS') as execution_time_ansi,
+               nvl((select a2.trigger_type
+                from   workflow_case_enabled_actions e2,
+                       workflow_actions a2
+                where  e2.enabled_action_id = e.parent_enabled_action_id
+                and    a2.action_id = e2.action_id), 'workflow') as parent_trigger_type
+        from   workflow_case_enabled_actions e
+        where  enabled_action_id = :enabled_action_id
+    </querytext>
+  </fullquery>    
 
 </queryset>

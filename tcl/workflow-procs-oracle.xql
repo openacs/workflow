@@ -14,15 +14,12 @@
              w.description_mime_type,
              a.short_name as initial_action,
              a.action_id as initial_action_id
-
-       TODO: Changed, see PG version
-        
       from   workflows w,
-             workflow_initial_action wia,
              workflow_actions a
       where  w.workflow_id = :workflow_id
-        and  wia.workflow_id = w.workflow_id (+)
-        and  a.action_id = wia.action_id (+)
+        and  w.workflow_id = a.workflow_id (+)
+        and  a.parent_action_id is null
+        and  (a.trigger_type = 'init' or a.trigger_type is null)
     </querytext>
   </fullquery>
 

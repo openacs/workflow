@@ -38,15 +38,6 @@
     </querytext>
   </fullquery>
 
-  <fullquery name="workflow::case::fsm::get_state_info_not_cached.select_state_info">
-    <querytext>
-      select cfsm.parent_enabled_action_id,
-             cfsm.current_state as current_state_id
-      from   workflow_case_fsm cfsm 
-      where  cfsm.case_id = :case_id
-    </querytext>
-  </fullquery>
-
   <fullquery name="workflow::case::role::get_assignees_not_cached.select_assignees">
     <querytext>
         select m.party_id, 
@@ -158,5 +149,24 @@
       limit 1
     </querytext>
   </fullquery>
+
+  <fullquery name="workflow::case::enabled_action_get.select_enabled_action">
+    <querytext>
+        select enabled_action_id,
+               case_id,
+               action_id,
+               assigned_p,
+               completed_p,
+               parent_enabled_action_id,
+               to_char(execution_time, 'YYYY-MM-DD HH24:MI:SS') as execution_time_ansi,
+               coalesce((select a2.trigger_type
+                from   workflow_case_enabled_actions e2,
+                       workflow_actions a2
+                where  e2.enabled_action_id = e.parent_enabled_action_id
+                and    a2.action_id = e2.action_id), 'workflow') as parent_trigger_type
+        from   workflow_case_enabled_actions e
+        where  enabled_action_id = :enabled_action_id
+    </querytext>
+  </fullquery>    
 
 </queryset>

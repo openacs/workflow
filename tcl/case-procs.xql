@@ -252,4 +252,13 @@
     </querytext>
   </fullquery>
 
+  <fullquery name="workflow::case::fsm::get_state_info_not_cached.select_state_info">
+    <querytext>
+      select cfsm.parent_enabled_action_id,
+             cfsm.current_state as current_state_id
+      from   workflow_case_fsm cfsm 
+      where  cfsm.case_id = :case_id
+    </querytext>
+  </fullquery>
+
 </queryset>
