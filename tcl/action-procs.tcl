@@ -143,7 +143,8 @@ ad_proc -public workflow::action::edit {
     allowed_roles
     initial_action_p
     callbacks
-    child_workflow_ids
+    child_workflow
+    child_workflow_id
     child_role_map
     
     @param operation    insert, update, delete
@@ -216,6 +217,33 @@ ad_proc -public workflow::action::edit {
     # Parse column values
     switch $operation {
         insert - update {
+            # Special-case: array entry child_workflow (short_name) and child_workflow_id (state_id) -- 
+            # DB column is child_workflow_id (workflow_id)
+            if { [info exists row(child_workflow)] } {
+                if { [info exists row(child_worklfow_id)] } {
+                    error "You cannot supply both child_workflow (takes short_name) and child_workflow_id (workflow_id)"
+                }
+                if { ![empty_string_p $row(child_workflow)] } {
+                    workflow::get -workflow_id $workflow_id -array this_workflow
+                    # TODO: Think about what's appropriate - object_id/package_key ...
+
+                    set object_id $this_workflow(object_id)
+                    if { [empty_string_p $object_id] } {
+                        set package_key $this_workflow(package_key) 
+                    } else {
+                        set package_key {}
+                    }
+                    set row(child_workflow_id) [workflow::get_id \
+                                                    -object_id $object_id \
+                                                    -package_key $package_key \
+                                                    -short_name $row(child_workflow)]
+                } else {
+                    set row(child_workflow_id) [db_null]
+                }
+                unset row(child_workflow)
+                unset missing_elm(child_workflow)
+            }
+
             set update_clauses [list]
             set insert_names [list]
             set insert_values [list]
@@ -396,7 +424,13 @@ ad_proc -public workflow::action::edit {
                         }
 
                         foreach { child_role_short_name spec } $row(child_role_map) {
-                            foreach { parent_role_short_name mapping_type } $spec {}
+                            # Allow simple list of short_name -> short_name
+                            if { [llength $spec] == 1 } {
+                                set parent_role_short_name $spec
+                                set mapping_type "per_role"
+                            } else {
+                                foreach { parent_role_short_name mapping_type } $spec {}
+                            }
                             
                             set child_role_id [workflow::role::get_id \
                                                    -workflow_id $row(child_workflow_id) \
@@ -1217,6 +1251,7 @@ ad_proc -private workflow::action::fsm::generate_spec {
     array unset row allowed_role_ids
     array unset row enabled_state_ids
     array unset row assigned_state_ids
+    array unset row child_workflow_id
 
     if { ![exists_and_not_null row(description)] } {
         array unset row description_mime_type
@@ -1419,7 +1454,13 @@ ad_proc -private workflow::action::get_all_info_not_cached {
         where  m.action_id = a.action_id
         and    a.workflow_id = :workflow_id
     } {
-        lappend child_role_map($action_id) $child_role_short_name [list $parent_role_short_name [string trim $mapping_type]]
+        set mapping_type [string trim $mapping_type]
+        # Short-cut when mapping_type is per_role
+        if { [string equal $mapping_type "per_role"] } {
+            lappend child_role_map($action_id) $child_role_short_name $parent_role_short_name
+        } else {
+            lappend child_role_map($action_id) $child_role_short_name [list $parent_role_short_name $mapping_type]
+        }
     }
     
     # For each action_id, add to the array of that action the contents of the

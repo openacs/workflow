@@ -35,7 +35,8 @@
                (select short_name from workflow_fsm_states where state_id = fa.new_state) as new_state,
                a.description,
                a.description_mime_type,
-               a.child_workflow_id
+               a.child_workflow_id,
+               (select short_name from workflows where workflow_id = a.child_workflow_id) as child_workflow
         from   workflow_actions a left outer join 
                workflow_fsm_actions fa on (a.action_id = fa.action_id) 
         where  a.workflow_id = :workflow_id
