@@ -394,18 +394,11 @@ ad_proc -public workflow::case::role::get_search_query {
                 -impl $impl_name \
                 -call_args [list $case_id $object_id $role_id]]
 
-        ns_log Notice "LARS: $contract_name, $impl_name = $subquery"
-
         if { ![empty_string_p $subquery] } {
             # Return after the first non-empty list
             break
         }
     }
-
-    ns_log Notice "LARS: subquery = $subquery"
-
-    ns_log Notice "LARS: returning [db_map select_search_results]"
-
 
     return [db_map select_search_results]
 
@@ -1352,8 +1345,6 @@ $hr
                 -case_id $case_id]
 
         if { ![empty_string_p $object_id] } {
-
-            ns_log Notice "LARS: $body($type)"
 
             set notified_list [concat $notified_list [notification::new \
                     -type_id [notification::type::get_type_id -short_name $type] \

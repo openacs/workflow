@@ -115,7 +115,6 @@ ad_proc -public workflow::impl::role_assignee_subquery::registered_users::get_su
 } {
     Return a subquery for all registered users.
 } {
-    ns_log Notice "LARS: getsubquery returning [db_map cc_users]"
     return [db_map cc_users]
 }
 
