@@ -43,6 +43,7 @@ ad_proc -public workflow::new {
                        acs_object_types table. The parameter is optional and defaults to acs_object.
     @param callbacks List of names of service contract implementations of callbacks for the workflow in 
                        impl_owner_name.impl_name format.
+    @return           New workflow_id.
 
     @author Peter Marklund
 } {

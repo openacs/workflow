@@ -304,11 +304,11 @@ ad_proc -private workflow::action::get_callbacks {
 
 
 
-#####
+######################################################################
 #
 # workflow::action::fsm
 #
-#####
+######################################################################
 
 ad_proc -public workflow::action::fsm::new {
     {-workflow_id:required}
@@ -327,10 +327,12 @@ ad_proc -public workflow::action::fsm::new {
     {-always_enabled_p f}
     {-initial_action_p f}
 } {
-    Add an action to a certain FSM (Finite State Machine) workflow. This procedure
-    invokes the generic workflow::action::new procedures and does additional inserts
-    for FSM specific information. See the parameter
-    documentation for the proc workflow::action::new.
+    Add an action to a certain FSM (Finite State Machine) workflow. 
+    This procedure invokes the generic workflow::action::new procedures 
+    and does additional inserts for FSM specific information. See the 
+    parameter documentation for the proc workflow::action::new.
+
+    @return the new action_id.
 
     @see workflow::action::new
 
@@ -385,6 +387,7 @@ ad_proc -public workflow::action::fsm::new {
     }   
 
     workflow::action::flush_cache -workflow_id $workflow_id
+    return $action_id
 }
 
 ad_proc -public workflow::action::fsm::get_new_state {
