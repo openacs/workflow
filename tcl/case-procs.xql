@@ -53,24 +53,22 @@
 
   <fullquery name="workflow::case::get_enabled_actions.select_enabled_actions">
     <querytext>
-      select distinct action_id
-      from  (select waeis.action_id
-             from   workflow_cases c,
-                    workflow_case_fsm cfsm,
-                    workflow_fsm_action_enabled_in_states waeis
-             where  c.case_id = :case_id
-             and    cfsm.case_id = c.case_id
-             and    waeis.state_id = cfsm.current_state
-
-             union
-
-             select a.action_id
-             from   workflow_cases c,
-                    workflow_actions a
-             where  c.case_id = :case_id
-             and    a.workflow_id = c.workflow_id
-             and    a.always_enabled_p = 't'
-            ) enabled_actions
+      select a.action_id
+      from   workflow_cases c,
+             workflow_actions a
+      where  c.case_id = :case_id
+      and    a.workflow_id = c.workflow_id
+      and    not exists (select 1 
+                         from   workflow_initial_action wia
+                         where  wia.workflow_id = c.workflow_id
+                         and    wia.action_id = a.action_id)
+      and    (a.always_enabled_p = 't' 
+             or exists (select 1 
+                        from   workflow_case_fsm cfsm,
+                               workflow_fsm_action_enabled_in_states waeis
+                        where  cfsm.case_id = c.case_id
+                        and    waeis.state_id = cfsm.current_state
+                        and    waeis.action_id = a.action_id))
     </querytext>
   </fullquery>
 
@@ -83,10 +81,10 @@
     </querytext>
   </fullquery>
 
-  <fullquery name="workflow::case::role::set_default_assignees.select_assignment_rules">
+  <fullquery name="workflow::case::role::set_default_assignees.select_callbacks">
     <querytext>
       select impl.impl_name
-      from   workflow_role_assignment_rules r,
+      from   workflow_role_callbacks r,
              acs_sc_impls impl,
              acs_sc_bindings bind,
              acs_sc_contracts ctr

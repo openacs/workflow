@@ -74,7 +74,7 @@ ad_proc -public workflow::case::new {
         # Execute the initial action
         workflow::case::action::execute \
                 -case_id $case_id \
-                -action_id [workflow::action::get_initial_action -workflow_id $workflow_id] \
+                -action_id [workflow::get_initial_action -workflow_id $workflow_id] \
                 -comment $comment \
                 -comment_format $comment_format \
                 -user_id $user_id \
@@ -101,7 +101,7 @@ ad_proc -public workflow::case::get_id {
     if { $found_p } {
         return $case_id
     } else {
-        return {}
+        error "No matching workflow case found for object_id $object_id and workflow_short_name $workflow_short_name"
     }
 }
 
@@ -155,16 +155,14 @@ ad_proc -public workflow::case::get_enabled_actions {
     return $action_list
 }
 
-ad_proc -public workflow::case::get_user_actions {
+ad_proc -public workflow::case::get_available_actions {
     {-case_id:required}
     -user_id
 } {
-    Get the currently enabled actions, which the user has permission
-    to execute.
+    Get the actions which are enabled and which the current user have permission to execute.
 
     @param case_id     The ID of the case.
-    @return            A list of id:s of the actions 
-                       which are currently enabled
+    @return            A list of ID's of the available actions.
 
     @author Lars Pind (lars@collaboraid.biz)
 } {
@@ -237,7 +235,7 @@ ad_proc -public workflow::case::role::set_default_assignees {
     
     set object_id [workflow::case::get_object_id -case_id $case_id]
 
-    db_foreach select_assignment_rules {} {
+    db_foreach select_callbacks {} {
         
         # Run the service contract
         set party_id_list [acs_sc_call $contract_name "GetAssignees" [list $case_id $object_id $role_id] $impl_name]

@@ -26,6 +26,7 @@
             <file type="data_model_drop" db_type="postgresql" path="sql/postgresql/workflow-drop.sql"/>
             <file type="data_model" db_type="postgresql" path="sql/postgresql/workflow-procedural-create.sql"/>
             <file type="data_model" db_type="postgresql" path="sql/postgresql/workflow-procedural-drop.sql"/>
+            <file type="data_model" db_type="postgresql" path="sql/postgresql/workflow-service-contracts-create.sql"/>
             <file type="data_model" db_type="postgresql" path="sql/postgresql/workflow-tables-create.sql"/>
             <file type="data_model" db_type="postgresql" path="sql/postgresql/workflow-tables-drop.sql"/>
             <file type="tcl_procs" path="tcl/action-procs.tcl"/>
@@ -35,8 +36,12 @@
             <file type="query_file" path="tcl/case-procs.xql"/>
             <file type="tcl_procs" path="tcl/fsm-procs.tcl"/>
             <file type="query_file" path="tcl/fsm-procs.xql"/>
+            <file type="tcl_procs" path="tcl/install-procs.tcl"/>
             <file type="tcl_procs" path="tcl/role-procs.tcl"/>
             <file type="query_file" path="tcl/role-procs.xql"/>
+            <file type="tcl_procs" path="tcl/state-procs.tcl"/>
+            <file type="query_file" path="tcl/state-procs.xql"/>
+            <file type="data_model" db_type="oracle" path="tcl/test/test-workflow.sql"/>
             <file type="tcl_procs" path="tcl/test/workflow-test-procs.tcl"/>
             <file type="query_file" db_type="postgresql" path="tcl/workflow-procs-postgresql.xql"/>
             <file type="tcl_procs" path="tcl/workflow-procs.tcl"/>

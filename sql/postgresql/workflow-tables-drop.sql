@@ -48,15 +48,15 @@ drop table workflow_fsm_action_enabled_in_states;
 drop table workflow_fsm_actions;
 drop table workflow_initial_action;
 drop table workflow_fsm_states;
-drop table workflow_action_side_effects;
+drop table workflow_action_callbacks;
 drop table workflow_action_privileges;
 drop table workflow_action_allowed_roles;
 drop table workflow_actions;
-drop table workflow_role_assignment_rules;
+drop table workflow_role_callbacks;
 drop table workflow_role_allowed_parties;
 drop table workflow_role_default_parties;
 drop table workflow_roles;
-drop table workflow_side_effects;
+drop table workflow_callbacks;
 drop table workflows;
 
 -- Drop sequences

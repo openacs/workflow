@@ -56,11 +56,12 @@ create table workflows (
                           constraint workflows_pretty_name_nn
                           not null,
   object_id               integer
-                          constraint workflows_object_id_nn
-                          not null
                           constraint workflows_object_id_fk
                           references acs_objects(object_id)
                           on delete cascade,
+  package_key             varchar(100)
+                          constraint workflows_apm_package_types_fk
+                          references apm_package_types(package_key),
   -- object_id points to either a package type, package instance, or single workflow case
   -- For Bug Tracker, every package instance will get its own workflow instance that is a copy
   -- of the workflow instance for the Bug Tracker package type
@@ -70,30 +71,28 @@ create table workflows (
                           constraint workflows_object_type_fk
                           references acs_object_types(object_type)
                           on delete cascade,
-  -- the object type (and its subtypes) this workflow is designed for. Use acs_object
-  -- if you don't want to restrict the types of objects this workflow can be applied to.
   constraint workflows_oid_sn_un
   unique (object_id, short_name)
 );
 
--- For callback procedures that execute when any action in the workflow is taken
-create table workflow_side_effects (
+-- For callbacks on workflow
+create table workflow_callbacks (
   workflow_id             integer
-                          constraint workflow_side_effects_wid_nn
+                          constraint workflow_callbacks_wid_nn
                           not null
-                          constraint workflow_side_effects_wid_fk
+                          constraint workflow_callbacks_wid_fk
                           references workflows(workflow_id)
                           on delete cascade,
   acs_sc_impl_id          integer
-                          constraint workflow_side_effects_sci_nn
+                          constraint workflow_callbacks_sci_nn
                           not null
-                          constraint workflow_side_effects_sci_fk
+                          constraint workflow_callbacks_sci_fk
                           references acs_sc_impls(impl_id)
                           on delete cascade,
   sort_order              integer
-                          constraint workflow_side_effects_so_nn
+                          constraint workflow_callbacks_so_nn
                           not null,
-  constraint workflow_side_effects_pk
+  constraint workflow_callbacks_pk
   primary key (workflow_id, acs_sc_impl_id)
 );
 
@@ -151,28 +150,30 @@ create table workflow_role_allowed_parties (
   primary key (role_id, party_id)
 );
 
--- Application specific callback procedures for dynamically mapping parties to roles
-create table workflow_role_assignment_rules (
+-- Callbacks for roles
+create table workflow_role_callbacks (
   role_id                 integer
-                          constraint workflow_role_assignment_rules_role_id_nn
+                          constraint workflow_role_callbacks_role_id_nn
                           not null
-                          constraint workflow_role_assignment_rules_role_id_fk
+                          constraint workflow_role_callbacks_role_id_fk
                           references workflow_roles(role_id)
                           on delete cascade,
   acs_sc_impl_id          integer
-                          constraint workflow_role_assignment_rules_contract_id_nn
+                          constraint workflow_role_callbacks_contract_id_nn
                           not null
-                          constraint workflow_role_assignment_rules_contract_id_fk
+                          constraint workflow_role_callbacks_contract_id_fk
                           references acs_sc_impls(impl_id)
                           on delete cascade,
-  -- this can be an implementation of any of the three assignment
+  -- this should be an implementation of any of the three assignment
   -- service contracts: DefaultAssignee, AssigneePickList, or 
   -- AssigneeSubQuery
   sort_order              integer
-                          constraint workflow_role_assignment_rules_sort_order_nn
+                          constraint workflow_role_callbacks_sort_order_nn
                           not null,
-  constraint workflow_role_assignment_rules_pk
-  primary key (role_id, acs_sc_impl_id)
+  constraint workflow_role_callbacks_pk
+  primary key (role_id, acs_sc_impl_id),
+  constraint workflow_role_asgn_rol_sort_un
+  unique (role_id, sort_order)
 );
 
 create table workflow_actions (
@@ -241,25 +242,24 @@ create table workflow_action_privileges (
   primary key (action_id, privilege)
 );
 
--- For application specific callback procedures that execute when
--- certain actions are taken
-create table workflow_action_side_effects (
+-- For callbacks on actions
+create table workflow_action_callbacks (
   action_id               integer
-                          constraint workflow_action_side_effects_action_id_nn
+                          constraint workflow_action_callbacks_action_id_nn
                           not null
-                          constraint workflow_action_side_effects_action_id_fk
+                          constraint workflow_action_callbacks_action_id_fk
                           references workflow_actions(action_id)
                           on delete cascade,
   acs_sc_impl_id          integer
-                          constraint workflow_action_side_effects_sci_nn
+                          constraint workflow_action_callbacks_sci_nn
                           not null
-                          constraint workflow_action_side_effects_sci_fk
+                          constraint workflow_action_callbacks_sci_fk
                           references acs_sc_impls(impl_id)
                           on delete cascade,
   sort_order              integer
-                          constraint workflow_action_side_effects_sort_order_nn
+                          constraint workflow_action_callbacks_sort_order_nn
                           not null,
-  constraint workflow_action_side_effects_pk
+  constraint workflow_action_callbacks_pk
   primary key (action_id, acs_sc_impl_id)
 );
 

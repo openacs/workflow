@@ -4,15 +4,16 @@
 
   <fullquery name="workflow::new.do_insert">
     <querytext>
-        select workflow__new (:short_name,
-                              :pretty_name,
-                              :object_id,
-                              :object_type,
-                              :creation_user,
-                              :creation_ip,
-                              :context_id
-                              );
-                        
+        select workflow__new (
+            :short_name,
+            :pretty_name,
+            :package_key,            
+            :object_id,
+            :object_type,
+            :creation_user,
+            :creation_ip,
+            :context_id
+        );
     </querytext>
   </fullquery>
 
