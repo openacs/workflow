@@ -11,18 +11,23 @@
     <version name="2.0d1" url="http://openacs.org/repository/download/apm/workflow-2.0d1.apm">
         <owner url="http://pinds.com">Lars Pind</owner>
         <owner url="http://petermarklund.com">Peter Marklund</owner>
-        <summary>A Tcl API for creating workflows that support the Bug Tracker, CMS publication, simple approval, and much more.</summary>
+        <summary>A Tcl API for creating and managing workflows.</summary>
         <release-date>2003-11-18</release-date>
         <vendor url="http://www.collaboraid.biz">Collaboraid</vendor>
-        <description format="text/html">This package lets you define the process that your tickets, articles, documents, reports, claims, change requests, or any other object of interest, must go through to ensure consistent quality and to avoid that any cases falls through the cracks.
+        <description format="text/html">
+          This package lets you define the process that your tickets, articles,
+          documents, reports, claims, change requests, or any other
+          object of interest, must go through to ensure consistent quality and
+          to avoid that any cases falls through the cracks.
+          It supports the Bug Tracker, CMS publication, simple approval, and much more.
 &lt;p&gt;
 For more information, see: &lt;a href=&quot;http://www.collaboraid.biz/developer/workflow-spec&quot;&gt;the workflow specification&lt;/a&gt;.</description>
 
         <provides url="workflow" version="2.0d1"/>
-        <requires url="acs-content-repository" version="5.0.0a5"/>
-        <requires url="acs-kernel" version="5.0.0a5"/>
-        <requires url="acs-tcl" version="5.0.0a5"/>
-        <requires url="notifications" version="5.0.0a5"/>
+        <requires url="acs-content-repository" version="5.0.0b4"/>
+        <requires url="acs-kernel" version="5.0.0b4"/>
+        <requires url="acs-tcl" version="5.0.0b4"/>
+        <requires url="notifications" version="5.0.0b4"/>
 
         <callbacks>
             <callback type="after-install"  proc="workflow::install::package_install"/>

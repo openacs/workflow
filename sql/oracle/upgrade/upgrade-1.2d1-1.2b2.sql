@@ -1,29 +1,10 @@
--- Procedural database code for the workflow package, a package in the OpenACS system.
+--
+-- Fixes case deletion, which can now be done completely through cascading delete
+-- Also adds missing upgrade scripts from that bug fix
 --
 -- @author Lars Pind (lars@collaboraid.biz)
--- @author Peter Marklund (peter@collaboraid.biz)
 --
--- This is free software distributed under the terms of the GNU Public
--- License.  Full text of the license is available from the GNU Project:
--- http://www.fsf.org/copyleft/gpl.html
-
----------------------------------
--- Workflow level, Generic Model
----------------------------------
-create or replace package workflow_case_pkg
-as
-  function get_pretty_state(
-    workflow_short_name in varchar,
-    object_id in integer
-    ) return varchar;
-  
-  function del(
-    delete_case_id in integer
-  ) return integer;
-
-end workflow_case_pkg;
-/
-show errors
+-- @cvs-id $Id$
 
 create or replace package body workflow_case_pkg
 as 
@@ -71,103 +52,6 @@ end workflow_case_pkg;
 show errors
 
 
-create or replace package workflow 
-as 
-  function del(
-    delete_workflow_id in integer
-    ) return integer;
-
-  function new(
-    short_name  in varchar,
-    pretty_name in varchar,
-    package_key in varchar,
-    object_id   in integer,
-    object_type in varchar,
-    creation_user in integer,
-    creation_ip   in varchar,
-    context_id    in integer
-  ) return integer;
-
-end workflow;
-/
-show errors
-
-
-create or replace package body workflow
-as 
-  function del(
-    delete_workflow_id in integer
-  ) return integer 
-  is
-  foo integer;
-  begin
-    -- Delete all cases first
-    for rec in (select case_id     
-             from workflow_cases
-             where workflow_id = delete_workflow_id)
-    loop
-        foo := workflow_case_pkg.del(rec.case_id);
-    end loop;
-
-    acs_object.del(delete_workflow_id);
-
-    return 0;
-  end del;
- 
-
-  -- Function for creating a workflow
-  function new(
-    short_name    in varchar, 
-    pretty_name   in varchar,
-    package_key   in varchar,
-    object_id     in integer,
-    object_type   in varchar,
-    creation_user in integer, 
-    creation_ip   in varchar,
-    context_id    in integer
-    ) return integer
-    is  
-      v_workflow_id integer;
-  begin 
-     -- Instantiate the ACS Object super type with auditing info
-     v_workflow_id  := acs_object.new(
-                          object_id => null,
-                          object_type => 'workflow_lite',
-                          creation_date => sysdate(),
-                          creation_user => creation_user,
-                          creation_ip   => creation_ip,
-                          context_id    => context_id
-                          );
-
-    -- Insert workflow specific info into the workflows table
-    insert into workflows 
-           (workflow_id, short_name, pretty_name, package_key, object_id, object_type)
-    values
-           (v_workflow_id, short_name, pretty_name, package_key, object_id, object_type);
-            
-    return v_workflow_id;
-  end new;
-
-end workflow;
-/
-show errors
-
-create or replace package workflow_case_log_entry
-as
-  function new(
-    entry_id in integer,
-    case_id in integer,
-    action_id in integer,
-    comment in varchar,
-    comment_mime_type in varchar,
-    creation_user in integer,
-    creation_ip in varchar,
-    content_type in varchar default 'workflow_case_log_entry'
-    ) return integer;
-  
-end workflow_case_log_entry;
-/
-show errors
 
 create or replace package body workflow_case_log_entry
 as 
@@ -244,3 +128,21 @@ end workflow_case_log_entry;
 /
 show errors
     
+
+
+-- Now change parent_id of existing cases
+
+begin
+    for rec in (select c.object_id, 
+                       l.entry_id 
+                from   workflow_cases c, 
+                       workflow_case_log l 
+                where  c.case_id = l.case_id)
+    loop
+        update cr_items
+        set    parent_id = rec.object_id
+        where  item_id = rec.entry_id;
+    end loop;
+end;
+/
+show errors

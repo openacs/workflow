@@ -129,7 +129,7 @@
    <fullquery name="workflow::case::delete.delete_case">
     <querytext>
         begin
-            :1 := workflow_case.del(:case_id);
+            :1 := workflow_case_pkg.del(:case_id);
         end;
     </querytext>
   </fullquery>
