@@ -79,9 +79,6 @@ aa_register_case workflow_spec_with_message_keys {
 
         set generated_spec [workflow::fsm::generate_spec -workflow_id $workflow_id]
         
-        ns_log Notice "LARS: Generated spec 2: $generated_spec"
-        ns_log Notice "LARS: Hard-coded spec 2: [workflow::test::get_message_key_spec]"
-
         aa_true "Checking that generated spec 2 is identical to the spec that we created from (except for ordering)" \
             [array_lists_equal_p $generated_spec [workflow::test::get_message_key_spec]]
     }

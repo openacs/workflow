@@ -557,8 +557,6 @@ ad_proc workflow::test::run_bug_tracker_test {
         global desired_output 
         set desired_output [workflow::case::fsm::get_info_not_cached $case_id]
 
-        ns_log Notice "LARS: desired_output = '$desired_output' ([llength $desired_output])"
-
         # 1. Make sure the cache is populated
         set dummy [workflow::case::get_element -case_id $case_id -element state_short_name]
 
