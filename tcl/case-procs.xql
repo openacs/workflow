@@ -198,7 +198,7 @@
              workflow_case_enabled_actions ena
       where  c.case_id = :case_id
       and    cfsm.case_id = c.case_id
-      and    cfsm.parent_enabled_action_id = :parent_enabled_action_id
+      and    ((:parent_enabled_action_id is null and cfsm.parent_enabled_action_id is null) or (cfsm.parent_enabled_action_id = :parent_enabled_action_id))
       and    ena.enabled_action_id = :enabled_action_id
       and    afsm.action_id = ena.action_id
       and    ((afsm.new_state is null and s.state_id = cfsm.current_state)  or (s.state_id = afsm.new_state))

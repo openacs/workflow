@@ -130,7 +130,6 @@ create table workflow_case_enabled_actions(
                             on delete cascade,
   assigned_p                boolean default 'f',
   completed_p               boolean default 'f',
-  -- TOOD: trigger_type, assigned_role, use_action_assignees_p ...
   execution_time            timestamptz
 );
 
@@ -169,8 +168,6 @@ create index wf_case_fsm_prnt_enbl_actn_idx on workflow_case_fsm(parent_enabled_
 create index workflow_case_fsm_state_idx on workflow_case_fsm(current_state);
 
 -- New and changed views
-
-TODO: see which views have changed columns
 
 -- Answers the question: Who is this user acting on behalf of? Which user is allowed to act on behalf of me?
 -- A mapping between users and their deputies
