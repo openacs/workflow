@@ -9,67 +9,24 @@
     <auto-mount>workflow</auto-mount>
 
     <version name="1.2d1" url="http://openacs.org/repository/download/apm/workflow-1.2d1.apm">
-    <database-support>
-        <database>oracle</database>
-        <database>postgresql</database>
-    </database-support>
         <owner url="http://petermarklund.com">Peter Marklund</owner>
         <owner url="http://pinds.com">Lars Pind</owner>
         <summary>A Tcl API for creating workflows that support the Bug Tracker, CMS publication, simple approval, and much more.</summary>
-        <release-date>2003-01-31</release-date>
+        <release-date>2003-11-10</release-date>
         <vendor url="http://www.collaboraid.biz">Collaboraid</vendor>
         <description format="text/html">This package lets you define the process that your tickets, articles, documents, reports, claims, change requests, or any other object of interest, must go through to ensure consistent quality and to avoid that any cases falls through the cracks.
 &lt;p&gt;
 For more information, see: &lt;a href=&quot;http://www.collaboraid.biz/developer/workflow-spec&quot;&gt;the workflow specification&lt;/a&gt;.</description>
 
         <provides url="workflow" version="1.2d1"/>
-        <requires url="notifications" version="0.3d"/>
-        <requires url="acs-content-repository" version="4.6d1"/>
-        <requires url="acs-kernel" version="4.6.2"/>
-        <requires url="acs-tcl" version="4.6.2d"/>
+        <requires url="acs-content-repository" version="5.0.0a5"/>
+        <requires url="acs-kernel" version="5.0.0a5"/>
+        <requires url="acs-tcl" version="5.0.0a5"/>
+        <requires url="notifications" version="5.0.0a5"/>
 
-        <files>
-            <file type="data_model_create" db_type="oracle" path="sql/oracle/workflow-create.sql"/>
-            <file type="data_model_drop" db_type="oracle" path="sql/oracle/workflow-drop.sql"/>
-            <file type="data_model" db_type="oracle" path="sql/oracle/workflow-procedural-create.sql"/>
-            <file type="data_model" db_type="oracle" path="sql/oracle/workflow-procedural-drop.sql"/>
-            <file type="data_model" db_type="oracle" path="sql/oracle/workflow-service-contracts-create.sql"/>
-            <file type="data_model" db_type="oracle" path="sql/oracle/workflow-service-contracts-drop.sql"/>
-            <file type="data_model" db_type="oracle" path="sql/oracle/workflow-tables-create.sql"/>
-            <file type="data_model" db_type="oracle" path="sql/oracle/workflow-tables-drop.sql"/>
-            <file type="data_model_create" db_type="postgresql" path="sql/postgresql/workflow-create.sql"/>
-            <file type="data_model_drop" db_type="postgresql" path="sql/postgresql/workflow-drop.sql"/>
-            <file type="data_model" db_type="postgresql" path="sql/postgresql/workflow-procedural-create.sql"/>
-            <file type="data_model" db_type="postgresql" path="sql/postgresql/workflow-procedural-drop.sql"/>
-            <file type="data_model" db_type="postgresql" path="sql/postgresql/workflow-service-contracts-create.sql"/>
-            <file type="data_model" db_type="postgresql" path="sql/postgresql/workflow-tables-create.sql"/>
-            <file type="data_model" db_type="postgresql" path="sql/postgresql/workflow-tables-drop.sql"/>
-            <file type="query_file" db_type="postgresql" path="tcl/action-procs-postgresql.xql"/>
-            <file type="tcl_procs" path="tcl/action-procs.tcl"/>
-            <file type="query_file" path="tcl/action-procs.xql"/>
-            <file type="query_file" db_type="oracle" path="tcl/case-procs-oracle.xql"/>
-            <file type="query_file" db_type="postgresql" path="tcl/case-procs-postgresql.xql"/>
-            <file type="tcl_procs" path="tcl/case-procs.tcl"/>
-            <file type="query_file" path="tcl/case-procs.xql"/>
-            <file type="tcl_procs" path="tcl/implementation-procs.tcl"/>
-            <file type="query_file" path="tcl/implementation-procs.xql"/>
-            <file type="tcl_procs" path="tcl/install-procs.tcl"/>
-            <file type="query_file" path="tcl/install-procs.xql"/>
-            <file type="tcl_procs" path="tcl/role-procs.tcl"/>
-            <file type="query_file" path="tcl/role-procs.xql"/>
-            <file type="tcl_procs" path="tcl/state-procs.tcl"/>
-            <file type="query_file" path="tcl/state-procs.xql"/>
-            <file type="data_model" db_type="oracle" path="tcl/test/test-workflow.sql"/>
-            <file type="tcl_procs" path="tcl/test/workflow-test-procs.tcl"/>
-            <file type="query_file" db_type="oracle" path="tcl/workflow-procs-oracle.xql"/>
-            <file type="query_file" db_type="postgresql" path="tcl/workflow-procs-postgresql.xql"/>
-            <file type="tcl_procs" path="tcl/workflow-procs.tcl"/>
-            <file type="query_file" path="tcl/workflow-procs.xql"/>
-            <file type="package_spec" path="workflow.info"/>
-        </files>
         <callbacks>
-            <callback type="after-install"  proc="workflow::install::package_install"/>
             <callback type="before-uninstall"  proc="workflow::install::package_uninstall"/>
+            <callback type="after-install"  proc="workflow::install::package_install"/>
         </callbacks>
         <parameters>
         <!-- No version parameters -->
