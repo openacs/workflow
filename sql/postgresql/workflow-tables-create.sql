@@ -325,6 +325,7 @@ create table workflow_fsm_action_en_in_st (
   -- in both the open and resolved states but only has assigned_p set to true
   -- in the open state.
 );
+-- LARS TODO: Add unique constraint on (action_id, state_id)
 
 
 
