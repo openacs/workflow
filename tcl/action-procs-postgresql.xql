@@ -21,7 +21,9 @@
                 and    action_id = a.action_id
                ) as initial_action_p,
                fa.new_state as new_state_id,
-               (select short_name from workflow_fsm_states where state_id = fa.new_state) as new_state
+               (select short_name from workflow_fsm_states where state_id = fa.new_state) as new_state,
+               a.description,
+               a.description_mime_type
         from   workflow_actions a left outer join 
                workflow_fsm_actions fa on (a.action_id = fa.action_id) 
         where  a.workflow_id = :workflow_id

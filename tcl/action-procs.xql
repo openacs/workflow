@@ -31,9 +31,9 @@
     <querytext>
         insert into workflow_actions
             (action_id, workflow_id, sort_order, short_name, pretty_name, pretty_past_tense, 
-             edit_fields, assigned_role, always_enabled_p)
+             edit_fields, assigned_role, always_enabled_p, description, description_mime_type)
       values (:action_id, :workflow_id, :sort_order, :short_name, :pretty_name, :pretty_past_tense, 
-              :edit_fields, :assigned_role_id, :always_enabled_p)
+              :edit_fields, :assigned_role_id, :always_enabled_p, :description, :description_mime_type)
     </querytext>
   </fullquery>
 

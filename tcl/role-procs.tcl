@@ -100,6 +100,19 @@ ad_proc -public workflow::role::new {
     return $role_id
 }
 
+ad_proc -public workflow::role::delete {
+    {-role_id:required}
+} {
+    Delete workflow role with given id.
+
+    @author Peter Marklund
+} {
+    db_dml delete_role {
+        delete from workflow_roles
+        where role_id = :role_id
+    }
+}
+
 ad_proc -public workflow::role::get_id {
     {-workflow_id:required}
     {-short_name:required}

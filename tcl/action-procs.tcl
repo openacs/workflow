@@ -32,10 +32,12 @@ ad_proc -public workflow::action::new {
     {-callbacks {}}
     {-always_enabled_p f}
     {-initial_action_p f}
+    {-description {}}
+    {-description_mime_type {}}
 } {
     This procedure is normally not invoked from application code. Instead
     a procedure for a certain workflow implementation, such as for example
-    workflow::fsm::action::new (for Finite State Machine workflows), is used.
+    workflow::action::fsm::new (for Finite State Machine workflows), is used.
 
     @param workflow_id            The id of the FSM workflow to add the action to
     @param sort_order             The number which this action should be in the sort ordering sequence. 
@@ -67,7 +69,7 @@ ad_proc -public workflow::action::new {
 
     @return The id of the created action
 
-    @see workflow::fsm::action::new
+    @see workflow::action::fsm::new
 
     @author Peter Marklund
 } {
@@ -215,8 +217,8 @@ ad_proc -public workflow::action::get {
     @author Lars Pind (lars@collaboraid.biz)
 
     @return An array list with workflow_id, sort_order, short_name, pretty_name, 
-            pretty_past_tense, assigned_role, and always_enabled_p column 
-            values for an action.
+            pretty_past_tense, assigned_role, and always_enabled_p, description, 
+            description_mime_type column values for an action.
 } {
     # Select the info into the upvar'ed Tcl Array
     upvar $array row
@@ -326,6 +328,8 @@ ad_proc -public workflow::action::fsm::new {
     {-callbacks {}}
     {-always_enabled_p f}
     {-initial_action_p f}
+    {-description {}}
+    {-description_mime_type {}}
 } {
     Add an action to a certain FSM (Finite State Machine) workflow. 
     This procedure invokes the generic workflow::action::new procedures 
@@ -353,7 +357,9 @@ ad_proc -public workflow::action::fsm::new {
                 -assigned_role $assigned_role \
                 -privileges $privileges \
                 -callbacks $callbacks \
-                -always_enabled_p $always_enabled_p]
+                -always_enabled_p $always_enabled_p \
+                -description $description \
+                -description_mime_type $description_mime_type]
 
         # FSM specific data:
 
@@ -388,6 +394,19 @@ ad_proc -public workflow::action::fsm::new {
 
     workflow::action::flush_cache -workflow_id $workflow_id
     return $action_id
+}
+
+ad_proc -public workflow::action::fsm::delete {
+    {-action_id:required}
+} {
+    Delete FSM action with given id.
+
+    @author Peter Marklund
+} {
+    db_dml delete_action {
+        delete from workflow_actions
+        where action_id = :action_id
+    }
 }
 
 ad_proc -public workflow::action::fsm::get_new_state {
