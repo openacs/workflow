@@ -43,8 +43,8 @@ alter table workflow_deputies add end_date timestamptz;
 update workflow_deputies set start_date = start_date_old, end_date = end_date_old;
 alter table workflow_deputies alter column start_date set not null;
 alter table workflow_deputies alter column end_date set not null;
-alter table workflow_deputies drop column start_date_old;
-alter table workflow_deputies drop column end_date_old;
+alter table workflow_deputies drop column start_date_old cascade;
+alter table workflow_deputies drop column end_date_old cascade;
 
 -- adding foreign key/cascade and start/end date indices
 create index workflow_deputies_deputy_idx on workflow_deputies(deputy_user_id);
