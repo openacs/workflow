@@ -264,10 +264,18 @@ ad_proc -private workflow::case::assign_roles {
 
 ad_proc -private workflow::case::get_activity_html { 
     {-case_id:required}
+    {-action_id ""}
 } {
-    Get the activity log for a case as an HTML chunk
+    Get the activity log for a case as an HTML chunk.
+    If action_id is non-empty, it means that we're in 
+    the progress of executing that action, and the 
+    corresponding line for the current action will be appended.
 
-    @author Lars Pind
+    @param case_id The case for which you want the activity log.
+    @param action_id optional action which is currently being executed.
+    @return Activity log as HTML
+
+    @author Lars Pind (lars@collaboraid.biz)
 } {
     set log_html {}
 
@@ -288,6 +296,20 @@ ad_proc -private workflow::case::get_activity_html {
         set community_member_link [acs_community_member_link -user_id $creation_user -label "$user_first_names $user_last_name"]
 
         append log_html [template::adp_eval code]
+    }
+
+    if { ![empty_string_p $action_id] } {
+        set pretty_past_tense [workflow::action::get_element -action_id $action_id -element pretty_past_tense]
+
+        # sets first_names, last_name, email
+        ad_get_user_info
+
+        set now_pretty [clock format [clock seconds] -format "%m/%d/%Y"]
+        # Get rid of leading zeros
+        regsub {^0} $now_pretty {} now_pretty
+        regsub {/0} $now_pretty {/} now_pretty
+        
+        append log_html "<p><b>$now_pretty $pretty_past_tense by $first_names $last_name</b></p>"
     }
 
     return $log_html
