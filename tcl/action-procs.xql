@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <queryset>
 
-  <fullquery name="workflow::action::new.select_sort_order_p">
+  <fullquery name="workflow::action::update_sort_order.select_sort_order_p">
     <querytext>
         select count(*)
         from   workflow_actions
@@ -10,7 +10,7 @@
     </querytext>
   </fullquery>
 
-  <fullquery name="workflow::action::new.update_sort_order">
+  <fullquery name="workflow::action::update_sort_order.update_sort_order">
     <querytext>
         update workflow_actions
         set    sort_order = sort_order + 1
@@ -19,7 +19,7 @@
     </querytext>
   </fullquery>
 
-  <fullquery name="workflow::action::new.insert_privilege">
+  <fullquery name="workflow::action::edit.insert_privilege">
     <querytext>
         insert into workflow_action_privileges
                 (action_id, privilege)
@@ -27,17 +27,7 @@
     </querytext>
   </fullquery>
 
-  <fullquery name="workflow::action::new.insert_action">
-    <querytext>
-        insert into workflow_actions
-            (action_id, workflow_id, sort_order, short_name, pretty_name, pretty_past_tense, 
-             edit_fields, assigned_role, always_enabled_p, description, description_mime_type)
-      values (:action_id, :workflow_id, :sort_order, :short_name, :pretty_name, :pretty_past_tense, 
-              :edit_fields, :assigned_role_id, :always_enabled_p, :description, :description_mime_type)
-    </querytext>
-  </fullquery>
-
-  <fullquery name="workflow::action::new.insert_initial_action">
+  <fullquery name="workflow::action::edit.insert_initial_action">
     <querytext> 
         insert into workflow_initial_action
                 (workflow_id, action_id)
@@ -130,7 +120,23 @@
     </querytext>
   </fullquery>
 
-  <fullquery name="workflow::action::fsm::new.insert_enabled_state">
+  <fullquery name="workflow::action::fsm::edit.update_fsm_action">
+    <querytext>
+        update workflow_fsm_actions
+        set    new_state = :new_state_id
+        where  action_id = :action_id
+    </querytext>
+  </fullquery>
+
+  <fullquery name="workflow::action::fsm::edit.delete_enabled_states">
+    <querytext>
+        delete from workflow_fsm_action_en_in_st
+        where  action_id = :action_id
+        and    assigned_p = :assigned_p
+    </querytext>
+  </fullquery>
+
+  <fullquery name="workflow::action::fsm::edit.insert_enabled_state">
     <querytext>
         insert into workflow_fsm_action_en_in_st
                 (action_id, state_id, assigned_p)

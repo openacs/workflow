@@ -24,11 +24,13 @@ ad_proc workflow::test::initial_action_short_name {} {
 }
 
 ad_proc workflow::test::workflow_object_id {} {
-
+    Return a dummy object_id for use for the workflow stuff.
 } {
-    return [db_string main_site_package_id {select object_id
-                                                              from site_nodes
-                                                              where parent_id is null}]
+    return [db_string main_site_package_id {
+        select object_id
+        from   site_nodes
+        where  parent_id is null
+    }]
 }
 
 ad_proc workflow::test::workflow_object_id_2 {} {
@@ -432,7 +434,7 @@ ad_proc workflow::test::run_with_teardown {
     teardown_chunk
 } {
     Execute code in test chunk and guarantee that code in 
-    teardown_chunk will be executed even if error if thrown.
+    teardown_chunk will be executed even if error is thrown by the test_chunk.
 
     @author Peter Marklund
 } {
@@ -645,5 +647,221 @@ ad_proc workflow::test::run_bug_tracker_test {
     if { $error_p } {    
         global errorInfo
         aa_false "error during setup: $errMsg - $errorInfo" $error_p
+    }
+}
+
+
+
+#####
+#
+# Register the test cases
+#
+#####
+
+aa_register_case bugtracker_workflow_create_normal {
+    Test creation and teardown of an FSM workflow case.
+} {
+    workflow::test::run_bug_tracker_test -create_proc "workflow::test::workflow_setup"
+}
+
+aa_register_case bugtracker_workflow_create_array_style {
+    Test creation and teardown of an FSM workflow case, with array style specification.
+
+    @author Lars Pind
+    @creation-date 21 January 2003
+} {
+    workflow::test::run_bug_tracker_test -create_proc "workflow::test::workflow_setup_array_style"
+}
+
+aa_register_case bugtracker_workflow_clone {
+    Test creation and teardown of cloning an FSM workflow case.
+
+    @author Lars Pind
+    @creation-date 22 January 2003
+} {
+    set workflow_id_list [list]
+    set test_chunk {
+        set workflow_id_1 [workflow::test::workflow_setup]
+        lappend workflow_id_list $workflow_id_1
+        set workflow_id_2 [workflow::fsm::clone -workflow_id $workflow_id_1 -object_id [workflow::test::workflow_object_id_2]]
+        lappend workflow_id_list $workflow_id_2
+
+        set spec_1 [workflow::fsm::generate_spec -workflow_id $workflow_id_1]
+        set spec_2 [workflow::fsm::generate_spec -workflow_id $workflow_id_2]
+
+        aa_true "Generated spec from original and cloned workflow should be identical" \
+                [string equal $spec_1 $spec_2]
+    } 
+
+    set error_p [catch $test_chunk errMsg]
+
+    # Teardown
+    foreach workflow_id $workflow_id_list {
+        workflow::delete -workflow_id $workflow_id
+    }
+
+    if { $error_p } {    
+        global errorInfo
+        aa_false "error during setup: $errMsg - $errorInfo" $error_p
+    }
+}
+
+aa_register_case workflow_spec_with_message_keys {
+    Test creating a workflow from a spec with message catalog
+    keys.
+} {
+    set test_chunk {
+
+        set workflow_id [workflow::fsm::new_from_spec \
+            -spec [workflow::test::get_message_key_spec]]
+
+        set generated_spec [workflow::fsm::generate_spec -workflow_id $workflow_id]
+        
+        aa_true "Checking that generated spec 2 is identical to the spec that we created from (except for ordering)" \
+            [array_lists_equal_p $generated_spec [workflow::test::get_message_key_spec]]
+    }
+
+    set teardown_chunk {
+        set workflow_id [workflow::get_id -package_key acs-automated-testing -short_name test_message_keys]
+        workflow::delete -workflow_id $workflow_id
+    }
+    
+    workflow::test::run_with_teardown $test_chunk $teardown_chunk
+}
+
+
+aa_register_case workflow_automatic_action {
+    Test workflow with automatic action.
+} {
+    workflow::test::run_with_teardown {
+        # Define workflow
+        
+        set workflow_id [workflow::new \
+                             -short_name "test_automatic_ations" \
+                             -pretty_name "Testing Automatic Actions" \
+                             -package_key "acs-automated-testing"]
+
+        # [open] -> (open) -> [auto] -> (closed)
+
+        workflow::state::fsm::new \
+            -workflow_id $workflow_id \
+            -short_name "open" \
+            -pretty_name "Open"
+
+        workflow::state::fsm::new -workflow_id $workflow_id \
+            -short_name "closed" \
+            -pretty_name "Closed"
+
+        workflow::action::fsm::new \
+            -initial_action_p t \
+            -workflow_id $workflow_id \
+            -short_name [ad_generate_random_string] \
+            -pretty_name "Open" \
+            -new_state "open"                              
+
+        set auto_action_id [workflow::action::fsm::new \
+                                -workflow_id $workflow_id \
+                                -short_name "auto" \
+                                -pretty_name "Auto" \
+                                -enabled_states "open" \
+                                -new_state "closed" \
+                                -timeout_seconds 0]
+
+        # Start a case
+
+        set case_id [workflow::case::new \
+                         -workflow_id $workflow_id \
+                         -object_id [workflow::test::workflow_object_id] \
+                         -user_id [workflow::test::admin_owner_id]]
+
+        # Check that it's now in 'closed' state
+        set current_state [workflow::case::fsm::get_current_state -case_id $case_id]
+        set current_state_short [workflow::state::fsm::get_element -state_id $current_state -element short_name]
+
+        aa_equals "Case is closed" $current_state_short "closed"
+
+        # Change the action to be timed
+
+        set update_cols(timeout_seconds) 1
+        workflow::action::fsm::edit \
+            -action_id $auto_action_id \
+            -array update_cols
+        
+        set case_id [workflow::case::new \
+                         -workflow_id $workflow_id \
+                         -object_id [db_string objid { select max(object_id) from acs_objects } ] \
+                         -user_id [workflow::test::admin_owner_id]]
+
+        # Check that it's now in 'open' state
+        set current_state [workflow::case::fsm::get_current_state -case_id $case_id]
+        set current_state_short [workflow::state::fsm::get_element -state_id $current_state -element short_name]
+
+        aa_equals "Case is open" $current_state_short "open"
+        
+        # Run sweeper
+        ns_sleep 1
+        workflow::case::timed_actions_sweeper
+
+        # Check that it's now in 'closed' state
+        set current_state [workflow::case::fsm::get_current_state -case_id $case_id]
+        set current_state_short [workflow::state::fsm::get_element -state_id $current_state -element short_name]
+
+        aa_equals "Case is closed" $current_state_short "closed"
+
+        # Add another action
+
+        # Old process: [open] -> (open) -> [auto] -> (closed)
+        # New process: [open] -> (open) -> [auto] -> (closed) -> [reopen] -> (open)
+        
+        set reopen_action_id [workflow::action::fsm::new \
+                                  -workflow_id $workflow_id \
+                                  -short_name "reopen" \
+                                  -pretty_name "Reopen" \
+                                  -enabled_states "closed" \
+                                  -new_state "open"]
+
+        # The new action should now be anabled
+        aa_true "New 'reopen' action is enabled" [workflow::case::action::enabled_p \
+                                                      -case_id $case_id \
+                                                      -action_id $reopen_action_id]
+
+        # Execute it
+        workflow::case::action::execute \
+            -no_perm_check \
+            -case_id $case_id \
+            -action_id $reopen_action_id
+
+        # The new action should now be anabled
+        aa_false "New 'reopen' action is not enabled" [workflow::case::action::enabled_p \
+                                                           -case_id $case_id \
+                                                           -action_id $reopen_action_id]
+
+        # Case should be open
+        set current_state [workflow::case::fsm::get_current_state -case_id $case_id]
+        set current_state_short [workflow::state::fsm::get_element -state_id $current_state -element short_name]
+        aa_equals "Case is open" $current_state_short "open"
+        
+        # The new action should now be anabled again
+        aa_true "Timed 'close' action is enabled" [workflow::case::action::enabled_p \
+                                                       -case_id $case_id \
+                                                       -action_id $auto_action_id]
+        # Run sweeper
+        ns_sleep 1
+        workflow::case::timed_actions_sweeper
+
+        # Check that it's now in 'closed' state
+        set current_state [workflow::case::fsm::get_current_state -case_id $case_id]
+        set current_state_short [workflow::state::fsm::get_element -state_id $current_state -element short_name]
+
+        aa_equals "Case is closed" $current_state_short "closed"
+
+        # The new action should now be anabled again
+        aa_true "New 'reopen' action is enabled" [workflow::case::action::enabled_p \
+                                                      -case_id $case_id \
+                                                      -action_id $reopen_action_id]
+
+    } {
+        set workflow_id [workflow::get_id -package_key "acs-automated-testing" -short_name "test_automatic_ations"]
+        workflow::delete -workflow_id $workflow_id
     }
 }

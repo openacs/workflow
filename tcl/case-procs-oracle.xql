@@ -20,6 +20,16 @@
     </querytext>
   </fullquery>
 
+  <fullquery name="workflow::case::timed_actions_sweeper.select_timed_out_actions">
+    <querytext>
+        select case_id, 
+               action_id
+        from   workflow_case_enabled_actions
+        where  execution_time <= sysdate
+        and   enabled_state = 'enabled'
+    </querytext>
+  </fullquery>
+
   <fullquery name="workflow::case::role::get_assignees_not_cached.select_assignees">
     <querytext>
         select m.party_id, 
@@ -87,6 +97,29 @@
     </querytext>
   </fullquery>
 
+  <fullquery name="workflow::case::state_changed_handler.select_enabled_actions">
+    <querytext>
+      select a.action_id,
+             a.timeout_seconds
+      from   workflow_cases c,
+             workflow_actions a
+      where  c.case_id = :case_id
+      and    a.workflow_id = c.workflow_id
+      and    not exists (select 1 
+                         from   workflow_initial_action wia
+                         where  wia.workflow_id = c.workflow_id
+                         and    wia.action_id = a.action_id)
+      and    (a.always_enabled_p = 't' 
+             or exists (select 1 
+                        from   workflow_case_fsm cfsm,
+                               workflow_fsm_action_en_in_st waeis
+                        where  cfsm.case_id = c.case_id
+                        and    waeis.state_id = cfsm.current_state
+                        and    waeis.action_id = a.action_id))
+      order by a.sort_order
+    </querytext>
+  </fullquery>
+
   <fullquery name="workflow::case::action::notify.select_object_name">
     <querytext>
         select acs_object.name(:object_id) as name from dual
@@ -98,6 +131,27 @@
         begin
             :1 := workflow_case.del(:case_id);
         end;
+    </querytext>
+  </fullquery>
+
+  <fullquery name="workflow::case::action::execute.set_completed">
+    <querytext>
+       update workflow_case_enabled_actions
+       set    enabled_state = 'completed',
+              executed_date = sysdate
+       where  case_id = :case_id
+       and    action_id = :action_id
+       and    enabled_state = 'enabled'
+    </querytext>
+  </fullquery>
+
+  <fullquery name="workflow::case::action::enable.insert_enabled">
+    <querytext>
+        insert into workflow_case_enabled_actions
+        (enabled_action_id, case_id, action_id, enabled_state, execution_time)
+        select :enabled_action_id, :case_id, a.action_id, 'enabled', sysdate + a.timeout_seconds/(24*60*60)
+        from   workflow_actions a
+        where  a.action_id = :action_id
     </querytext>
   </fullquery>
 

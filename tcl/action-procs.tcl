@@ -21,6 +21,7 @@ namespace eval workflow:::action::fsm {}
 
 ad_proc -public workflow::action::new {
     {-workflow_id:required}
+    {-action_id {}}
     {-sort_order {}}
     {-short_name:required}
     {-pretty_name:required}
@@ -34,24 +35,35 @@ ad_proc -public workflow::action::new {
     {-initial_action_p f}
     {-description {}}
     {-description_mime_type {}}
+    {-timeout_seconds {}}
+    {-internal:boolean}
 } {
     This procedure is normally not invoked from application code. Instead
     a procedure for a certain workflow implementation, such as for example
     workflow::action::fsm::new (for Finite State Machine workflows), is used.
 
     @param workflow_id            The id of the FSM workflow to add the action to
+
+    @param action_id              Optionally specify the ID of the new action.
+
     @param sort_order             The number which this action should be in the sort ordering sequence. 
                                   Leave blank to add action at the end. If you provide a sort_order number
                                   which already exists, existing actions are pushed down one number.
+
     @param short_name             Short name of the action for use in source code.
                                   Should be on Tcl variable syntax.
+
     @param pretty_name            Human readable name of the action for use in UI.
+
     @param pretty_past_tense      Past tense of pretty name
+
     @param edit_fields            A space-separated list of the names of form fields which should be
                                   opened for editing when this action is carried out.
+
     @param assigned_role          The name of an assigned role. Users in this 
                                   role are expected (obliged) to take 
                                   the action.
+
     @param allowed_roles          A list of role names. Users in these roles are 
                                   allowed to take the action.
                                   
@@ -59,17 +71,28 @@ ad_proc -public workflow::action::new {
                                   treated by the workflow (i.e. a bug in the 
                                   Bug Tracker) will be allowed to take this 
                                   action.
-    @param callbacks           List of names of service contract implementations of callbacks for the action in 
+
+    @param callbacks              List of names of service contract implementations of callbacks for the action in 
                                   impl_owner_name.impl_name format.
+
     @param initial_action_p       Use this switch to indicate that this is the initial
                                   action that will fire whenever a case of the workflow
                                   is created. The initial action is used to determine
                                   the initial state of the worklow as well as any 
                                   procedures that should be executed when the case created.
 
+    @param timeout_seconds        If zero, the action will automatically fire whenever it becomes enabled.
+                                  If greater than zero, the action will automatically fire x number of
+                                  seconds after the action is enabled. If empty, will never fire automatically.
+
+    @param internal               Set this flag if you're calling this proc from within the corresponding proc 
+                                  for a particular workflow model. Will cause this proc to not flush the cache 
+                                  or call workflow::definition_changed_handler, which the caller must then do.
+
     @return The id of the created action
 
     @see workflow::action::fsm::new
+    @see workflow::definition_changed_handler
 
     @author Peter Marklund
 } {
@@ -80,13 +103,14 @@ ad_proc -public workflow::action::new {
                     -workflow_id $workflow_id \
                     -table_name "workflow_actions"]
         } else {
-            set sort_order_taken_p [db_string select_sort_order_p {}]
-            if { $sort_order_taken_p } {
-                db_dml update_sort_order {}
-            }
+            workflow::action::update_sort_order \
+                -workflow_id $workflow_id \
+                -sort_order $sort_order
         }
 
-        set action_id [db_nextval "workflow_actions_seq"]
+        if { [empty_string_p $action_id] } {
+            set action_id [db_nextval "workflow_actions_seq"]
+        }
 
         if { [empty_string_p $assigned_role] } {
             set assigned_role_id [db_null]
@@ -102,32 +126,180 @@ ad_proc -public workflow::action::new {
         # Insert the action
         db_dml insert_action {}
 
-        # Record which roles are allowed to take action
-        foreach allowed_role $allowed_roles {
-            db_dml insert_allowed_role {}
-        }
+        # Set all the other attributes
+        array set update_cols [list]
+        set update_cols(allowed_roles) $allowed_roles
+        set update_cols(privileges) $privileges
+        set update_cols(callbacks) $callbacks
+        set update_cols(initial_action_p) $initial_action_p
+        
+        workflow::action::edit \
+            -internal \
+            -action_id $action_id \
+            -workflow_id $workflow_id \
+            -array update_cols
 
-        # Record which privileges enable the action
-        foreach privilege $privileges {
-            db_dml insert_privilege {}
+        if { !$internal_p } {
+            workflow::definition_changed_handler -workflow_id $workflow_id
+        }
+    }
+
+    if { !$internal_p } {
+        workflow::action::flush_cache -workflow_id $workflow_id
+    }
+    
+    return $action_id
+}
+
+ad_proc -public workflow::action::edit {
+    {-action_id:required}
+    {-workflow_id {}}
+    {-array:required}
+    {-internal:boolean}
+} {
+    Edit an action. 
+
+    @param action_id    The action to edit.
+
+    @param workflow_id  Optionally specify  the workflow_id. If not specified, we will execute a query to find it.
+    
+    @param array        Name of an array in the caller's namespace with attributes to edit.
+
+    @param internal               Set this flag if you're calling this proc from within the corresponding proc 
+                                  for a particular workflow model. Will cause this proc to not flush the cache 
+                                  or call workflow::definition_changed_handler, which the caller must then do.
+
+    @return action_id
+    
+    @see workflow::action::new
+} {
+    upvar 1 $array row
+    foreach name [array names row] {
+        set missing_elm($name) 1
+    }
+
+    set set_clauses [list]
+
+    if { [empty_string_p $workflow_id] } {
+        set workflow_id [workflow::action::get_element \
+                             -action_id $action_id \
+                             -element workflow_id]
+    }
+
+    foreach attr { 
+        short_name pretty_name pretty_past_tense edit_fields description description_mime_type 
+        always_enabled_p 
+        assigned_role
+        timeout_seconds
+    } {
+        if { [info exists row($attr)] } {
+            set varname attr_$attr
+            switch $attr {
+                always_enabled_p {
+                    set $varname [db_boolean [template::util::is_true $row($attr)]]
+                }
+                assigned_role {
+                    # Get role_id by short_name
+                    set $varname [workflow::role::get_id \
+                                      -workflow_id $workflow_id \
+                                      -short_name $row($attr)]
+                }
+                default {
+                    set $varname $row($attr)
+                }
+            }
+            switch $attr {
+                timeout_seconds {
+                    lappend set_clauses [db_map update_timeout_seconds]
+                }
+                default {
+                    lappend set_clauses "$attr = :$varname"
+                }
+            }
+            unset missing_elm($attr)
+        }
+    }
+    
+    db_transaction {
+        if { [info exists row(sort_order)] } {
+            workflow::action::update_sort_order \
+                -workflow_id $workflow_id \
+                -sort_order $row(sort_order)
         }
         
+        # Update action
+        if { [llength $set_clauses] > 0 } {
+            db_dml update_action "
+                update workflow_actions
+                set    [join $set_clauses ", "]
+                where  action_id = :action_id
+            "
+        }
+        
+        # Record which roles are allowed to take action
+        if { [info exists row(allowed_roles)] } {
+            db_dml delete_allowed_roles {
+                delete from workflow_action_allowed_roles
+                where  action_id = :action_id
+            }
+            foreach allowed_role $row(allowed_roles) {
+                db_dml insert_allowed_role {}
+            }
+            unset missing_elm(allowed_roles)
+        }
+        
+        # Record which privileges enable the action
+        if { [info exists row(privileges)] } {
+            db_dml delete_privileges {
+                delete from workflow_action_privileges
+                where  action_id = :action_id
+            }
+            foreach privilege $row(privileges) {
+                db_dml insert_privilege {}
+            }
+            unset missing_elm(privileges)
+        }
+             
         # Record if this is an initial action
-        if { [string equal $initial_action_p "t"] } {
-            db_dml insert_initial_action {}
+        if { [info exists row(initial_action_p)] } {
+            if { [template::util::is_true $row(initial_action_p)] } {
+                db_dml delete_initial_action {
+                    delete from workflow_initial_action
+                    where  workflow_id = :workflow_id
+                }
+                db_dml insert_initial_action {}
+            }
+            unset missing_elm(initial_action_p)
         }
 
         # Callbacks
-        foreach callback_name $callbacks {
-            workflow::action::callback_insert \
+        if { [info exists row(callbacks)] } {
+            db_dml delete_callbacks {
+                delete from workflow_action_callbacks
+                where  action_id = :action_id
+            }
+            foreach callback_name $row(callbacks) {
+                workflow::action::callback_insert \
                     -action_id $action_id \
                     -name $callback_name
+            }
+            unset missing_elm(callbacks)
         }
 
+        # Check that there are no unknown attributes
+        if { [llength [array names missing_elm]] > 0 } {
+            error "Trying to set illegal action attributes: [join [array names row] ", "]"
+        }
+
+        if { !$internal_p } {
+            workflow::definition_changed_handler -workflow_id $workflow_id
+        }
     }
 
-    # The cache is flushed in workflow::action::fsm::new
-    
+    if { !$internal_p } {
+        workflow::action::flush_cache -workflow_id $workflow_id
+    }
+
     return $action_id
 }
 
@@ -304,6 +476,18 @@ ad_proc -private workflow::action::get_callbacks {
     return $impl_names
 }
 
+ad_proc -private workflow::action::update_sort_order {
+    {-workflow_id:required}
+    {-sort_order:required}
+} {
+    Increase the sort_order of other actions, if the new sort_order is already taken.
+} { 
+    set sort_order_taken_p [db_string select_sort_order_p {}]
+    if { $sort_order_taken_p } {
+        db_dml update_sort_order {}
+    }
+}
+
 
 
 ######################################################################
@@ -314,6 +498,7 @@ ad_proc -private workflow::action::get_callbacks {
 
 ad_proc -public workflow::action::fsm::new {
     {-workflow_id:required}
+    {-action_id {}}
     {-sort_order {}}
     {-short_name:required}
     {-pretty_name:required}
@@ -330,6 +515,7 @@ ad_proc -public workflow::action::fsm::new {
     {-initial_action_p f}
     {-description {}}
     {-description_mime_type {}}
+    {-timeout_seconds {}}
 } {
     Add an action to a certain FSM (Finite State Machine) workflow. 
     This procedure invokes the generic workflow::action::new procedures 
@@ -346,22 +532,25 @@ ad_proc -public workflow::action::fsm::new {
     db_transaction {
         # Generic workflow data:
         set action_id [workflow::action::new \
-                -initial_action_p $initial_action_p \
-                -workflow_id $workflow_id \
-                -sort_order $sort_order \
-                -short_name $short_name \
-                -pretty_name $pretty_name \
-                -pretty_past_tense $pretty_past_tense \
-                -edit_fields $edit_fields \
-                -allowed_roles $allowed_roles \
-                -assigned_role $assigned_role \
-                -privileges $privileges \
-                -callbacks $callbacks \
-                -always_enabled_p $always_enabled_p \
-                -description $description \
-                -description_mime_type $description_mime_type]
+                           -internal \
+                           -initial_action_p $initial_action_p \
+                           -workflow_id $workflow_id \
+                           -action_id $action_id \
+                           -sort_order $sort_order \
+                           -short_name $short_name \
+                           -pretty_name $pretty_name \
+                           -pretty_past_tense $pretty_past_tense \
+                           -edit_fields $edit_fields \
+                           -allowed_roles $allowed_roles \
+                           -assigned_role $assigned_role \
+                           -privileges $privileges \
+                           -callbacks $callbacks \
+                           -always_enabled_p $always_enabled_p \
+                           -description $description \
+                           -description_mime_type $description_mime_type \
+                           -timeout_seconds $timeout_seconds]
 
-        # FSM specific data:
+        # FSM specific information below
 
         # Record whether the action changes state
         if { ![empty_string_p $new_state] } {
@@ -373,28 +562,115 @@ ad_proc -public workflow::action::fsm::new {
         }
         db_dml insert_fsm_action {}
 
-        # Record in which states the action is enabled but not assigned
-        foreach state_short_name $enabled_states {
-            set enabled_state_id [workflow::state::fsm::get_id \
-                    -workflow_id $workflow_id \
-                    -short_name $state_short_name]
-            set assigned_p "f"
-            db_dml insert_enabled_state {}
-        }
+        array set update_cols [list]
+        set update_cols(enabled_states) $enabled_states
+        set update_cols(assigned_states) $assigned_states
 
-        # Record where the action is both enabled and assigned
-        foreach state_short_name $assigned_states {
-            set enabled_state_id [workflow::state::fsm::get_id \
-                    -workflow_id $workflow_id \
-                    -short_name $state_short_name]            
-            set assigned_p "t"
-            db_dml insert_enabled_state {}
-        }
+        workflow::action::fsm::edit \
+            -internal \
+            -action_id $action_id \
+            -workflow_id $workflow_id \
+            -array update_cols
+
+        workflow::definition_changed_handler -workflow_id $workflow_id
     }   
 
     workflow::action::flush_cache -workflow_id $workflow_id
+
     return $action_id
 }
+
+ad_proc -public workflow::action::fsm::edit {
+    {-action_id:required}
+    {-workflow_id {}}
+    {-array:required}
+    {-internal:boolean}
+} {
+    Edit an FSM action.
+
+    @param action_id    The action to edit.
+
+    @param workflow_id  Optionally specify  the workflow_id. If not specified, we will execute a query to find it.
+    
+    @param array        Name of an array in the caller's namespace with attributes to edit.
+
+    @param internal               Set this flag if you're calling this proc from within the corresponding proc 
+                                  for a particular workflow model. Will cause this proc to not flush the cache 
+                                  or call workflow::definition_changed_handler, which the caller must then do.
+
+    @return action_id
+    
+    @see workflow::action::fsm::new
+} {
+    upvar 1 $array org_row
+
+    # We make a copy here, so the check for illegal attributes in workflow::action::edit works properly
+    array set row [array get org_row]
+
+    if { [empty_string_p $workflow_id] } {
+        set workflow_id [workflow::action::get_element \
+                             -action_id $action_id \
+                             -element workflow_id]
+    }
+
+    db_transaction {
+
+        # Record whether the action changes state
+        if { [info exists row(new_state)] } {
+            if { ![empty_string_p $row(new_state)] } {
+                set new_state_id [workflow::state::fsm::get_id \
+                                      -workflow_id $workflow_id \
+                                      -short_name $new_state]
+            } else {
+                set new_state_id [db_null]
+            }
+            db_dml update_fsm_action {}
+            unset row(new_state)
+        }
+
+        # Record in which states the action is enabled but not assigned
+        if { [info exists row(enabled_states)] } {
+            set assigned_p "f"
+            db_dml delete_enabled_states {}
+            foreach state_short_name $row(enabled_states) {
+                set enabled_state_id [workflow::state::fsm::get_id \
+                                          -workflow_id $workflow_id \
+                                          -short_name $state_short_name]
+                db_dml insert_enabled_state {}
+            }
+            unset row(enabled_states)
+        }
+
+        # Record where the action is both enabled and assigned
+        if { [info exists row(assigned_states)] } {
+            set assigned_p "t"
+            db_dml delete_enabled_states {}
+            foreach state_short_name $row(assigned_states) {
+                set enabled_state_id [workflow::state::fsm::get_id \
+                                          -workflow_id $workflow_id \
+                                          -short_name $state_short_name]
+                db_dml insert_enabled_state {}
+            }
+            unset row(assigned_states)
+        }
+
+        # This will error if there are attributes it doesn't know about, so we remove the attributes we know above
+        workflow::action::edit \
+            -internal \
+            -action_id $action_id \
+            -workflow_id $workflow_id \
+            -array row
+
+        if { !$internal_p } {
+            workflow::definition_changed_handler -workflow_id $workflow_id
+        }
+    }
+
+    if { !$internal_p } {
+        workflow::action::flush_cache -workflow_id $workflow_id
+    }
+}
+
 
 ad_proc -public workflow::action::fsm::delete {
     {-action_id:required}

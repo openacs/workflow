@@ -209,8 +209,20 @@ ad_proc -public workflow::get_actions {
     return $action_data(action_ids)
 }
 
+ad_proc -public workflow::definition_changed_handler {
+    {-workflow_id:required}
+} {
+    Should be called when the workflow definition has changed while there are active cases.
+    Will update the record of enabled actions in each of the case, so they reflect the new workflow.
+} {
+    set case_ids [db_list select_cases { select case_id from workflow_cases where workflow_id = :workflow_id }]
 
-
+    foreach case_id $case_ids {
+        workflow::case::state_changed_handler \
+            -case_id $case_id
+    }
+    
+}
 
 
 #####

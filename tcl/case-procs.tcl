@@ -50,8 +50,8 @@ ad_proc -private workflow::case::insert {
 ad_proc -public workflow::case::new {
     {-workflow_id:required}
     {-object_id:required}
-    {-comment:required}
-    {-comment_mime_type:required}
+    {-comment {}}
+    {-comment_mime_type {}}
     {-user_id}
 } {
     Start a new case for this workflow and object.
@@ -250,32 +250,26 @@ ad_proc -private workflow::case::assign_roles {
     If any of these currently have zero assignees, run the default 
     assignment process.
     
-    @param case_id the ID of the case.
+    @param case_id         The ID of the case.
+    
+    @param all             Set this to assign all roles for this case. 
+                           This parameter is deprecated, and always assumed.
 
     @author Lars Pind (lars@collaboraid.biz)
 } {
-    set role_id_list [list]
+    set role_ids [db_list select_unassigned_roles {
+        select r.role_id
+        from   workflow_roles r
+        where  not exists (select 1
+                           from   workflow_case_role_user_map m
+                           where  m.role_id = r.role_id
+                           and    m.case_id = :case_id)
+    }]
 
-    if { $all_p } {
-        set workflow_id [workflow::case::get_element -case_id $case_id -element workflow_id]
-        set role_id_list [workflow::get_roles -workflow_id $workflow_id]
-    } else {
-        foreach action_id [get_enabled_actions -case_id $case_id] {
-            set role_id [workflow::action::get_assigned_role -action_id $action_id]
-            if { ![empty_string_p $role_id] && [lsearch $role_id_list $role_id] == -1 } {
-                lappend role_id_list $role_id
-            }
-        }
-    }
-
-    foreach role_id $role_id_list {
-        set num_assignees [db_string select_num_assignees {}]
-
-        if { $num_assignees == 0 } {
-            workflow::case::role::set_default_assignees \
-                    -case_id $case_id \
-                    -role_id $role_id
-        }
+    foreach role_id $role_ids {
+        workflow::case::role::set_default_assignees \
+            -case_id $case_id \
+            -role_id $role_id
     }
 
     workflow::case::role::flush_cache -case_id $case_id
@@ -669,7 +663,73 @@ ad_proc -private workflow::case::flush_cache {
     workflow::case::role::flush_cache -case_id $case_id
 }
 
+ad_proc -private workflow::case::state_changed_handler {
+    {-case_id:required}
+    {-user_id {}}
+} {
+    Scans for newly enabled actions, as well as actions which were 
+    enabled but are now no longer enabled. Does not flush the cache. 
+    Should only be called indirectly through the workflow API.
 
+    @author Lars Pind (lars@collaboraid.biz)
+} {
+    db_transaction {
+        # Columns: action_id, timeout_seconds
+        db_multirow -local enabled_actions select_enabled_actions {}
+        
+        # This array, keyed by action_id, will store the enabled_action_id for previously enabled actions
+        array set action_enabled [list]
+        db_foreach select_previously_enabled_actions {} {
+            set action_enabled($action_id) $enabled_action_id
+        }
+        
+        # Loop over currently enabled actions and find out which ones are new
+        array set newly_enabled_action [list]
+        template::multirow -local foreach enabled_actions {
+            if { [info exists action_enabled($action_id)] } {
+                # Action was already enabled. Unset the array entry, so what remains will be 
+                # previously but no longer enabled actions
+                unset action_enabled($action_id)
+            } else {
+                # Newly enabled action
+                set newly_enabled_action($action_id) 1
+            }
+        }
+        
+        # First, unenable the previously but no longer enabled actions
+        foreach action_id [array names action_enabled] {
+            workflow::case::action::unenable \
+                -enabled_action_id $action_enabled($action_id)
+        }
+
+        # Second, enable the newly enabled actions
+        template::multirow -local foreach enabled_actions {
+            if { [info exists newly_enabled_action($action_id)] } {
+                workflow::case::action::enable \
+                    -case_id $case_id \
+                    -action_id $action_id \
+                    -automatic=[expr { $timeout_seconds == 0 }] \
+                    -user_id $user_id
+            }
+        }
+
+        # Make sure roles are assigned, if possible
+        workflow::case::assign_roles -all -case_id $case_id
+    }
+}
+
+ad_proc -public workflow::case::timed_actions_sweeper {} {
+    Sweep for timed actions ready to fire.
+} {
+    db_multirow -local actions select_timed_out_actions {}
+    
+    template::multirow -local foreach actions {
+        workflow::case::action::execute \
+            -no_perm_check \
+            -case_id $case_id \
+            -action_id $action_id
+    }
+}
 
 #####
 #
@@ -1207,10 +1267,11 @@ ad_proc -public workflow::case::action::available_p {
 }
 
 ad_proc -public workflow::case::action::execute {
+    {-no_perm_check:boolean}
     {-case_id:required}
     {-action_id:required}
-    {-comment:required}
-    {-comment_mime_type:required}
+    {-comment ""}
+    {-comment_mime_type "text/plain"}
     {-user_id}
     {-initial:boolean}
     {-entry_id {}}
@@ -1218,15 +1279,23 @@ ad_proc -public workflow::case::action::execute {
     Execute the action
 
     @param case_id            The ID of the case.
+
     @param action_id          The ID of the action
+
     @param comment            Comment for the case activity log
+
     @param comment_mime_type  MIME Type of the comment, according to 
                               OpenACS standard text formatting
+
     @param user_id            The user who's executing the action
+
     @param initial            Use this switch to signal that this is the initial action. This causes 
                               permissions/enabled checks to be bypasssed, and causes all roles to get assigned.
+
     @param entry_id           Optional item_id for double-click protection. If you call workflow::case::fsm::get
                               with a non-empty action_id, it will generate a new entry_id for you, which you can pass in here.
+
+    @param no_perm_check      Set this switch if you do not want any permissions chcecking, e.g. for automatic actions.
 
     @return entry_id of the new log entry (will be a cr_item).
 
@@ -1237,19 +1306,35 @@ ad_proc -public workflow::case::action::execute {
     }
     
     if { !$initial_p } {
-        if { ![available_p -case_id $case_id -action_id $action_id -user_id $user_id] } {
-            error "This user is not allowed to perform this action at this time."
+        if { ![enabled_p -case_id $case_id -action_id $action_id] } {
+            error "This action is not enabled at this time."
+        }
+
+        if { !$no_perm_check_p } {
+            if { ![permission_p -case_id $case_id -action_id $action_id -user_id $user_id] } {
+                error "This user is not allowed to perform this action at this time."
+            } 
         }
     }
 
-    set new_state_id [workflow::action::fsm::get_new_state -action_id $action_id]
+    if { [empty_string_p $comment] } {
+        set comment { }
+    }
+
+    # We can't have empty comment_mime_type, default to text/plain
+    if { [empty_string_p $comment_mime_type] } {
+        set comment_mime_type "text/plain"
+    }
 
     db_transaction {
 
-        # Update the workflow state
-        if { ![empty_string_p $new_state_id] } {
-            db_dml update_fsm_state {}
-        }
+        # Update the case workflow state
+        workflow::case::action::fsm::execute_state_change \
+            -case_id $case_id \
+            -action_id $action_id
+
+        # Update workflow_case_enabled_transactions
+        db_dml set_completed {}
 
         # Double-click protection
         if { ![empty_string_p $entry_id] } {
@@ -1258,12 +1343,6 @@ ad_proc -public workflow::case::action::execute {
             }
         }
         
-        # We can't have empty comment_mime_type
-        if { [empty_string_p $comment_mime_type] } {
-            # We need a default value here
-            set comment_mime_type "text/plain"
-        }
-
         # Insert activity log entry
         set extra_vars [ns_set create]
         oacs_util::vars_to_ns_set \
@@ -1276,28 +1355,76 @@ ad_proc -public workflow::case::action::execute {
                 -package_name "workflow_case_log_entry" \
                 "workflow_case_log_entry"]
 
-        # Assign new enabled roles, if currently unassigned
-        workflow::case::assign_roles -all=$initial_p -case_id $case_id
-
         # Fire side-effects
         do_side_effects \
                 -case_id $case_id \
                 -action_id $action_id \
                 -entry_id $entry_id
         
+        # Notifications
+        notify \
+            -case_id $case_id \
+            -action_id $action_id \
+            -entry_id $entry_id \
+            -comment $comment \
+            -comment_mime_type $comment_mime_type
+        
+        # Scan for enabled actions
+        workflow::case::state_changed_handler \
+            -case_id $case_id \
+            -user_id $user_id
     }
 
     workflow::case::flush_cache -case_id $case_id
 
-    # Notifications
-    notify \
-        -case_id $case_id \
-        -action_id $action_id \
-        -entry_id $entry_id \
-        -comment $comment \
-        -comment_mime_type $comment_mime_type
-    
     return $entry_id
+}
+
+ad_proc -private workflow::case::action::unenable {
+    {-enabled_action_id:required}
+} {
+    Update the workflow_case_enabled_actions table to say that the 
+    previously enabled actions are no longer enabled.
+    Does not flush the cache. 
+    Should only be called indirectly through the workflow API.
+
+    @author Lars Pind (lars@collaboraid.biz)
+} {
+    db_transaction {
+        db_dml set_canceled {
+            update workflow_case_enabled_actions
+            set    enabled_state = 'canceled'
+            where  enabled_action_id = :enabled_action_id
+        }
+    }
+}
+
+ad_proc -private workflow::case::action::enable {
+    {-case_id:required}
+    {-action_id:required}
+    {-user_id {}}
+    {-automatic:boolean}
+} {
+    Update the workflow_case_enabled_actions table to say that the 
+    action is now enabled. Will automatically fire an automatic action.
+    Does not flush the cache. 
+    Should only be called indirectly through the workflow API.
+
+    @author Lars Pind (lars@collaboraid.biz)
+} {
+    db_transaction {
+        set enabled_action_id [db_nextval workflow_case_enbl_act_seq]
+
+        db_dml insert_enabled {}
+
+        if { $automatic_p } {
+            workflow::case::action::execute \
+                -no_perm_check \
+                -case_id $case_id \
+                -action_id $action_id \
+                -user_id $user_id
+        }
+    }
 }
 
 ad_proc -public workflow::case::action::do_side_effects {
@@ -1540,4 +1667,27 @@ ad_proc -public workflow::case::action::fsm::new_state {
         set new_state_id [workflow::case::fsm::get_current_state -case_id $case_id]
     }
     return $new_state_id
+}
+
+
+ad_proc -public workflow::case::action::fsm::execute_state_change {
+    {-case_id:required}
+    {-action_id:required}
+} {
+    Modify the state of the case as required when executing the given action.
+
+    @param case_id       The ID of the case.
+    @param action_id     The ID of the action
+
+    @author Lars Pind (lars@collaboraid.biz)
+} {
+    # We wrap this in a transaction, which will be the same transaction as the parent one inside 
+    # workflow::case::action::execute
+
+    db_transaction {
+        set new_state_id [workflow::action::fsm::get_new_state -action_id $action_id]
+        if { ![empty_string_p $new_state_id] } {
+            db_dml update_fsm_state {}
+        }
+    }
 }

@@ -46,6 +46,26 @@ ad_proc -private workflow::install::package_uninstall {} {
     }
 }
 
+ad_proc -private workflow::install::after_upgrade {
+    {-from_version_name:required}
+    {-to_version_name:required}
+} {
+    Workflow package after upgrade callback proc
+} {
+    apm_upgrade_logic \
+        -from_version_name $from_version_name \
+        -to_version_name $to_version_name \
+        -spec {
+            1.2 2.0d1 {
+                set workflow_ids [db_list select_workflow_ids { select workflow_id from workflows }]
+                foreach workflow_id $workflow_ids {
+                    workflow::definition_changed_handler \
+                        -workflow_id $workflow_id
+                }
+            }
+        }
+}
+
 
 #####
 #

@@ -2,6 +2,22 @@
 <queryset>
   <rdbms><type>postgresql</type><version>7.2</version></rdbms>
 
+  <fullquery name="workflow::action::new.insert_action">
+    <querytext>
+        insert into workflow_actions
+            (action_id, workflow_id, sort_order, short_name, pretty_name, pretty_past_tense, 
+             edit_fields, assigned_role, always_enabled_p, description, description_mime_type, timeout)
+      values (:action_id, :workflow_id, :sort_order, :short_name, :pretty_name, :pretty_past_tense, 
+              :edit_fields, :assigned_role_id, :always_enabled_p, :description, :description_mime_type, 
+              [ad_decode $timeout_seconds "" "null" "interval '$timeout_seconds seconds'"])
+    </querytext>
+  </fullquery>
+
+  <partialquery name="workflow::action::edit.update_timeout_seconds">
+    <querytext>
+      timeout = [ad_decode $attr_timeout_seconds "" "null" "interval '$attr_timeout_seconds seconds'"]
+    </querytext>
+  </partialquery>
 
   <fullquery name="workflow::action::get_all_info_not_cached.action_info">
     <querytext>
@@ -40,7 +56,7 @@
     </querytext>
   </fullquery>
 
-  <fullquery name="workflow::action::new.insert_allowed_role">
+  <fullquery name="workflow::action::edit.insert_allowed_role">
     <querytext>
         insert into workflow_action_allowed_roles
         select :action_id,

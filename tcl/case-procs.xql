@@ -54,21 +54,11 @@
   <fullquery name="workflow::case::get_enabled_actions_not_cached.select_enabled_actions">
     <querytext>
       select a.action_id
-      from   workflow_cases c,
+      from   workflow_case_enabled_actions ena,
              workflow_actions a
-      where  c.case_id = :case_id
-      and    a.workflow_id = c.workflow_id
-      and    not exists (select 1 
-                         from   workflow_initial_action wia
-                         where  wia.workflow_id = c.workflow_id
-                         and    wia.action_id = a.action_id)
-      and    (a.always_enabled_p = 't' 
-             or exists (select 1 
-                        from   workflow_case_fsm cfsm,
-                               workflow_fsm_action_en_in_st waeis
-                        where  cfsm.case_id = c.case_id
-                        and    waeis.state_id = cfsm.current_state
-                        and    waeis.action_id = a.action_id))
+      where  ena.case_id = :case_id
+      and    a.action_id = ena.action_id
+      and    enabled_state = 'enabled'
       order by a.sort_order
     </querytext>
   </fullquery>
@@ -106,6 +96,20 @@
       from   workflow_case_log_data
       where  entry_id = :entry_id
       order  by key
+    </querytext>
+  </fullquery>
+
+
+  <fullquery name="workflow::case::state_changed_handler.select_previously_enabled_actions">
+    <querytext>
+      select a.action_id,
+             ena.enabled_action_id
+      from   workflow_case_enabled_actions ena,
+             workflow_actions a
+      where  ena.case_id = :case_id
+      and    a.action_id = ena.action_id
+      and    enabled_state = 'enabled'
+      order by a.sort_order
     </querytext>
   </fullquery>
 
@@ -183,20 +187,14 @@
   <fullquery name="workflow::case::action::enabled_p.select_enabled_p">
     <querytext>
       select 1
-      from   workflow_actions a
-      where  a.action_id = :action_id
-      and    (a.always_enabled_p = 't' or 
-             exists (select 1 
-                     from   workflow_fsm_action_en_in_st waeis,
-                            workflow_case_fsm c_fsm
-                     where  waeis.action_id = a.action_id
-                     and    c_fsm.case_id = :case_id
-                     and    waeis.state_id = c_fsm.current_state)
-             )
+      from   workflow_case_enabled_actions ean
+      where  ean.action_id = :action_id
+      and    ean.case_id = :case_id
+      and    enabled_state = 'enabled'
     </querytext>
   </fullquery>
 
-  <fullquery name="workflow::case::action::execute.update_fsm_state">
+  <fullquery name="workflow::case::action::fsm::execute_state_change.update_fsm_state">
     <querytext>
       update workflow_case_fsm
       set    current_state = :new_state_id
@@ -211,7 +209,6 @@
         where  item_id = :entry_id
     </querytext>
   </fullquery>
-
   <fullquery name="workflow::case::action::notify.enabled_action_assignees">
     <querytext>
         select distinct rum.user_id

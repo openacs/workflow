@@ -434,7 +434,9 @@ ad_proc -private workflow::role::get_all_info_not_cached {
         lappend callback_impl_names,${role_id}(${row(contract_name)}) $row(impl_name)
         set callbacks_array,${role_id}($row(impl_id)) [array get row]
     } 
-    unset row
+    if { [info exists row] } {
+        unset row
+    }
 
     foreach role_id $role_ids {
         set role,${role_id}(callback_impl_names) [array get callback_impl_names,$role_id]
