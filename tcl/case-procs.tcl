@@ -205,12 +205,6 @@ ad_proc -public workflow::case::active_p {
         set enabled_actions [workflow::case::get_enabled_actions -case_id $case_id]
     }
     
-    aa_log "Case $case_id has enabled actions: $enabled_actions"
-    foreach action_id $enabled_actions {
-        aa_log "-- Action: [workflow::action::get_element -action_id $action_id -element short_name]"
-    }
-
-
     return [expr [llength $enabled_actions] > 0]
 }
 
@@ -758,14 +752,10 @@ ad_proc -private workflow::case::state_changed_handler {
 
     @author Lars Pind (lars@collaboraid.biz)
 } {
-    aa_log "State-changed-handler for case_id $case_id"
-    
     db_transaction {
         # DB query to get actually enabled actions
         set enabled_action_ids [db_list select_enabled_actions {}]
 
-        aa_log "Enabled actions: $enabled_action_ids"
-        
         # This array, keyed by action_id, will store the enabled_action_id for previously enabled actions
         array set action_enabled [list]
         db_foreach select_previously_enabled_actions {} {
@@ -828,8 +818,6 @@ ad_proc -private workflow::case::child_state_changed_handler {
     Check if all child cases of this enabled action are complete, and if so
     cause this action to execute
 } {
-    aa_log "child_state_changed_handler: parent_case_id = $parent_case_id, parent_enabled_action_id = $parent_enabled_action_id, child_case_id = $child_case_id"
-
     db_transaction {
 
       #----------------------------------------------------------------------
@@ -837,7 +825,6 @@ ad_proc -private workflow::case::child_state_changed_handler {
       #----------------------------------------------------------------------
       if { [workflow::case::active_p -case_id $child_case_id] } {
           # Child still running
-          aa_log "child_state_changed_handler: Child $child_case_id still running"
           return
       }
 
@@ -851,7 +838,6 @@ ad_proc -private workflow::case::child_state_changed_handler {
           if { $one_child != $child_case_id } {
               if { [workflow::case::active_p -case_id $one_child] } {
                   # Other child still running
-                  aa_log "child_state_changed_handler: Other child, $one_child, still running"
                   return
               }
           }
@@ -860,8 +846,6 @@ ad_proc -private workflow::case::child_state_changed_handler {
       #----------------------------------------------------------------------
       # 3. If all are complete, execute the action
       #----------------------------------------------------------------------
-
-      aa_log "child_state_changed_handler: All children done, executing parent action"
 
       # TODO: API to get action_id from enabled_action_id
       set action_id [db_string select_action_id { 
@@ -1543,8 +1527,6 @@ ad_proc -public workflow::case::action::execute {
 
     db_transaction {
 
-        aa_log "Executing action $action_id: [workflow::action::get_element -action_id $action_id -element short_name]"
-
         # Update the case workflow state
         workflow::case::action::fsm::execute_state_change \
             -case_id $case_id \
@@ -1634,8 +1616,6 @@ ad_proc -private workflow::case::action::enable {
 } {
     workflow::action::get -action_id $action_id -array action
 
-    #aa_log [util::array_list_spec_pretty [array get action]]
-
     db_transaction {
         set enabled_action_id [db_nextval workflow_case_enbl_act_seq]
 
@@ -1643,7 +1623,6 @@ ad_proc -private workflow::case::action::enable {
 
         # Spawn child workflows
         if { ![empty_string_p $action(child_workflow_id)] } {
-            aa_log "Has child workflow"
             
             # NOTE: Role is mapped at spawn time. 
             # Changes made after that are not synchronized from parent to child or vice versa.
