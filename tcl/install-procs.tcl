@@ -203,7 +203,7 @@ ad_proc -private workflow::install::create_action_side_effect_service_contract {
             }
             GetPrettyName { 
                 description "Get the pretty name of this implementation."
-                output { object_type:string }
+                output { pretty_name:string }
                 iscachable_p "t"
             }
             DoSideEffect {
@@ -237,7 +237,7 @@ ad_proc -private workflow::install::create_activity_log_format_title_service_con
             }
             GetPrettyName {
                 description "Get the pretty name of this implementation."
-                output { object_type:string }
+                output { pretty_name:string }
                 iscachable_p "t"
             }
             GetTitle {
@@ -275,7 +275,7 @@ ad_proc -private workflow::install::create_get_notification_info_service_contrac
             }
             GetPrettyName {
                 description "Get the pretty name of this implementation."
-                output { object_type:string }
+                output { pretty_name:string }
                 iscachable_p "t"
             }
             GetNotificationInfo {
