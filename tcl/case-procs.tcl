@@ -744,6 +744,47 @@ ad_proc -public workflow::case::timed_actions_sweeper {} {
     }
 }
 
+ad_proc -public workflow::case::enabled_action_get {
+    {-enabled_action_id:required}
+    {-array:required}
+} {
+    Get information about an enabled action
+
+    @param array       The name of an array in which information will be returned.
+
+    @author Lars Pind (lars@collaboraid.biz)
+} {
+    # Select the info into the upvar'ed Tcl Array
+    upvar $array row
+
+    db_1row select_enabled_action {
+        select enabled_action_id,
+               case_id,
+               action_id,
+               enabled_date,
+               executed_date,
+               enabled_state,
+               execution_time
+        from   workflow_case_enabled_actions
+        where  enabled_action_id = :enabled_action_id
+    } -column_array row
+}
+
+ad_proc -public workflow::case::enabled_action_get_element {
+    {-enabled_action_id:required}
+    {-element:required}
+} {
+    Return a single element from the information about an enabled action
+
+    @param element     The element you want
+    @return            The element you asked for
+
+    @author Lars Pind (lars@collaboraid.biz)
+} {
+    enabled_action_get -enabled_action_id $enabled_action_id -array row
+    return $row($element)
+}
+
 #####
 #
 # workflow::case::role namespace
