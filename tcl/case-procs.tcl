@@ -1037,17 +1037,24 @@ ad_proc -public workflow::case::role::add_assignee_widgets {
     {-case_id:required}
     {-form_name:required}
     {-prefix "role_"}
+    {-role_ids {}}
 } {
     Get the assignee widget for use with ad_form for this role.
 
     @param case_id the ID of the case.
     @param role_id the ID of the role.
+    @param role_ids Only add assignee widgets for the roles supplied. If no roles are
+                    specified then all roles are used.
 
     @author Lars Pind (lars@collaboraid.biz)
 } {
     set workflow_id [workflow::case::get_element -case_id $case_id -element workflow_id]
-    set roles [list]
-    foreach role_id [workflow::get_roles -workflow_id $workflow_id] {
+
+    if { [empty_string_p $role_ids] } {
+        set role_ids [workflow::get_roles -workflow_id $workflow_id]
+    }
+
+    foreach role_id $role_ids {
         ad_form -extend -name $form_name -form [list [get_assignee_widget -case_id $case_id -role_id $role_id -prefix $prefix]]
     }
 }
