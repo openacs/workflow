@@ -365,16 +365,30 @@ ad_proc -public workflow::role::get {
 }
 
 ad_proc -public workflow::role::get_element {
-    {-role_id:required}
+    {-role_id {}}
+    {-one_id {}}
     {-element:required}
 } {
     Return a single element from the information about a role.
 
-    @param role_id The ID of the workflow
+    @param role_id  The id of the role to get an element for.
+
+    @param one_id   Same as role_id, just used for consistency across roles/actions/states.
+
     @return element The element you asked for
 
     @author Lars Pind (lars@collaboraid.biz)
 } {
+    if { [empty_string_p $role_id] } {
+        if { [empty_string_p $one_id] } {
+            error "You must supply either role_id or one_id"
+        }
+        set role_id $one_id
+    } else {
+        if { ![empty_string_p $one_id] } {
+            error "You can only supply either role_id or one_id"
+        }
+    }
     get -role_id $role_id -array row
     return $row($element)
 }
@@ -450,15 +464,30 @@ ad_proc -private workflow::role::parse_roles_spec {
 }
 
 ad_proc -private workflow::role::generate_spec {
-    {-role_id:required}
+    {-role_id {}}
+    {-one_id {}}
 } {
     Generate the spec for an individual role definition.
 
-    @param role_id The id of the role to generate spec for.
-    @return spec The roles spec
+    @param role_id  The id of the role to generate spec for.
+
+    @param one_id   Same as role_id, just used for consistency across roles/actions/states.
+
+    @return spec    The roles spec
 
     @author Lars Pind (lars@collaboraid.biz)
 } {
+    if { [empty_string_p $role_id] } {
+        if { [empty_string_p $one_id] } {
+            error "You must supply either role_id or one_id"
+        }
+        set role_id $one_id
+    } else {
+        if { ![empty_string_p $one_id] } {
+            error "You can only supply either role_id or one_id"
+        }
+    }
+
     get -role_id $role_id -array row
 
     # Get rid of elements that shouldn't go into the spec
@@ -471,40 +500,30 @@ ad_proc -private workflow::role::generate_spec {
     array unset row callback_ids
     array unset row callback_impl_names
 
-    # Get rid of empty strings
-    foreach name [array names row] {
-        if { [empty_string_p $row($name)] } {
-            array unset row $name
-        }
-    }
-    
     set spec {}
     foreach name [lsort [array names row]] {
-        lappend spec $name $row($name)
+        if { ![empty_string_p $row($name)] } {
+            lappend spec $name $row($name)
+        }
     }
 
     return $spec
 }
 
-ad_proc -private workflow::role::generate_roles_spec {
+ad_proc -private workflow::role::get_ids {
     {-workflow_id:required}
 } {
-    Generate the spec for the block containing the definition of all
-    roles for the workflow.
+    Get the IDs of all the roles in the right order.
 
-    @param workflow_id The id of the workflow to delete.
-    @return The roles spec
+    @param workflow_id The id of the workflow to get roles for.
+
+    @return A list of role IDs.
 
     @author Lars Pind (lars@collaboraid.biz)
 } {
-    # roles(short_name) { ... role-spec ... }
-    array set roles [list]
-
-    foreach role_id [workflow::get_roles -workflow_id $workflow_id] {
-        lappend roles_list [get_element -role_id $role_id -element short_name] [generate_spec -role_id $role_id]
-    }
-
-    return $roles_list
+    # Use cached data about roles
+    array set role_data [workflow::role::get_all_info -workflow_id $workflow_id]
+    return $role_data(role_ids)
 }
 
 ad_proc -public workflow::role::callback_insert {

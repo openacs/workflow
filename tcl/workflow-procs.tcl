@@ -423,10 +423,7 @@ ad_proc -public workflow::get_roles {
 
     @author Lars Pind (lars@collaboraid.biz)
 } {
-    # Use cached data about roles
-    array set role_data [workflow::role::get_all_info -workflow_id $workflow_id]
-
-    return $role_data(role_ids)
+    return [workflow::role::get_ids -workflow_id $workflow_id]
 }
 
 ad_proc -public workflow::get_actions {
@@ -439,10 +436,7 @@ ad_proc -public workflow::get_actions {
 
     @author Lars Pind (lars@collaboraid.biz)
 } {
-    # Use cached data about actions
-    array set action_data [workflow::action::get_all_info -workflow_id $workflow_id]
-
-    return $action_data(action_ids)
+    return [workflow::action::get_ids -workflow_id $workflow_id]
 }
 
 ad_proc -public workflow::definition_changed_handler {
@@ -528,6 +522,67 @@ ad_proc -public workflow::generate_short_name {
 
     return $short_name
 }
+
+ad_proc -public workflow::generate_spec {
+    {-workflow_id:required}
+    {-handlers { 
+        roles workflow::role 
+        actions workflow::action
+    }}
+} {
+    Generate a spec for a workflow in array list style.
+    Note that calling this directly with the default arguments will bomb, because workflow::action doesn't implement the required API.
+    
+    @param workflow_id The id of the workflow to generate a spec for.
+    
+    @param handlers    An array-list with Tcl namespaces where handlers for various elements are defined.
+                       The keys are identical to the keys in the spec, and the namespaces are where 
+                       the procs to handle them are defined.
+
+    @return The spec for the workflow.
+
+    @author Lars Pind (lars@collaboraid.biz)
+    @see workflow::new
+} {
+    workflow::get -workflow_id $workflow_id -array row
+
+    set short_name $row(short_name)
+
+    array unset row object_id
+    array unset row workflow_id
+    array unset row short_name
+    array unset row callbacks_array
+    array unset row callback_ids
+    array unset row callback_impl_names
+    array unset row initial_action
+    array unset row initial_action_id
+
+    set spec [list]
+
+    # Output sorted, and with no empty elements
+    foreach name [lsort [array names row]] {
+        if { ![empty_string_p $row($name)] } {
+            lappend spec $name $row($name)
+        }
+    }
+
+    foreach { key namespace } $handlers {
+        set subspec [list]
+        
+        foreach sub_id [${namespace}::get_ids -workflow_id $workflow_id] {
+            set sub_short_name [${namespace}::get_element \
+                                -one_id $sub_id \
+                                -element short_name]
+            lappend subspec $sub_short_name [${namespace}::generate_spec -one_id $sub_id]
+        }
+        
+        lappend spec $key $subspec
+    }
+
+    return [list $short_name $spec]
+}
+
+
 
 #----------------------------------------------------------------------
 # Private procs
@@ -821,43 +876,21 @@ ad_proc -public workflow::fsm::generate_spec {
 } {
     Generate a spec for a workflow in array list style.
     
-    @param workflow_id The id of the workflow to delete.
+    @param  workflow_id   The id of the workflow to generate a spec for.
     @return The spec for the workflow.
 
     @author Lars Pind (lars@collaboraid.biz)
     @see workflow::new
 } {
-    workflow::get -workflow_id $workflow_id -array row
+    set spec [workflow::generate_spec \
+                  -workflow_id $workflow_id \
+                  -handlers {
+                      roles workflow::role 
+                      actions workflow::action::fsm
+                      states workflow::state::fsm
+                  }]
 
-    set short_name $row(short_name)
-
-    array unset row object_id
-    array unset row workflow_id
-    array unset row short_name
-    array unset row callbacks_array
-    array unset row callback_ids
-    array unset row callback_impl_names
-    array unset row initial_action
-    array unset row initial_action_id
-
-    set spec [list]
-
-    # Get rid of empty strings
-    foreach name [array names row] {
-        if { [empty_string_p $row($name)] } {
-            array unset row $name
-        }
-    }
-
-    foreach name [lsort [array names row]] {
-        lappend spec $name $row($name)
-    }
-
-    lappend spec roles [workflow::role::generate_roles_spec -workflow_id $workflow_id]
-    lappend spec states [workflow::state::fsm::generate_states_spec -workflow_id $workflow_id]
-    lappend spec actions [workflow::action::fsm::generate_actions_spec -workflow_id $workflow_id]
-    
-    return [list $short_name $spec]
+    return $spec
 }
 
 ad_proc -public workflow::fsm::get_states {
@@ -870,10 +903,7 @@ ad_proc -public workflow::fsm::get_states {
 
     @author Lars Pind (lars@collaboraid.biz)
 } {
-    # Use cached data
-    array set state_data [workflow::state::fsm::get_all_info -workflow_id $workflow_id]
-
-    return $state_data(state_ids)
+    return [workflow::state::fsm::get_ids -workflow_id $workflow_id]
 }
 
 ad_proc -public workflow::fsm::get_initial_state {

@@ -512,17 +512,32 @@ ad_proc -public workflow::action::get {
 }
 
 ad_proc -public workflow::action::get_element {
-    {-action_id:required}
+    {-action_id {}}
+    {-one_id {}}
     {-element:required}
 } {
     Return a single element from the information about a action.
 
     @param action_id The ID of the action
-    @param element The element you want
-    @return The element you asked for
+
+    @param one_id    Same as action_id, just used for consistency across roles/actions/states.
+
+    @param element   The element you want
+
+    @return          The element you asked for
 
     @author Lars Pind (lars@collaboraid.biz)
 } {
+    if { [empty_string_p $action_id] } {
+        if { [empty_string_p $one_id] } {
+            error "You must supply either action_id or one_id"
+        }
+        set action_id $one_id
+    } else {
+        if { ![empty_string_p $one_id] } {
+            error "You can only supply either action_id or one_id"
+        }
+    }
     get -action_id $action_id -array row
     return $row($element)
 }
@@ -659,6 +674,21 @@ ad_proc -public workflow::action::generate_short_name {
     return $short_name
 }
 
+ad_proc -public workflow::action::get_ids {
+    {-workflow_id:required}
+} {
+    Get the action_id's of all the actions in the workflow.
+    
+    @param workflow_id   The ID of the workflow
+
+    @return              list of action_id's.
+
+    @author Lars Pind (lars@collaboraid.biz)
+} {
+    # Use cached data about actions
+    array set action_data [workflow::action::get_all_info -workflow_id $workflow_id]
+    return $action_data(action_ids)
+}
 
 
 
@@ -997,18 +1027,40 @@ ad_proc -public workflow::action::fsm::get {
 }
 
 ad_proc -public workflow::action::fsm::get_element {
-    {-action_id:required}
+    {-action_id {}}
+    {-one_id {}}
     {-element:required}
 } {
     Return element from information about an action with a given id, including
     FSM-related info such as 'enabled_in_states', and 'new_state'.
 
+    Return a single element from the information about a action.
+
+    @param action_id The ID of the action
+
+    @param one_id    Same as action_id, just used for consistency across roles/actions/states.
+
+    @param element   The element you want
+
+    @return          The element you asked for
+
     @author Peter Marklund
     @author Lars Pind (lars@collaboraid.biz)
 } {
+    if { [empty_string_p $action_id] } {
+        if { [empty_string_p $one_id] } {
+            error "You must supply either action_id or one_id"
+        }
+        set action_id $one_id
+    } else {
+        if { ![empty_string_p $one_id] } {
+            error "You can only supply either action_id or one_id"
+        }
+    }
     workflow::action::fsm::get -action_id $action_id -array row
     return $row($element)
 }
+
 
     
 
@@ -1089,15 +1141,30 @@ ad_proc -private workflow::action::fsm::parse_actions_spec {
 }
 
 ad_proc -private workflow::action::fsm::generate_spec {
-    {-action_id:required}
+    {-action_id {}}
+    {-one_id {}}
 } {
     Generate the spec for an individual action definition.
 
     @param action_id The id of the action to generate spec for.
-    @return spec The actions spec
+
+    @param one_id    Same as action_id, just used for consistency across roles/actions/states.
+
+    @return spec     The actions spec
 
     @author Lars Pind (lars@collaboraid.biz)
 } {
+    if { [empty_string_p $action_id] } {
+        if { [empty_string_p $one_id] } {
+            error "You must supply either action_id or one_id"
+        }
+        set action_id $one_id
+    } else {
+        if { ![empty_string_p $one_id] } {
+            error "You can only supply either action_id or one_id"
+        }
+    }
+
     get -action_id $action_id -array row
 
     # Get rid of elements that shouldn't go into the spec
@@ -1117,22 +1184,11 @@ ad_proc -private workflow::action::fsm::generate_spec {
     # Get rid of a few defaults
     array set defaults { initial_action_p f always_enabled_p f }
 
-    foreach name [array names defaults] {
-        if { [string equal $row($name) $defaults($name)] } {
-            array unset row $name
-        }
-    }
- 
-    # Get rid of empty strings
-    foreach name [array names row] {
-        if { [empty_string_p $row($name)] } {
-            array unset row $name
-        }
-    }
-    
     set spec {}
     foreach name [lsort [array names row]] {
-        lappend spec $name $row($name)
+        if { ![empty_string_p $row($name)] && ![exists_and_equal defaults($name) $row($name)] } {
+            lappend spec $name $row($name)
+        }
     }
 
     return $spec
@@ -1208,28 +1264,6 @@ ad_proc -private workflow::action::get_from_request_cache {
     } else {
         return [set "${action_var_name}($element)"]
     }
-}
-
-ad_proc -private workflow::action::fsm::generate_actions_spec {
-    {-workflow_id:required}
-} {
-    Generate the spec for the block containing the definition of all
-    actions for the workflow.
-
-    @param workflow_id The id of the workflow to delete.
-    @return The actions spec
-
-    @author Lars Pind (lars@collaboraid.biz)
-} {
-    # actions(short_name) { ... action-spec ... }
-    array set actions [list]
-
-    foreach action_id [workflow::get_actions -workflow_id $workflow_id] {
-        lappend actions_list [get_element -action_id $action_id -element short_name] [generate_spec -action_id $action_id]
-    }
-
-    return $actions_list
-
 }
 
 ad_proc -private workflow::action::get_all_info {
@@ -1364,3 +1398,18 @@ ad_proc -private workflow::action::get_all_info_not_cached {
 
     return [array get action_data]
 }
+
+ad_proc -public workflow::action::fsm::get_ids {
+    {-workflow_id:required}
+} {
+    Get the action_id's of all the actions in the workflow.
+    
+    @param workflow_id   The ID of the workflow
+
+    @return              list of action_id's.
+
+    @author Lars Pind (lars@collaboraid.biz)
+} {
+    return [workflow::action::get_ids -workflow_id $workflow_id]
+}
+

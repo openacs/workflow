@@ -351,16 +351,30 @@ ad_proc -public workflow::state::fsm::get {
 }
 
 ad_proc -public workflow::state::fsm::get_element {
-    {-state_id:required}
+    {-state_id {}}
+    {-one_id {}}
     {-element:required}
 } {
     Return a single element from the information about a state.
 
     @param state_id The ID of the workflow
+    @param one_id    Same as state_id, just used for consistency across roles/actions/states.
+
     @return The element you asked for
 
     @author Lars Pind (lars@collaboraid.biz)
 } {
+    if { [empty_string_p $state_id] } {
+        if { [empty_string_p $one_id] } {
+            error "You must supply either state_id or one_id"
+        }
+        set state_id $one_id
+    } else {
+        if { ![empty_string_p $one_id] } {
+            error "You can only supply either state_id or one_id"
+        }
+    }
+
     get -state_id $state_id -array row
     return $row($element)
 }
@@ -395,6 +409,22 @@ ad_proc -public workflow::state::fsm::get_workflow_id {
 #####
 # Private procs
 #####
+
+ad_proc -private workflow::state::fsm::get_ids {
+    {-workflow_id:required}
+} {
+    Get the state_id's of all the states in the workflow. 
+    
+    @param workflow_id The ID of the workflow
+    @return list of state_id's.
+
+    @author Lars Pind (lars@collaboraid.biz)
+} {
+    # Use cached data
+    array set state_data [workflow::state::fsm::get_all_info -workflow_id $workflow_id]
+
+    return $state_data(state_ids)
+}
 
 ad_proc -private workflow::state::fsm::get_workflow_id_not_cached {
     {-state_id:required}
@@ -460,15 +490,30 @@ ad_proc -private workflow::state::fsm::parse_states_spec {
 }
 
 ad_proc -private workflow::state::fsm::generate_spec {
-    {-state_id:required}
+    {-state_id {}}
+    {-one_id {}}
 } {
     Generate the spec for an individual state definition.
 
     @param state_id The id of the state to generate spec for.
+
+    @param one_id    Same as state_id, just used for consistency across roles/actions/states.
+
     @return spec The states spec
 
     @author Lars Pind (lars@collaboraid.biz)
 } {
+    if { [empty_string_p $state_id] } {
+        if { [empty_string_p $one_id] } {
+            error "You must supply either state_id or one_id"
+        }
+        set state_id $one_id
+    } else {
+        if { ![empty_string_p $one_id] } {
+            error "You can only supply either state_id or one_id"
+        }
+    }
+
     get -state_id $state_id -array row
 
     # Get rid of elements that shouldn't go into the spec
@@ -477,16 +522,11 @@ ad_proc -private workflow::state::fsm::generate_spec {
     array unset row workflow_id
     array unset row sort_order
     
-    # Get rid of empty strings
-    foreach name [array names row] {
-        if { [empty_string_p $row($name)] } {
-            array unset row $name
-        }
-    }
-    
     set spec {}
     foreach name [lsort [array names row]] {
-        lappend spec $name $row($name)
+        if { ![empty_string_p $row($name)] } {
+            lappend spec $name $row($name)
+        }
     }
 
     return $spec
