@@ -24,10 +24,10 @@
 For more information, see: &lt;a href=&quot;http://www.collaboraid.biz/developer/workflow-spec&quot;&gt;the workflow specification&lt;/a&gt;.</description>
 
         <provides url="workflow" version="1.2b2"/>
-        <requires url="acs-content-repository" version="5.0.0a5"/>
-        <requires url="acs-kernel" version="5.0.0a5"/>
-        <requires url="acs-tcl" version="5.0.0a5"/>
-        <requires url="notifications" version="5.0.0a5"/>
+        <requires url="acs-content-repository" version="5.0.0b4"/>
+        <requires url="acs-kernel" version="5.0.0b4"/>
+        <requires url="acs-tcl" version="5.0.0b4"/>
+        <requires url="notifications" version="5.0.0b4"/>
 
         <callbacks>
             <callback type="before-uninstall"  proc="workflow::install::package_uninstall"/>
