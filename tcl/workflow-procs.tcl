@@ -22,8 +22,8 @@ ad_proc -public workflow::package_key {} {
 }
 
 ad_proc -public workflow::new {
-    {-short_name:required}
     {-pretty_name:required}
+    {-short_name {}}
     {-package_key:required}
     {-object_id {}}
     {-object_type "acs_object"}
@@ -33,17 +33,23 @@ ad_proc -public workflow::new {
     (using the workflow::action::new proc) to be fired when a workflow case is opened.
 
     @param short_name  For referring to the workflow from Tcl code. Use Tcl variable syntax.
+
     @param pretty_name A human readable name for the workflow for use in the UI.
+
     @param package_key The package to which this workflow belongs
+
     @param object_id   The id of an ACS Object indicating the scope the workflow. 
                        Typically this will be the id of a package type or a package instance
                        but it could also be some other type of ACS object within a package, for example
                        the id of a bug in the Bug Tracker application.
+
     @param object_type The type of objects that the workflow will be applied to. Valid values are in the
                        acs_object_types table. The parameter is optional and defaults to acs_object.
-    @param callbacks List of names of service contract implementations of callbacks for the workflow in 
+
+    @param callbacks   List of names of service contract implementations of callbacks for the workflow in 
                        impl_owner_name.impl_name format.
-    @return           New workflow_id.
+
+    @return            New workflow_id.
 
     @author Peter Marklund
 } {
@@ -66,6 +72,12 @@ ad_proc -public workflow::new {
         if { [empty_string_p $object_id] } {
             set object_id [db_null]
         }
+
+        set short_name [workflow::generate_short_name \
+                            -package_key $package_key \
+                            -object_id $object_id \
+                            -pretty_name $pretty_name \
+                            -short_name $short_name]
 
         # Insert the workflow
         set workflow_id [db_exec_plsql do_insert {}]
@@ -225,9 +237,77 @@ ad_proc -public workflow::definition_changed_handler {
 }
 
 
-#####
+ad_proc -public workflow::get_existing_short_names {
+    {-package_key:required}
+    {-object_id {}}
+    {-ignore_workflow_id {}}
+} {
+    Returns a list of existing workflow short_names for this package_key and object_id.
+    Useful when you're trying to ensure a short_name is unique, 
+    or construct a new short_name that is guaranteed to be unique.
+
+    @param ignore_workflow_id   If specified, the short_name for the given workflow will not be included in the result set.
+} {
+    set result [list]
+
+    db_foreach select_workflows {
+        select workflow_id, 
+               short_name
+        from   workflows
+        where  package_key = :package_key
+        and    object_id = :object_id
+    } {
+        if { [empty_string_p $ignore_workflow_id] || ![string equal $ignore_workflow_id $workflow_id] } {
+            lappend result $short_name
+        }
+    }
+
+    return $result
+}
+
+ad_proc -public workflow::generate_short_name {
+    {-package_key:required}
+    {-object_id {}}
+    {-pretty_name:required}
+    {-short_name {}}
+    {-workflow_id {}}
+} {
+    Generate a unique short_name from pretty_name, or verify uniqueness of a given short_name.
+    
+    @param workflow_id    If you pass in this, we will allow that workflow's short_name to be reused.
+
+    @param short_name     Suggested short_name.    
+} {
+    set existing_short_names [workflow::get_existing_short_names \
+                                  -package_key $package_key \
+                                  -object_id $object_id \
+                                  -ignore_workflow_id $workflow_id]
+    
+    if { [empty_string_p $short_name] } {
+        if { [empty_string_p $pretty_name] } {
+            error "Cannot have empty pretty_name when short_name is empty"
+        }
+        set short_name [util_text_to_url \
+                            -replacement "_" \
+                            -existing_urls $existing_short_names \
+                            -text $pretty_name]
+    } else {
+        # Make lowercase, remove illegal characters
+        set short_name [string tolower $short_name]
+        regsub -all {[- ]} $short_name {_} short_name
+        regsub -all {[^a-zA-Z_0-9]} $short_name {} short_name
+
+        if { [lsearch -exact $existing_short_names $short_name] != -1 } {
+            error "Workflow with short_name '$short_name' already exists for this package_key and object_id."
+        }
+    }
+
+    return $short_name
+}
+
+#----------------------------------------------------------------------
 # Private procs
-#####
+#----------------------------------------------------------------------
 
 
 
@@ -420,11 +500,18 @@ ad_proc -public workflow::fsm::new_from_spec {
     {-object_id {}}
     {-spec:required}
 } {
-    Create a new workflow from spec
+    Create a new workflow from spec. Workflows must belong to either a package key or an object id.
 
-    @param workflow_id The id of the workflow to delete.
-    @param spec The roles spec
-    @return A list of IDs of the workflows created
+    @param package_key   A package to which this workflow belongs
+
+    @param object_id     The id of an ACS Object indicating the scope the workflow. 
+                         Typically this will be the id of a package type or a package instance
+                         but it could also be some other type of ACS object within a package, for example
+                         the id of a bug in the Bug Tracker application.
+
+    @param spec          The workflow spec
+
+    @return The ID of the workflow created
 
     @author Lars Pind (lars@collaboraid.biz)
     @see workflow::new
@@ -455,27 +542,47 @@ ad_proc -public workflow::fsm::clone {
     {-workflow_id:required}
     {-package_key {}}
     {-object_id {}}
+    {-array {}}
 } {
-    Clones an existing FSM workflow
+    Clones an existing FSM workflow. The clone must belong to either a package key or an object id.
 
-    @param short_name  For referring to the workflow from Tcl code. Use Tcl variable syntax.
-    @param pretty_name A human readable name for the workflow for use in the UI.
-    @param object_id   The id of an ACS Object indicating the scope the workflow. 
-                       Typically this will be the id of a package type or a package instance
-                       but it could also be some other type of ACS object within a package, for example
-                       the id of a bug in the Bug Tracker application.
-    @param object_type The type of objects that the workflow will be applied to. Valid values are in the
-                       acs_object_types table. The parameter is optional and defaults to acs_object.
-    @param spec        The workflow spec in array-lists-in-array-lists format. 
+    @param pretty_name   A human readable name for the workflow for use in the UI.
+
+    @param short_name    For referring to the workflow from Tcl code. Use Tcl variable syntax.
+
+    @param object_id     The id of an ACS Object indicating the scope the workflow. 
+                         Typically this will be the id of a package type or a package instance
+                         but it could also be some other type of ACS object within a package, for example
+                         the id of a bug in the Bug Tracker application.
+
+    @param package_key   A package to which this workflow belongs
+
+    @param array         The name of an array in the caller's namespace. Values in this array will 
+                         override workflow attributes of the workflow being cloned.
 
     @author Lars Pind (lars@collaboraid.biz)
     @see workflow::new
 } {
+    set spec [generate_spec -workflow_id $workflow_id]
+    set short_name [lindex $spec 0]
+    array set workflow_array [lindex $spec 1]
+
+    # Override workflow attributes
+    if { ![empty_string_p $array] } {
+        upvar 1 $array row
+        foreach name [array names row] {
+            if { [string equal $name short_name] } {
+                set short_name $row($name)
+            } else {
+                set workflow_array($name) $row($name)
+            }
+        }
+    }
+
     set workflow_id [new_from_spec \
-            -package_key $package_key \
-            -object_id $object_id \
-            -spec [generate_spec -workflow_id $workflow_id] \
-            ]
+                         -package_key $package_key \
+                         -object_id $object_id \
+                         -spec [list $short_name [array get workflow_array]]]
 
     return $workflow_id
 }
