@@ -33,7 +33,8 @@
                (select short_name from workflow_fsm_states where state_id = fa.new_state) as new_state,
                a.description,
                a.description_mime_type,
-               extract(seconds from a.timeout) as timeout_seconds
+               extract (days from a.timeout) * 86400 + extract (hours from a.timeout) * 3600 + 
+                 extract (minutes from a.timeout) * 60 + extract (seconds from a.timeout) as timeout_seconds
         from   workflow_actions a left outer join 
                workflow_fsm_actions fa on (a.action_id = fa.action_id) 
         where  a.workflow_id = :workflow_id
