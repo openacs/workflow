@@ -329,7 +329,7 @@ ad_proc -private workflow::case::get_activity_text {
             set $var $value
         }
 
-        set entry_text "$creation_date_pretty $action_pretty_past_tense $log_title by $user_first_names $user_last_name ($user_email)"
+        set entry_text "$creation_date_pretty $action_pretty_past_tense [ad_decode $log_title "" "" "$log_title "]y $user_first_names $user_last_name ($user_email)"
 
         if { ![empty_string_p $comment] } {
             append entry_text ":\n\n    [join [split [ad_html_text_convert -from $comment_mime_type -to "text/plain" -maxlen 66 -- $comment] "\n"] "\n    "]"
@@ -1207,17 +1207,18 @@ ad_proc -public workflow::case::action::execute {
                 -case_id $case_id \
                 -action_id $action_id \
                 -entry_id $entry_id
-
-        # Notifications
-        notify \
-            -case_id $case_id \
-            -action_id $action_id \
-            -entry_id $entry_id \
-            -comment $comment \
-            -comment_mime_type $comment_mime_type
+        
     }
 
     workflow::case::flush_cache $case_id
+
+    # Notifications
+    notify \
+        -case_id $case_id \
+        -action_id $action_id \
+        -entry_id $entry_id \
+        -comment $comment \
+        -comment_mime_type $comment_mime_type
     
     return $entry_id
 }
@@ -1274,23 +1275,23 @@ ad_proc -public workflow::case::action::notify {
 } {
     # Get workflow_id
     workflow::case::get \
-            -case_id $case_id \
-            -array case
-
+        -case_id $case_id \
+        -array case
+    
     workflow::get \
-            -workflow_id $case(workflow_id) \
-            -array workflow
-
+        -workflow_id $case(workflow_id) \
+        -array workflow
+    
     set hr [string repeat "=" 70]
-
+    
     array set latest_action [lindex [workflow::case::get_activity_log_info -case_id $case_id] end]
     
-    set latest_action_chunk "$latest_action(action_pretty_past_tense) $latest_action(log_title) by $latest_action(user_first_names) $latest_action(user_last_name) ($latest_action(user_email))"
+    set latest_action_chunk "$latest_action(action_pretty_past_tense) [ad_decode $latest_action(log_title) "" "" "$latest_action(log_title) "]by $latest_action(user_first_names) $latest_action(user_last_name) ($latest_action(user_email))"
     
     if { ![empty_string_p $latest_action(comment)] } {
         append latest_action_chunk ":\n\n    [join [split [ad_html_text_convert -from $latest_action(comment_mime_type) -to "text/plain" -maxlen 66 -- $latest_action(comment)] "\n"] "\n    "]"
     }
-
+    
     # Callback to get notification info 
     set contract_name [workflow::service_contract::notification_info]
     set impl_names [workflow::get_callbacks \
@@ -1298,14 +1299,14 @@ ad_proc -public workflow::case::action::notify {
                         -contract_name $contract_name]
     # We only use the first callback
     set impl_name [lindex $impl_names 0]
-
+    
     if { ![empty_string_p $impl_name] } {
         set notification_info [acs_sc::invoke \
                                    -contract $contract_name \
                                    -operation "GetNotificationInfo" \
                                    -impl $impl_name \
                                    -call_args [list $case_id $case(object_id)]]
-
+        
     }
 
     # Make sure the notification info list has at least 4 elements, so we can do below lindex's safely
@@ -1356,7 +1357,7 @@ ad_proc -public workflow::case::action::notify {
 
     set activity_log_chunk [workflow::case::get_activity_text -case_id $case_id]
 
-    set the_subject "[ad_decode $object_notification_tag "" "" "\[$object_notification_tag\] "]$object_one_line: $latest_action(action_pretty_past_tense) $latest_action(log_title) by $latest_action(user_first_names) $latest_action(user_last_name)"
+    set the_subject "[ad_decode $object_notification_tag "" "" "\[$object_notification_tag\] "]$object_one_line: $latest_action(action_pretty_past_tense) [ad_decode $latest_action(log_title) "" "" "$latest_action(log_title) "]by $latest_action(user_first_names) $latest_action(user_last_name)"
 
     # List of user_id's for people who are in the assigned_role to any enabled actions
     set assignee_list [db_list enabled_action_assignees {}]
