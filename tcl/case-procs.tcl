@@ -301,8 +301,8 @@ ad_proc -private workflow::case::get_activity_html {
     set log_html {}
 
     set template {
-        <b>@creation_date_pretty@ @action_pretty_past_tense@ @log_title@ by @community_member_link@</b>
-        <blockquote>@comment_html@</blockquote>
+        <b>@creation_date_pretty@ @action_pretty_past_tense@ @log_title@ by @community_member_link;noquote@</b>
+        <blockquote>@comment_html;noquote@</blockquote>
     }
 
     # Compile and evaluate the template
