@@ -11,6 +11,6 @@
 -- Workflow level, Generic Model
 ---------------------------------
 drop package workflow;
-drop package workflow_case;
+drop package workflow_case_pkg;
 drop package workflow_case_log_entry;
 
