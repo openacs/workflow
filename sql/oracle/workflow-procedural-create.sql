@@ -69,7 +69,7 @@ as
 
     -- All workflow data cascades from the case id
     delete from workflow_cases
-        where object_id = delete_case_id;
+        where case_id = delete_case_id;
 
     return 0;
   end delete;

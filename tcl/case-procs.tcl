@@ -24,13 +24,13 @@ ad_proc -private workflow::case::insert {
     {-object_id:required}
 } {
     Internal procedure that creates a new workflow case in the
-    database. Should not be used by applications.
+    database. Should not be used by applications. Use workflow::case::new instead.
 
     @param object_id The object_id which the case is about
     @param workflow_short_name The short_name of the workflow.
     @return The case_id of the case. Returns the empty string if no case could be found.
 
-    @see 
+    @see workflow::case::new
 
     @author Lars Pind (lars@collaboraid.biz)
 } {
@@ -145,6 +145,18 @@ ad_proc -public workflow::case::get_element {
 } {
     get -case_id $case_id -action_id $action_id -array row
     return $row($element)
+}
+
+ad_proc -public workflow::case::delete {
+    {-case_id:required}
+} {
+    Delete a workflow case.
+
+    @param case_id The case_id you wish to delete
+
+    @author Simon Carstensen (simon@collaboraid.biz)
+} {
+    db_exec_plsql delete_case {}
 }
 
 ad_proc -public workflow::case::get_user_roles {

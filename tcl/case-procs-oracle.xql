@@ -93,5 +93,12 @@
     </querytext>
    </fullquery>
 
+   <fullquery name="workflow::case::delete.delete_case">
+    <querytext>
+        begin
+            :1 := workflow_case.delete(:case_id);
+        end;
+    </querytext>
+  </fullquery>
 
 </queryset>
