@@ -485,7 +485,9 @@ ad_proc workflow::case::get_notification_requests_multirow {
     {-case_id ""}
     {-return_url ""}
 } {
-
+    Returns a multirow with columns url, label, title, 
+    of the possible workflow notification types. Use this to present the user with a list of 
+    subscription links.
 } {
     array set pretty {
         workflow_assignee {my actions}
@@ -516,6 +518,57 @@ ad_proc workflow::case::get_notification_requests_multirow {
     }
 }
 
+ad_proc workflow::case::add_log_data {
+    {-entry_id:required}
+    {-key:required}
+    {-value:required}
+} {
+    Adds extra data information to a log entry, which can later
+    be retrieved using workflow::case::get_log_data_by_key.
+    Data are stored as simple key/value pairs.
+    
+    @param entry_id The ID of the log entry to which you want to attach data.
+    @param key The data key.
+    @param value The data value
+    
+    @see workflow::case::get_log_data_by_key
+    @see workflow::case::get_log_data
+    @author Lars Pind (lars@collaboraid.biz)
+} {
+    db_dml insert_log_data {}
+}
+
+ad_proc workflow::case::get_log_data_by_key {
+    {-entry_id:required}
+    {-key:required}
+} {
+    Retrieve extra data for a workflow log entry, previously stored using workflow::case::add_log_data.
+
+    @param entry_id The ID of the log entry to which the data you want are attached.
+    @param key The key of the data you're looking for.
+    @return The value, or the empty string if no such key exists for this entry.
+
+    @see workflow::case::add_log_data
+    @see workflow::case::get_log_data
+    @author Lars Pind (lars@collaboraid.biz)
+} {
+    db_string select_log_data {} -default {}
+}
+
+ad_proc workflow::case::get_log_data {
+    {-entry_id:required}
+} {
+    Retrieve extra data for a workflow log entry, previously stored using workflow::case::add_log_data.
+
+    @param entry_id The ID of the log entry to which the data you want are attached.
+    @return A tcl list of key/value pairs in array-list format, i.e. { key1 value1 key2 value2 ... }.
+
+    @see workflow::case::add_log_data
+    @see workflow::case::get_log_data_by_key
+    @author Lars Pind (lars@collaboraid.biz)
+} {
+    db_string select_log_data {} -default {}
+}
 
 
 
