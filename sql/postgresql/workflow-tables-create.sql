@@ -612,9 +612,9 @@ create or replace view workflow_case_assigned_actions as
 
 -- Answers the question: Which parties are currently assigned to which actions?
 -- Does not take deputies into account.
--- Pimarily needed for building the workflow_case_assigned_user_actions view.
+-- Pimarily needed for building the wf_case_assigned_user_actions view.
 -- TODO: See if we can find a way to improve this without the union?
-create or replace view workflow_case_assigned_party_actions as
+create or replace view wf_case_assigned_party_actions as
     select wcaa.enabled_action_id,
            wcaa.action_id,
            wcaa.case_id,
@@ -641,13 +641,13 @@ create or replace view workflow_case_assigned_party_actions as
 
 -- Answers the question: which actions is this user assigned to?
 -- Does take deputies into account
-create or replace view workflow_case_assigned_user_actions as
+create or replace view wf_case_assigned_user_actions as
     select wcapa.enabled_action_id,
            wcapa.action_id,
            wcapa.case_id,
            wudm.user_id,
            wudm.on_behalf_of_user_id
-    from   workflow_case_assigned_party_actions wcapa,
+    from   wf_case_assigned_party_actions wcapa,
            party_approved_member_map pamm,
            workflow_user_deputy_map wudm
     where  pamm.party_id = wcapa.party_id

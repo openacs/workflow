@@ -1452,7 +1452,7 @@ ad_proc -public workflow::case::action::permission_p {
 
     set assigned_p [db_string assigned_p {
         select 1 
-        from   workflow_case_assigned_user_actions
+        from   wf_case_assigned_user_actions
         where  enabled_action_id = :enabled_action_id
         and    user_id = :user_id
     } -default 0]

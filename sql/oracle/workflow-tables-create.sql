@@ -166,7 +166,11 @@ create table workflow_actions (
  -- When the action to automatically fire.
  -- A value of 0 means immediately, null means never.
  -- Other values mean x amount of time after having become enabled
- timeout_seconds          integer,
+  timeout_seconds          integer,
+  parent_action_id         integer
+                           constraint wf_acns_parent_action_fk
+                           references workflow_actions(action_id)
+                           on delete cascade,
   child_workflow_id       integer
                           constraint wf_acns_child_workflow_fk
                           references workflows(workflow_id)
@@ -174,7 +178,7 @@ create table workflow_actions (
   constraint wf_actions_short_name_un
   unique (workflow_id, short_name),
   constraint wf_actions_pretty_name_un
-  unique (workflow_id, pretty_name)
+  unique (workflow_id, parent_action_id, pretty_name)
 );
 
 create sequence workflow_actions_seq;
@@ -234,46 +238,6 @@ create table workflow_action_callbacks (
   primary key (action_id, acs_sc_impl_id)
 );
 
--- For the initial action, which fires when a new case is started
-create table workflow_initial_action (
-  workflow_id             constraint wf_initial_acn_pk
-                          primary key
-                          constraint wf_initial_acn_wf_fk
-                          references workflows(workflow_id)
-                          on delete cascade,
-  action_id               constraint wf_initial_acn_act_fk
-                          references workflow_actions(action_id)
-                          on delete cascade
-);
-
--- TODO: Test these
-create table workflow_action_child_role_map(
-  action_id                 integer
-                            constraint wf_act_child_rl_map_child_fk
-                            references workflow_actions(action_id),
-  child_role_id             integer
-                            constraint wf_act_child_rl_map_chld_rl_fk
-                            references workflow_roles(role_id),
-  parent_role_id            integer
-                            constraint wf_act_child_rl_map_prnt_rl_fk
-                            references workflow_roles(role_id),
-  mapping_type              char(40)
-                            constraint wf_act_child_rl_map_type_ck
-                            check (mapping_type in 
-                                ('per_role','per_user'))
-                            default 'per_role',
-  constraint wf_act_chld_rl_map_pk
-  primary key (action_id, child_role_id)
-);
-
-comment on column workflow_action_child_role_map.mapping_type is '
-  If per user, we create a child workflow per user who is a member of any of the parties assigned to the parent_role.
-  If per role, we create just one child workflow, with the exact same parties that are in the parent_role.
-  If more than one child_role has a mapping_type other than per_role, the cartesian product of these roles will be created.
-';
-
-
-
 ---------------------------------
 -- Workflow level, Finite State Machine Model
 ---------------------------------
@@ -286,6 +250,10 @@ create table workflow_fsm_states (
                           not null
                           constraint wf_fsm_states_workflow_id_fk
                           references workflows(workflow_id)
+                          on delete cascade,
+  parent_action_id        integer
+                          constraint wf_fsm_states_parent_action_fk
+                          references workflow_actions(action_id)
                           on delete cascade,
   sort_order              integer constraint wf_fsm_states_sort_order_nn
                           not null,
@@ -300,9 +268,11 @@ create table workflow_fsm_states (
   constraint wf_fsm_states_short_name_un
   unique (workflow_id, short_name),
   constraint wf_fsm_states_pretty_name_un
-  unique (workflow_id, pretty_name)
-
+  unique (workflow_id, parent_action_id, pretty_name)
 );
+
+create index wf_fsm_states_workflow_idx on workflow_fsm_states(workflow_id);
+create index wf_fsm_states_prnt_action_idx on workflow_fsm_states(parent_action_id);
 
 create sequence workflow_fsm_states_seq;
 
@@ -315,7 +285,7 @@ create table workflow_fsm_actions (
                           primary key,
   new_state               constraint wf_fsm_acns_new_st_fk
                           references workflow_fsm_states(state_id)
-                          on delete cascade
+                          on delete set null
   -- can be null
 );
 
@@ -335,15 +305,18 @@ create table workflow_fsm_action_en_in_st (
                           on delete cascade,
   assigned_p              char(1) default 'f'
                           constraint wf_fsm_acns_enabled_p_ck
-                          check (assigned_p in ('t','f'))
+                          check (assigned_p in ('t','f')),
   -- The users in the role assigned to an action are only assigned to take action
   -- in the enabled states that have the assigned_p flag
   -- set to true. For example, in Bug Tracker, the resolve action is enabled
   -- in both the open and resolved states but only has assigned_p set to true
   -- in the open state.
+  constraint workflow_fsm_acn_en_in_st_pk 
+  primary key (action_id, state_id)
 );
 
-
+create index wf_fsm_act_en_in_st_action_idx on workflow_fsm_action_en_in_st(action_id);
+create index wf_fsm_act_en_in_st_state_idx on workflow_fsm_action_en_in_st(state_id);
 
 --------------------------------------------------------
 -- Workflow level, context-dependent (assignments, etc.)
@@ -400,14 +373,9 @@ create table workflow_cases (
                           constraint wf_cases_workflow_id_fk
                           references workflows(workflow_id)
                           on delete cascade,
-  object_id               constraint wf_cases_object_id_nn
-                          not null
-                          constraint wf_cases_object_id_fk
+  object_id               constraint wf_cases_object_id_fk
                           references acs_objects(object_id)
                           on delete cascade
-                          constraint wf_cases_object_id_un
-                          unique
-  -- the object which this case is about, e.g. the acs-object for a bug-tracker bug
 );
 
 create table workflow_case_role_party_map (
@@ -434,34 +402,54 @@ create table workflow_case_role_party_map (
 create sequence workflow_case_enbl_act_seq;
 
 create table workflow_case_enabled_actions(
-  enabled_action_id       integer
-                          constraint wf_case_enbl_act_case_id_pk
-                          primary key,
-  case_id                 integer
-                          constraint wf_case_enbl_act_case_id_nn
-                          not null
-                          constraint wf_case_enbl_act_case_id_fk
-                          references workflow_cases(case_id)
-                          on delete cascade,
-  action_id               integer
-                          constraint wf_case_enbl_act_action_id_nn
-                          not null
-                          constraint wf_case_enbl_act_action_id_fk
-                          references workflow_actions(action_id)
-                          on delete cascade,
-  enabled_date            date
-                          default sysdate,
-  executed_date           date,
-  enabled_state           char(40)
-                          constraint wf_case_enbl_act_state_ck
-                          check (enabled_state in ('enabled','completed','canceled','refused')),
-  -- the timestamp when this action will fire
-  execution_time          date
+  enabled_action_id         integer
+                            constraint wf_case_enbl_act_case_id_pk
+                            primary key,
+  case_id                   integer
+                            constraint wf_case_enbl_act_case_id_nn
+                            not null
+                            constraint wf_case_enbl_act_case_id_fk
+                            references workflow_cases(case_id)
+                            on delete cascade,
+  action_id                 integer
+                            constraint wf_case_enbl_act_action_id_nn
+                            not null
+                            constraint wf_case_enbl_act_action_id_fk
+                            references workflow_actions(action_id)
+                            on delete cascade,
+  parent_enabled_action_id  integer
+                            constraint wf_case_enbl_act_parent_id_fk
+                            references workflow_case_enabled_actions(enabled_action_id)
+                            on delete cascade,
+  assigned_p                char(1) default 'f'
+                            constraint wf_case_enbl_act_ap_ck
+                            check (assigned_p in ('t', 'f')),
+  completed_p               char(1) default 'f'
+                            constraint wf_case_enbl_act_cp_ck
+                            check (completed_p in ('t', 'f')),
+  execution_time            date
 );
 
 create index wf_case_enbl_act_case_idx on workflow_case_enabled_actions(case_id);
 create index wf_case_enbl_act_action_idx on workflow_case_enabled_actions(action_id);
-create index wf_case_enbl_act_state_idx on workflow_case_enabled_actions(enabled_state);
+
+create table workflow_case_action_assignees(
+  enabled_action_id         integer
+                            constraint wf_case_actn_asgn_eaid_fk
+                            references workflow_case_enabled_actions
+                            on delete cascade,
+  party_id                  integer
+                            constraint wf_case_actn_asgn_pid_fk
+                            references parties(party_id)
+                            on delete cascade,
+  constraint wf_case_action_assignees_pk
+  primary key (enabled_action_id, party_id)
+);
+
+create index wf_case_actn_asgn_en_act_idx on workflow_case_action_assignees(enabled_action_id);
+create index wf_case_actn_asgn_party_idx on workflow_case_action_assignees(party_id);
+
+
 
 ---------------------------------
 -- Deputies
@@ -486,6 +474,11 @@ create table workflow_deputies (
 		      not null,
   message	      varchar(4000)
 );
+
+create index workflow_deputies_deputy_idx on workflow_deputies(deputy_user_id);
+create index workflow_deputies_sd_idx on workflow_deputies(start_date);
+create index workflow_deputies_ed_idx on workflow_deputies(end_date);
+
 
 -- role-to-user-map with deputies. Does not select users who
 -- have deputies, should we do that?
@@ -528,35 +521,29 @@ from (
 ---------------------------------
 
 create table workflow_case_fsm (
-  case_id                 integer
-			  constraint wf_case_fsm_case_id_nn
-                          not null
-                          constraint wf_case_fsm_case_id_fk
-                          references workflow_cases(case_id)
-                          on delete cascade,
-  current_state           constraint wf_case_fsm_st_id_fk
-                          references workflow_fsm_states(state_id)
-                          on delete cascade
+  case_id                   integer
+			    constraint wf_case_fsm_case_id_nn
+                            not null
+                            constraint wf_case_fsm_case_id_fk
+                            references workflow_cases(case_id)
+                            on delete cascade,
+  parent_enabled_action_id  integer
+                            constraint wf_case_fsm_action_id_fk
+                            references workflow_case_enabled_actions(enabled_action_id)
+                            on delete cascade,
+  current_state             constraint wf_case_fsm_st_id_fk
+                            references workflow_fsm_states(state_id)
+                            on delete cascade,
+  constraint wf_case_fsm_case_parent_un
+  unique (case_id, parent_enabled_action_id)
 );
 
+create index wf_case_fsm_prnt_enbl_actn_idx on workflow_case_fsm(parent_enabled_action_id);
+create index workflow_case_fsm_state_idx on workflow_case_fsm(current_state);
 
 ---------------------------------
 -- Case level, Activity Log
 ---------------------------------
-
---begin;
---    select content_type__create_type (
---        'workflow_activity_log', -- content_type
---	'content_revision',      -- supertype
---	'Workflow Activity Log', -- pretty_name
---	'Workflow Activity Log', -- pretty_plural
---	'workflow_case_log',     -- table_name
---	'entry_id'              -- id_column
---    );
---end;
-
-
-create sequence workflow_case_log_seq;
 
 create table workflow_case_log (
   entry_id                integer
@@ -607,19 +594,87 @@ show errors
 -- Useful views
 -----------------
 
-create or replace view workflow_case_assigned_actions as 
+-- Answers the question: Who is this user acting on behalf of? Which user is allowed to act on behalf of me?
+-- A mapping between users and their deputies
+create or replace view workflow_user_deputy_map as
+    select nvl(dep.deputy_user_id, u.user_id) as user_id,
+           u.user_id as on_behalf_of_user_id
+    from   users u,
+           workflow_deputies dep
+    where  u.user_id = dep.user_id (+)
+      and  (sysdate between dep.start_date and  dep.end_date);
+
+-- Answers the question: What are the enabled and assigned actions and which role are they assigned to?
+-- Useful for showing the task list for a particular user or role.
+-- Note that dynamic actions can very well be assigned even though they don't have an assigned_role;
+-- the assignees will be in workflow_case_action_assignees.
+create or replace view workflow_case_assigned_actions as
     select c.workflow_id,
-           c.case_id, 
+           wcea.case_id,
            c.object_id,
-           a.action_id, 
-           a.assigned_role as role_id
-    from   workflow_cases c,
-           workflow_case_fsm cfsm,
-           workflow_actions a,
-           workflow_fsm_action_en_in_st aeis
-    where  cfsm.case_id = c.case_id
-    and    a.always_enabled_p = 'f'
-    and    aeis.state_id = cfsm.current_state
-    and    aeis.assigned_p = 't'
-    and    a.action_id = aeis.action_id
-    and    a.assigned_role is not null;
+           wcea.action_id,
+           wa.assigned_role as role_id,
+           wcea.enabled_action_id
+      from workflow_case_enabled_actions wcea,
+           workflow_actions wa,
+           workflow_cases c
+     where wcea.completed_p = 'f'
+       and wcea.assigned_p = 't'
+       and wa.action_id = wcea.action_id
+       and c.case_id = wcea.case_id;
+
+-- Answers the question: Which parties are currently assigned to which actions?
+-- Does not take deputies into account.
+-- Pimarily needed for building the wf_case_assigned_user_actions view.
+-- TODO: See if we can find a way to improve this without the union?
+create or replace view wf_case_assigned_party_actions as
+    select wcaa.enabled_action_id,
+           wcaa.action_id,
+           wcaa.case_id,
+           wcaasgn.party_id
+    from   workflow_case_assigned_actions wcaa,
+           workflow_case_action_assignees wcaasgn
+    where  wcaasgn.enabled_action_id = wcaa.enabled_action_id
+    union
+    select wcaa.enabled_action_id,
+           wcaa.action_id,
+           wcaa.case_id,
+           wcrpm.party_id
+    from   workflow_case_assigned_actions wcaa,
+           workflow_case_role_party_map wcrpm
+    where  wcrpm.role_id = wcaa.role_id
+    and    wcrpm.case_id = wcaa.case_id
+    and    not exists (select 1 
+                       from   workflow_case_action_assignees 
+                       where  enabled_action_id = wcaa.enabled_action_id);
+-- TODO: Above 'not exists' can be removed, if we store the assigned_role_id with the 
+-- workflow_case_enabled_actions table,
+-- and set it to null when assignment is dynamic like here
+
+
+-- Answers the question: which actions is this user assigned to?
+-- Does take deputies into account
+create or replace view wf_case_assigned_user_actions as
+    select wcapa.enabled_action_id,
+           wcapa.action_id,
+           wcapa.case_id,
+           wudm.user_id,
+           wudm.on_behalf_of_user_id
+    from   wf_case_assigned_party_actions wcapa,
+           party_approved_member_map pamm,
+           workflow_user_deputy_map wudm
+    where  pamm.party_id = wcapa.party_id
+    and    wudm.on_behalf_of_user_id = pamm.member_id;
+
+-- Answers the question: which roles is this user playing?
+-- Does take deputies into account
+create or replace view workflow_case_role_user_map as
+    select wcrpm.case_id,
+           wcrpm.role_id,
+           wudm.user_id,
+           wudm.on_behalf_of_user_id
+    from   workflow_case_role_party_map wcrpm,
+           party_approved_member_map pamm,
+           workflow_user_deputy_map wudm
+    where  pamm.party_id = wcrpm.party_id
+    and    wudm.on_behalf_of_user_id = pamm.member_id;
