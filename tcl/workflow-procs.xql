@@ -16,25 +16,6 @@
     </querytext>
   </fullquery>
 
-  <fullquery name="workflow::get_not_cached.workflow_info">
-    <querytext>
-      select w.workflow_id,
-             w.short_name,
-             w.pretty_name,
-             w.object_id,
-             w.package_key,
-             w.object_type,
-             a.short_name as initial_action,
-             a.action_id as initial_action_id
-      from   workflows w,
-             workflow_initial_action wia,
-             workflow_actions a
-      where  w.workflow_id = :workflow_id
-        and  w.workflow_id = wia.workflow_id
-        and  a.action_id = wia.action_id
-    </querytext>
-  </fullquery>
-
   <fullquery name="workflow::get_not_cached.workflow_callbacks">
     <querytext>
       select impl.impl_id,

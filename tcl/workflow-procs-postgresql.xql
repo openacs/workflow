@@ -2,6 +2,26 @@
 <queryset>
   <rdbms><type>postgresql</type><version>7.2</version></rdbms>
 
+  <fullquery name="workflow::get_not_cached.workflow_info">
+    <querytext>
+      select w.workflow_id,
+             w.short_name,
+             w.pretty_name,
+             w.object_id,
+             w.package_key,
+             w.object_type,
+             a.short_name as initial_action,
+             a.action_id as initial_action_id
+      from   workflows w left outer join
+             workflow_initial_action wia 
+               on (w.workflow_id = wia.workflow_id) left outer join
+             workflow_actions a 
+               on (a.action_id = wia.action_id)
+      where  w.workflow_id = :workflow_id
+    </querytext>
+  </fullquery>
+
+
   <fullquery name="workflow::new.do_insert">
     <querytext>
         select workflow__new (
