@@ -252,12 +252,6 @@ ad_proc -public workflow::state::fsm::edit {
         }
     }
 
-    if { !$internal_p } {
-        # Flush the workflow cache, as changing an state changes the entire workflow
-        # e.g. initial_state_p, enabled_in_states.
-        workflow::flush_cache -workflow_id $workflow_id
-    }
-
     return $state_id
 }
 

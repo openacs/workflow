@@ -460,12 +460,6 @@ ad_proc -public workflow::action::edit {
         }
     }
 
-    if { !$internal_p } {
-        # Flush the workflow cache, as changing an action changes the entire workflow
-        # e.g. initial_action_p, enabled_in_states.
-        workflow::flush_cache -workflow_id $workflow_id
-    }
-
     return $action_id
 }
 
@@ -1054,10 +1048,6 @@ ad_proc -public workflow::action::fsm::edit {
         }
     }
 
-    if { !$internal_p } {
-        workflow::flush_cache -workflow_id $workflow_id
-    }
-
     return $action_id
 }
 
@@ -1317,7 +1307,7 @@ ad_proc -private workflow::action::fsm::generate_spec {
     # Get rid of a few defaults
     array set defaults { initial_action_p f always_enabled_p f }
 
-    set spec {}
+    set spec [list]
     foreach name [lsort [array names row]] {
         if { ![empty_string_p $row($name)] && ![exists_and_equal defaults($name) $row($name)] } {
             lappend spec $name $row($name)

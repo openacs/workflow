@@ -107,6 +107,40 @@ ad_proc -public workflow::case::new {
     
     db_transaction {
 
+        # If there is no initial-action, we create one now
+        # TODO: Should we do this here, or throw an error like we used to?
+        
+        # Initial action
+        set initial_action_id [workflow::get_element -workflow_id $workflow_id -element initial_action_id]
+        
+
+        if { [empty_string_p $initial_action_id] } {
+            # TODO: This is the old error message, if we want to throw it still, maybe make it optional
+            # error "The workflow must have an initial action."
+
+            set action_row(pretty_name) "Start"
+            set action_row(pretty_past_tense) "Started"
+            set action_row(initial_action_p) "t"
+
+            set states [workflow::fsm::get_states -workflow_id $workflow_id]
+            
+            # We use the first state as the initial state
+            set action_row(new_state_id) [lindex $states 0]
+            
+            # Add the new initial action
+            set initial_action_id [workflow::action::fsm::edit \
+                                       -operation "insert" \
+                                       -array action_row \
+                                       -workflow_id $workflow_id]
+        } else {
+            # NOTE: FSM-specific check here
+            set new_state [workflow::action::fsm::get_element -action_id $initial_action_id -element new_state]
+            
+            if { [empty_string_p $new_state] } {
+                error "Initial action must change state."
+            }
+        }
+
         # Insert the case
         set case_id [insert \
                          -workflow_id $workflow_id \
@@ -120,25 +154,12 @@ ad_proc -public workflow::case::new {
             workflow::case::role::assign -case_id $case_id -array assignment_array
         }
 
-        # Initial action
-        set action_id [workflow::get_element -workflow_id $workflow_id -element initial_action_id]
-
-        if { [empty_string_p $action_id] } {
-            error "The workflow must have an initial action."
-        }
-        
-        # NOTE: FSM-specific check here
-        set new_state [workflow::action::fsm::get_element -action_id $action_id -element new_state]
-
-        if { [empty_string_p $new_state] } {
-            error "Initial action must change state."
-        }
 
         # Execute the initial action
         workflow::case::action::execute \
             -no_notification=$no_notification_p \
             -case_id $case_id \
-            -action_id $action_id \
+            -action_id $initial_action_id \
             -comment $comment \
             -comment_mime_type $comment_mime_type \
             -user_id $user_id \
@@ -188,8 +209,7 @@ ad_proc -public workflow::case::get {
 
     workflow::case::fsm::get -case_id $case_id -array row -action_id $action_id
 
-    # LARS TODO:
-    # Should we redesign the API so that it's polymorphic, wrt. to workflow type (FSM/Petri Net)
+    # TODO: Should we redesign the API so that it's polymorphic, wrt. to workflow type (FSM/Petri Net)
     # That way, you'd call workflow::case::get and get a state_pretty pseudocolumn, which would be
     # the pretty-name of the state in an FSM, but it would be some kind of human-readable summary of
     # the active tokens in a petri net.

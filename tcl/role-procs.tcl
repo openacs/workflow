@@ -257,12 +257,6 @@ ad_proc -public workflow::role::edit {
         }
     }
 
-    if { !$internal_p } {
-        # Flush the workflow cache, as changing an role changes the entire workflow
-        # e.g. initial_role_p, enabled_in_states.
-        workflow::flush_cache -workflow_id $workflow_id
-    }
-
     return $role_id
 }
 
