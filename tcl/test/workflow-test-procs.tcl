@@ -106,6 +106,36 @@ ad_proc workflow::test::assert_case_state {
             [empty_string_p $user_roles]
 }
 
+
+ad_proc workflow::test::get_message_key_spec {} {
+    Get a workflow array style spec containing message keys.
+} {
+    set spec {
+        pretty_name "#acs-subsite.About_You#"
+        package_key "acs-automated-testing"
+        object_type "acs_object"
+        roles {
+            short_name {
+                pretty_name "#acs-subsite.Bad_Password#"
+            }
+        }
+        states {
+            foobar {
+                pretty_name "#acs-subsite.Basic_Information#"
+            }
+        }
+        actions {
+            foobar {
+                pretty_name "#acs-subsite.Confirm#"
+                pretty_past_tense "#acs-subsite.Customize_Questions#"
+                initial_action_p t                
+            }
+        }
+    }
+
+    return [list test_message_keys $spec]
+}
+
 ad_proc workflow::test::workflow_get_array_style_spec {} {
     Get the array-style spec for a workflow for the Bug Tracker 
     Bug use case.
@@ -114,7 +144,6 @@ ad_proc workflow::test::workflow_get_array_style_spec {} {
         pretty_name "Bug Test"
         package_key "acs-automated-testing"
         object_type "acs_object"
-        callbacks { bug-tracker.FormatLogTitle }
         roles {
             submitter {
                 pretty_name "Submitter"
@@ -124,10 +153,6 @@ ad_proc workflow::test::workflow_get_array_style_spec {} {
             }
             assignee {
                 pretty_name "Assignee"
-                callbacks {
-                    bug-tracker.ComponentMaintainer
-                    bug-tracker.ProjectMaintainer
-                }
             }
         }
         states {
@@ -152,40 +177,40 @@ ad_proc workflow::test::workflow_get_array_style_spec {} {
                 pretty_name "Comment"
                 pretty_past_tense "Commented"
                 allowed_roles { submitter assignee }
-                privileges { read }
+                privileges read
                 always_enabled_p t
             }
             edit {
                 pretty_name "Edit"
                 pretty_past_tense "Edited"
                 allowed_roles { submitter assignee }
-                privileges { write }
+                privileges write
                 always_enabled_p t
             }
             resolve {
                 pretty_name "Resolve"
                 pretty_past_tense "Resolved"
                 assigned_role assignee
-                enabled_states { open resolved }
+                enabled_states { resolved }
+                assigned_states { open }
                 new_state "resolved"
-                privileges { write }
-                callbacks { bug-tracker.CaptureResolutionCode }
+                privileges write
             }
             close {
                 pretty_name "Close"
                 pretty_past_tense "Closed"
                 assigned_role submitter
-                enabled_states { resolved }
+                assigned_states resolved
                 new_state "closed"
-                privileges { write }
+                privileges write
             }
             reopen {
                 pretty_name "Reopen"
                 pretty_past_tense "Closed"
-                allowed_roles { submitter }
+                allowed_roles submitter
                 enabled_states { resolved closed }
                 new_state "open"
-                privileges { write }
+                privileges write
             }
         }
     }
@@ -277,8 +302,7 @@ ad_proc workflow::test::workflow_setup {} {
             -pretty_name "Bug Test" \
             -package_key "acs-automated-testing" \
             -object_id [workflow::test::workflow_object_id] \
-            -object_type "acs_object" \
-            -callbacks { bug-tracker.FormatLogTitle }]
+            -object_type "acs_object" ]
 
     #####
     #
@@ -289,15 +313,11 @@ ad_proc workflow::test::workflow_setup {} {
     workflow::role::new -workflow_id $workflow_id \
             -short_name "submitter" \
             -pretty_name "Submitter" \
-            -callbacks { workflow.Role_DefaultAssignees_CreationUser }
+            -callbacks workflow.Role_DefaultAssignees_CreationUser
 
     workflow::role::new -workflow_id $workflow_id \
             -short_name "assignee" \
             -pretty_name "Assignee" \
-            -callbacks {
-        bug-tracker.ComponentMaintainer
-        bug-tracker.ProjectMaintainer
-    }
 
     #####
     #
@@ -337,7 +357,7 @@ ad_proc workflow::test::workflow_setup {} {
             -pretty_name "Comment" \
             -pretty_past_tense "Commented" \
             -allowed_roles { submitter assignee } \
-            -privileges { read } \
+            -privileges read \
             -always_enabled_p t
 
     workflow::action::fsm::new \
@@ -346,7 +366,7 @@ ad_proc workflow::test::workflow_setup {} {
             -pretty_name "Edit" \
             -pretty_past_tense "Edited" \
             -allowed_roles { submitter assignee } \
-            -privileges { write } \
+            -privileges write \
             -always_enabled_p t
 
     workflow::action::fsm::new \
@@ -355,10 +375,10 @@ ad_proc workflow::test::workflow_setup {} {
             -pretty_name "Resolve" \
             -pretty_past_tense "Resolved" \
             -assigned_role assignee \
-            -enabled_states { open resolved } \
+            -enabled_states resolved \
+            -assigned_states open \
             -new_state "resolved" \
-            -privileges { write } \
-            -callbacks { bug-tracker.CaptureResolutionCode }
+            -privileges write
 
     workflow::action::fsm::new \
             -workflow_id $workflow_id \
@@ -366,9 +386,9 @@ ad_proc workflow::test::workflow_setup {} {
             -pretty_name "Close" \
             -pretty_past_tense "Closed" \
             -assigned_role submitter \
-            -enabled_states { resolved } \
+            -assigned_states resolved \
             -new_state "closed" \
-            -privileges { write }
+            -privileges write
 
     workflow::action::fsm::new \
             -workflow_id $workflow_id \
@@ -378,7 +398,7 @@ ad_proc workflow::test::workflow_setup {} {
             -allowed_roles submitter \
             -enabled_states { resolved closed } \
             -new_state "open" \
-            -privileges { write }    
+            -privileges write    
 
     return $workflow_id
 }
@@ -411,23 +431,43 @@ ad_proc workflow::test::case_setup {} {
     return $case_id
 }
 
+ad_proc workflow::test::run_with_teardown {
+    test_chunk
+    teardown_chunk
+} {
+    Execute code in test chunk and guarantee that code in 
+    teardown_chunk will be executed even if error if thrown.
+
+    @author Peter Marklund
+} {
+    set error_p [catch $test_chunk errMsg]
+
+    global errorInfo
+    set setup_error_stack $errorInfo
+
+    # Teardown
+    eval $teardown_chunk
+
+    if { $error_p } {    
+        aa_false "error during setup: $errMsg - $setup_error_stack" $error_p
+    }
+}
+
 ad_proc workflow::test::run_bug_tracker_test {
     {-create_proc "workflow_setup"}
 } {
+    # Make sure to run the teardown proc even if there is an error
     set test_chunk {
         # Setup
-        # Make sure to run the teardown proc even if there is an error
-        # Cannot get this to work as it seems the catch will return true
-        # if any catch did so in the executed code.
-        # set error_p [catch workflow::test::workflow_setup error]
+
         set workflow_id [$create_proc]
 
         set generated_spec [workflow::fsm::generate_spec -workflow_id $workflow_id]
         
-        ns_log Notice "LARS: Generated spec: $generated_spec"
-        ns_log Notice "LARS: Hard-coded spec: [workflow_get_array_style_spec]"
+        ns_log Notice "LARS: Generated spec 1: $generated_spec"
+        ns_log Notice "LARS: Hard-coded spec 1: [workflow_get_array_style_spec]"
 
-        aa_true "Checking that generated spec is identical to the spec that we created from (except for ordering)" \
+        aa_true "Checking that generated spec 1 is identical to the spec that we created from (except for ordering)" \
                 [array_lists_equal_p $generated_spec [workflow_get_array_style_spec]]
         
     
@@ -601,3 +641,32 @@ aa_register_case bugtracker_workflow_clone {
     }
 }
 
+aa_register_case workflow_spec_with_message_keys {
+    Test creating a workflow from a spec with message catalog
+    keys in it and then generating a spec from that workflow
+    and making sure that the spec is preserved (message keys are not
+    localized)
+
+    @author Peter Marklund
+} {
+    set test_chunk {
+
+        set workflow_id [workflow::fsm::new_from_spec \
+            -spec [workflow::test::get_message_key_spec]]
+
+        set generated_spec [workflow::fsm::generate_spec -workflow_id $workflow_id]
+        
+        ns_log Notice "LARS: Generated spec 2: $generated_spec"
+        ns_log Notice "LARS: Hard-coded spec 2: [workflow::test::get_message_key_spec]"
+
+        aa_true "Checking that generated spec 2 is identical to the spec that we created from (except for ordering)" \
+            [array_lists_equal_p $generated_spec [workflow::test::get_message_key_spec]]
+    }
+
+    set teardown_chunk {
+        set workflow_id [workflow::get_id -package_key acs-automated-testing -short_name test_message_keys]
+        workflow::delete -workflow_id $workflow_id
+    }
+    
+    workflow::test::run_with_teardown $test_chunk $teardown_chunk
+}

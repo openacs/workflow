@@ -8,20 +8,29 @@
 -- License.  Full text of the license is available from the GNU Project:
 -- http://www.fsf.org/copyleft/gpl.html
 
--- Drop all data in workflow tables by dropping the acs objects of all workflows in the system.
--- This is sufficient since all workflow data ultimately
--- hangs on workflow instances and will be dropped on cascade
+declare
+    foo integer;
 begin
-  for row in (select object_id from acs_objects
-              where object_type = 'workflow_lite')
+  for row in (select workflow_id from workflows)
   loop
-    acs_object.delete(row.object_id);
+    foo := workflow.delete(row.workflow_id);
   end loop;
  
   acs_object_type.drop_type('workflow_lite', 't');
 end;
 /
 show errors
+
+begin
+    content_type.drop_type (
+        content_type => 'workflow_case_log_entry',
+        drop_children_p => 't',
+        drop_table_p => 't'
+    );
+end;
+/
+show errors
+
 
 -- Drop all tables
 drop table workflow_case_fsm;

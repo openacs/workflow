@@ -124,6 +124,8 @@ ad_proc -public workflow::action::new {
 
     }
 
+    # The cache is flushed in workflow::action::fsm::new
+    
     return $action_id
 }
 
@@ -144,7 +146,7 @@ ad_proc -public workflow::action::get_allowed_roles {
     @param action_id The action_id of the action.
     @return List of role_id of the allowed roles
 } {
-    return [get_from_request_cache $action_id "allowed_roles"]
+    return [get_from_request_cache $action_id "allowed_role_ids"]
 }
 
 ad_proc -public workflow::action::get_privileges {
@@ -267,7 +269,6 @@ ad_proc -public workflow::action::callback_insert {
         db_dml insert_callback {}
     }
 
-    # Action related data changed - need to flush
     set workflow_id [workflow::action::get_workflow_id -action_id $action_id]
     workflow::action::flush_cache -workflow_id $workflow_id
 
@@ -320,6 +321,7 @@ ad_proc -public workflow::action::fsm::new {
     {-assigned_role {}}
     {-privileges {}}
     {-enabled_states {}}
+    {-assigned_states {}}
     {-new_state {}}
     {-callbacks {}}
     {-always_enabled_p f}
@@ -363,16 +365,25 @@ ad_proc -public workflow::action::fsm::new {
         }
         db_dml insert_fsm_action {}
 
-        # Record in which states the action is enabled
+        # Record in which states the action is enabled but not assigned
         foreach state_short_name $enabled_states {
             set enabled_state_id [workflow::state::fsm::get_id \
                     -workflow_id $workflow_id \
                     -short_name $state_short_name]
+            set assigned_p "f"
+            db_dml insert_enabled_state {}
+        }
+
+        # Record where the action is both enabled and assigned
+        foreach state_short_name $assigned_states {
+            set enabled_state_id [workflow::state::fsm::get_id \
+                    -workflow_id $workflow_id \
+                    -short_name $state_short_name]            
+            set assigned_p "t"
             db_dml insert_enabled_state {}
         }
     }   
 
-    # Action info for this workflow changed, need to flush
     workflow::action::flush_cache -workflow_id $workflow_id
 }
 
@@ -444,6 +455,7 @@ ad_proc -private workflow::action::fsm::parse_spec {
         privileges {} 
         always_enabled_p f 
         enabled_states {} 
+        assigned_states {}
         new_state {} 
         initial_action_p f
         callbacks {}
@@ -464,6 +476,7 @@ ad_proc -private workflow::action::fsm::parse_spec {
             -privileges $action(privileges) \
             -always_enabled_p $action(always_enabled_p) \
             -enabled_states $action(enabled_states) \
+            -assigned_states $action(assigned_states) \
             -new_state $action(new_state) \
             -callbacks $action(callbacks) \
             -initial_action_p $action(initial_action_p)
@@ -514,7 +527,8 @@ ad_proc -private workflow::action::fsm::generate_spec {
     array unset row callbacks_array
     array unset row callback_ids
     array unset row allowed_roles_array
-    
+    array unset row allowed_role_ids
+
     # Get rid of a few defaults
     array set defaults { initial_action_p f always_enabled_p f }
 
@@ -523,7 +537,7 @@ ad_proc -private workflow::action::fsm::generate_spec {
             array unset row $name
         }
     }
-
+ 
     # Get rid of empty strings
     foreach name [array names row] {
         if { [empty_string_p $row($name)] } {
@@ -704,9 +718,11 @@ ad_proc -private workflow::action::get_all_info_not_cached {
     # Build an array for all allowed roles for all actions
     array set allowed_roles_array {}
     array set allowed_roles {}
+    array set allowed_role_ids {}
     db_foreach action_allowed_roles {} -column_array allowed_role_row {
         set allowed_roles_array($allowed_role_row(action_id),$allowed_role_row(role_id)) [array get allowed_role_row]
         lappend allowed_roles($allowed_role_row(action_id)) $allowed_role_row(short_name)
+        lappend allowed_role_ids($allowed_role_row(action_id)) $allowed_role_row(role_id)
     }
 
     # Build an array  of privileges for all actions
@@ -715,18 +731,23 @@ ad_proc -private workflow::action::get_all_info_not_cached {
         lappend privileges($action_id) $privilege
     }
 
-    # Build an erray of enabled state short names for all actions
+    # Build arrays of enabled and assigned state short names for all actions
     array set enabled_states {}
+    array set assigned_states {}
     db_foreach action_enabled_short_name {} {
-        lappend enabled_states($action_id) $short_name
+        if { [string equal $assigned_p "t"] } {
+            lappend assigned_states($action_id) $short_name
+        } else {
+            lappend enabled_states($action_id) $short_name
+        }
     }
 
     # For each action_id, add to the array of that action the contents of the
-    # sub arrays (callbacks, allowed_roles, privileges)
+    # sub arrays (callbacks, allowed_roles, allowed_role_ids, privileges)
     foreach action_id $action_ids {
         array set one_action $action_data($action_id)
 
-        foreach array_name { privileges enabled_states callbacks allowed_roles } {
+        foreach array_name { privileges enabled_states assigned_states callbacks allowed_roles allowed_role_ids } {
             if { [info exists ${array_name}($action_id)] } {
                 set one_action(${array_name}) [set ${array_name}($action_id)]
             } else {

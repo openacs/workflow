@@ -304,7 +304,13 @@ create table workflow_fsm_action_en_in_st (
                           not null
                           constraint wf_fsm_acn_enb_in_st_st_id_fk
                           references workflow_fsm_states
-                          on delete cascade
+                          on delete cascade,
+  assigned_p              boolean default 't'
+  -- The users in the role assigned to an action are only assigned to take action
+  -- in the enabled states that have the assigned_p flag
+  -- set to true. For example, in Bug Tracker, the resolve action is enabled
+  -- in both the open and resolved states but only has assigned_p set to true
+  -- in the open state.
 );
 
 
@@ -361,7 +367,7 @@ create sequence workflow_cases_seq;
 
 create table workflow_cases (
   case_id                 integer
-                          constraint wf_cases_pk
+                          constraint workflow_cases_pk
                           primary key,
   workflow_id             integer
                           constraint wf_cases_workflow_id_nn
@@ -380,6 +386,8 @@ create table workflow_cases (
   -- the object which this case is about, e.g. the acs-object for a bug-tracker bug
 );
 
+create index workflow_cases_workflow_id on workflow_cases (workflow_id);
+
 create table workflow_case_role_party_map (
   case_id                 integer
                           constraint wf_case_role_pty_map_case_id_nn
@@ -388,9 +396,9 @@ create table workflow_case_role_party_map (
                           references workflow_cases(case_id)
                           on delete cascade,
   role_id                 integer
-                          constraint wf_case_role_pty_map_case_id_nn
+                          constraint wf_case_role_pty_map_role_id_nn
                           not null
-                          constraint wf_case_role_pty_map_case_id_fk
+                          constraint wf_case_role_pty_map_role_id_fk
                           references workflow_roles(role_id)
                           on delete cascade,
   party_id                integer
@@ -440,6 +448,10 @@ create table workflow_case_log (
                           references workflow_actions(action_id)
                           on delete cascade
 );
+
+create index workflow_case_log_action_id on workflow_case_log (action_id);
+create index workflow_case_log_case_id on workflow_case_log (case_id);
+
 
 create table workflow_case_log_data (
   entry_id                integer

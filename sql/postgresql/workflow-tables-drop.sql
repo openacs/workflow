@@ -8,18 +8,15 @@
 -- License.  Full text of the license is available from the GNU Project:
 -- http://www.fsf.org/copyleft/gpl.html
 
--- Drop all data in workflow tables by dropping the acs objects of all workflows in the system.
--- This is sufficient since all workflow data ultimately
--- hangs on workflow instances and will be dropped on cascade
+-- Delete workflow data first
 create function inline_0 ()
 returns integer as '
 declare
         row     record;
 begin
-        for row in select object_id from acs_objects
-                          where object_type = ''workflow_lite''
+        for row in select workflow_id from workflows
         loop
-                perform acs_object__delete(row.object_id);
+                perform workflow__delete(row.workflow_id);
         end loop;
 
         return 1;
@@ -71,5 +68,3 @@ drop sequence workflow_roles_seq;
 drop sequence workflow_actions_seq;
 drop sequence workflow_fsm_states_seq;
 drop sequence workflow_cases_seq;
-
-

@@ -19,8 +19,16 @@
 
   <fullquery name="workflow::delete.do_delete">
     <querytext>
-        select acs_object__delete(:workflow_id);
+        select workflow__delete(:workflow_id);
+    </querytext>
+  </fullquery>
+  
+  <fullquery name="workflow::callback_insert.select_sort_order">
+    <querytext>
+        select coalesce(max(sort_order),0) + 1
+        from   workflow_callbacks
+        where  workflow_id = :workflow_id
     </querytext>
   </fullquery>
 
-</queryset>
+ </queryset>

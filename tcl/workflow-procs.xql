@@ -10,6 +10,12 @@
     </querytext>
   </fullquery>
 
+  <fullquery name="workflow::exists_p.do_select">
+    <querytext>
+        select count(*) from workflows where workflow_id = :workflow_id
+    </querytext>
+  </fullquery>
+
   <fullquery name="workflow::get_not_cached.workflow_info">
     <querytext>
       select w.workflow_id,
@@ -65,15 +71,7 @@
         where  workflow_id = :workflow_id
     </querytext>
   </fullquery>
-  
-  <fullquery name="workflow::callback_insert.select_sort_order">
-    <querytext>
-        select coalesce(max(sort_order),0) + 1
-        from   workflow_callbacks
-        where  workflow_id = :workflow_id
-    </querytext>
-  </fullquery>
-
+ 
   <fullquery name="workflow::callback_insert.insert_callback">
     <querytext>
         insert into workflow_callbacks (workflow_id, acs_sc_impl_id, sort_order)

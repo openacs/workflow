@@ -28,19 +28,21 @@ ad_proc -private workflow::install::package_install {} {
 
         register_implementations
         
+        register_notification_types
     }
 }
 
 ad_proc -private workflow::install::package_uninstall {} {
     Workflow package uninstall proc
 } {
-
     db_transaction {
 
-        delete_service_contracts
+        unregister_notification_types
 
         unregister_implementations
         
+        delete_service_contracts
+
     }
 }
 
@@ -67,6 +69,7 @@ ad_proc -private workflow::install::create_service_contracts {} {
 
         workflow::install::create_activity_log_format_title_service_contract
 
+        workflow::install::create_get_notification_info_service_contract
     }
 }
 
@@ -85,6 +88,7 @@ ad_proc -private workflow::install::delete_service_contracts {} {
         
         acs_sc::contract::delete -name [workflow::service_contract::activity_log_format_title]
     
+        acs_sc::contract::delete -name [workflow::service_contract::notification_info]
     }
 }
     
@@ -222,7 +226,7 @@ ad_proc -private workflow::install::create_action_side_effect_service_contract {
 ad_proc -private workflow::install::create_activity_log_format_title_service_contract {} {
         
     set format_title_spec {
-        description "Create the title format for activity log"
+        description "Output additional details for the title of an activity log entry"
         operations {
             GetObjectType {
                 description "Get the object type for which this implementation is valid."
@@ -239,7 +243,11 @@ ad_proc -private workflow::install::create_activity_log_format_title_service_con
             GetTitle {
                 description "Get the title name of this implementation."
                 input { 
-                    entry_id:integer 
+                    case_id:integer
+                    object_id:integer
+                    action_id:integer
+                    entry_id:integer
+                    data_arraylist:string,multiple
                 } 
                 output { 
                     title:string 
@@ -251,6 +259,41 @@ ad_proc -private workflow::install::create_activity_log_format_title_service_con
     
     acs_sc::contract::new_from_spec \
             -spec [concat [list name [workflow::service_contract::activity_log_format_title]] $format_title_spec]
+}
+
+ad_proc -private workflow::install::create_get_notification_info_service_contract {} {
+        
+    set notification_info_spec {
+        description "Get information for notifications"
+        operations {
+            GetObjectType {
+                description "Get the object type for which this implementation is valid."
+                output {
+                    object_type:string
+                }
+                iscachable_p "t"
+            }
+            GetPrettyName {
+                description "Get the pretty name of this implementation. Will be localized, so it may contain #...#."
+                output { object_type:string }
+                iscachable_p "t"
+            }
+            GetNotificationInfo {
+                description "Get the notification information as a 4-element list containing url, one-line summary, details about the object in the form of an array-list with label/value, and finally an optional tag for the notification subject, in the order mentioned here."
+                input { 
+                    case_id:integer
+                    object_id:integer
+                } 
+                output { 
+                    info:string,multiple
+                }
+                iscachable_p "f"
+            }
+        }
+    }
+    
+    acs_sc::contract::new_from_spec \
+            -spec [concat [list name [workflow::service_contract::notification_info]] $notification_info_spec]
 }
 
 #####
@@ -275,7 +318,6 @@ ad_proc -private workflow::install::register_implementations {} {
 
         workflow::install::register_notification_impl
 
-        workflow::install::register_notification_types
     }
 
 }
@@ -436,3 +478,15 @@ ad_proc -public workflow::install::register_notification_types {} {
         db_dml enable_all_delivery_methods {}
     }
 }
+
+ad_proc -public workflow::install::unregister_notification_types {} {
+    Unregister workflow notification types
+} {
+    db_transaction {
+        notification::type::delete -short_name "workflow_assignee"
+        notification::type::delete -short_name "workflow_my_cases"
+        notification::type::delete -short_name "workflow_case"
+        notification::type::delete -short_name "workflow"
+    }
+}
+

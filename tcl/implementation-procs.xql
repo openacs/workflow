@@ -28,7 +28,7 @@
     </querytext>
   </fullquery>
 
-  <partialquery name="workflow::impl::role_assignee_subquery::registered_users::get_subquery_name.cc_users">
+  <partialquery name="workflow::impl::role_assignee_subquery::registered_users::get_subquery.cc_users">
     <querytext>
         cc_users
     </querytext>

@@ -53,7 +53,6 @@ ad_proc -public workflow::state::fsm::new {
         db_dml do_insert {}
     }
 
-    # State info for the workflow changed, flush whole state cache
     workflow::state::flush_cache -workflow_id $workflow_id
  
     return $state_id
@@ -71,7 +70,10 @@ ad_proc -public workflow::state::fsm::get {
     # Select the info into the upvar'ed Tcl Array
     upvar $array row
 
-    db_1row state_info {} -column_array row
+    set workflow_id [workflow::state::fsm::get_workflow_id -state_id $state_id]
+    array set state_data [workflow::state::fsm::get_all_info -workflow_id $workflow_id]
+
+    array set row $state_data($state_id)
 }
 
 ad_proc -public workflow::state::fsm::get_element {
@@ -198,7 +200,7 @@ ad_proc -private workflow::state::fsm::generate_spec {
     array unset row state_id
     array unset row workflow_id
     array unset row sort_order
-
+    
     # Get rid of empty strings
     foreach name [array names row] {
         if { [empty_string_p $row($name)] } {
@@ -249,7 +251,7 @@ ad_proc -private workflow::state::flush_cache {
     # ...
 
     # Flush the thread global cache
-    util_memoize_flush [list workflow::state::get_all_info_not_cached -workflow_id $workflow_id]    
+    util_memoize_flush [list workflow::state::fsm::get_all_info_not_cached -workflow_id $workflow_id]    
 }
 
 ad_proc -private workflow::state::fsm::get_all_info {
@@ -284,7 +286,6 @@ ad_proc -private workflow::state::fsm::get_all_info_not_cached {
     set state_ids [list]
     db_foreach select_states {} -column_array state_row {
         # Cache the state_id -> workflow_id lookup
-
         util_memoize_seed \
                 [list workflow::state::fsm::get_workflow_id_not_cached -state_id $state_row(state_id)] \
                 $workflow_id

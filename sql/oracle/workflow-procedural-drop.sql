@@ -12,6 +12,5 @@
 ---------------------------------
 drop package workflow;
 drop package workflow_case;
-drop package workflow_activity_log;
-
+drop package workflow_case_log_entry;
 

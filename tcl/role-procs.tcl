@@ -55,6 +55,7 @@ ad_proc -private workflow::role::insert {
 
         db_dml do_insert {}
     }
+
     return $role_id
 }
 
@@ -272,7 +273,7 @@ ad_proc -private workflow::role::generate_spec {
     array unset row callbacks_array
     array unset row callback_ids
     array unset row callback_impl_names
-    
+
     # Get rid of empty strings
     foreach name [array names row] {
         if { [empty_string_p $row($name)] } {
@@ -337,6 +338,9 @@ ad_proc -public workflow::role::callback_insert {
         db_dml insert_callback {}
     }
 
+    set workflow_id [workflow::role::get_workflow_id -role_id $role_id]
+    workflow::role::flush_cache -workflow_id $workflow_id
+
     return $acs_sc_impl_id
 }
 
@@ -349,7 +353,7 @@ ad_proc -private workflow::role::flush_cache {
     @author Peter Marklund
 } {
     # TODO: Flush request cache
-    # ...
+    # no request cache to flush yet
 
     # Flush the thread global cache
     util_memoize_flush [list workflow::role::get_all_info_not_cached -workflow_id $workflow_id]    
@@ -399,7 +403,6 @@ ad_proc -private workflow::role::get_all_info_not_cached {
                 [list workflow::role::get_workflow_id_not_cached -role_id $role_id] \
                 $workflow_id
     }
-    unset row
     
     # Get the callbacks of all roles of the workflow
     foreach role_id $role_ids {

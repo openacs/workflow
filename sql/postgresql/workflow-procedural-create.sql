@@ -15,12 +15,43 @@ create or replace function workflow__delete (integer)
 returns integer as '
 declare
   delete_workflow_id            alias for $1;
+  rec                           record;
 begin
-  select acs_object__delete(delete_workflow_id);
+  -- Delete all cases first
+  for rec in select case_id     
+             from workflow_cases
+             where workflow_id = delete_workflow_id loop
+
+        perform workflow_case__delete (rec.case_id);
+  end loop;
+
+  perform acs_object__delete(delete_workflow_id);
 
   return 0; 
 end;' language 'plpgsql';
 
+create or replace function workflow_case__delete (integer)
+returns integer as '
+declare
+  delete_case_id                alias for $1;
+  rec                           record;
+begin
+
+    for rec in select cr.item_id
+                   from cr_items cr, workflow_case_log wcl
+                   where cr.item_id = wcl.entry_id
+                   and wcl.case_id = delete_case_id loop
+
+                delete from workflow_case_log where entry_id = rec.item_id;
+                perform content_item__delete(rec.item_id);                
+    end loop;
+
+    -- All workflow data cascades from the case id
+    delete from workflow_cases
+      where object_id = delete_case_id;    
+
+  return 0; 
+end;' language 'plpgsql';
 
 -- Function for creating a workflow
 create or replace function workflow__new (
@@ -97,10 +128,10 @@ begin
 end;
 ' language 'plpgsql';
 
-select define_function_args ('workflow_case_log_entry__new','item_id,content_type;workflow_case_log_entry,case_id,action_id,comment,comment_mime_type,creation_user,creation_ip');
+select define_function_args ('workflow_case_log_entry__new','entry_id,content_type;workflow_case_log_entry,case_id,action_id,comment,comment_mime_type,creation_user,creation_ip');
 
 create or replace function workflow_case_log_entry__new (
-    integer,                  -- item_id
+    integer,                  -- entry_id
     varchar,                  -- content_type
     integer,                  -- case_id
     integer,                  -- action_id

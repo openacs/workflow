@@ -67,10 +67,11 @@ ad_proc -public workflow::new {
         }
 
         # Insert the workflow
-        set workflow_id [db_string do_insert {}]
+        set workflow_id [db_exec_plsql do_insert {}]
         
         # Callbacks
         foreach callback_name $callbacks {
+            ns_log Notice "callback_name = $callback_name"
             workflow::callback_insert \
                     -workflow_id $workflow_id \
                     -name $callback_name
@@ -90,6 +91,15 @@ ad_proc -public workflow::new {
     return $workflow_id
 }
 
+ad_proc -public workflow::exists_p {
+    {-workflow_id:required}
+} {
+    Return 1 if the workflow with given id exists and 0 otherwise.
+    This proc is currently not cached.
+} {
+    return [db_string do_select {}
+}
+
 ad_proc -public workflow::delete {
     {-workflow_id:required}
 } {
@@ -101,7 +111,7 @@ ad_proc -public workflow::delete {
 } {
     workflow::flush_cache -workflow_id $workflow_id
 
-    return [db_string do_delete {}]
+    return [db_exec_plsql do_delete {}]
 }
 
 ad_proc -public workflow::get_id {
@@ -109,24 +119,23 @@ ad_proc -public workflow::get_id {
     {-object_id {}}
     {-short_name:required}
 } {
-    Get workflow_id by short_name and object_id.
+    Get workflow_id by short_name and object_id. Provide either package_key
+    or object_id.
     
     @param object_id The ID of the object the workflow's for (typically a package instance)
+    @param package_key The key of the package workflow belongs to.
     @param short_name the short name of the workflow you want
+
+    @return The id of the workflow or the empty string if no workflow was found.
 
     @author Lars Pind (lars@collaboraid.biz)
 } {
-
     set workflow_id [util_memoize [list workflow::get_id_not_cached \
                                        -package_key $package_key \
                                        -object_id $object_id \
                                        -short_name $short_name] [workflow::cache_timeout]]
 
-    if { ![empty_string_p $workflow_id] } {
-        return $workflow_id
-    } else {
-        error "No workflow found with object_id $object_id and short_name $short_name"
-    }
+    return $workflow_id
 }
 
 ad_proc -public workflow::get {
@@ -369,6 +378,17 @@ ad_proc -private workflow::get_callbacks {
     }
 }
 
+ad_proc -public workflow::get_notification_links {
+    {-workflow_id:required}
+    {-case_id}
+    {-return_url}
+} {
+    Return a links to sign up for notifications.
+    @return A multirow with columns url, label, title
+} {
+    
+}
+
 
 #####
 #
@@ -466,6 +486,13 @@ ad_proc -public workflow::fsm::generate_spec {
     array unset row initial_action_id
 
     set spec [list]
+
+    # Get rid of empty strings
+    foreach name [array names row] {
+        if { [empty_string_p $row($name)] } {
+            array unset row $name
+        }
+    }
 
     foreach name [lsort [array names row]] {
         lappend spec $name $row($name)
@@ -604,6 +631,10 @@ ad_proc -public workflow::service_contract::action_side_effect {} {
 
 ad_proc -public workflow::service_contract::activity_log_format_title {} {
     return "[workflow::package_key].ActivityLog_FormatTitle"
+}
+
+ad_proc -public workflow::service_contract::notification_info {} {
+    return "[workflow::package_key].NotificationInfo"
 }
 
 ad_proc -public workflow::service_contract::get_impl_id {

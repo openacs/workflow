@@ -1,6 +1,16 @@
 <?xml version="1.0"?>
 <queryset>
 
+  <fullquery name="workflow::case::insert.select_initial_state">
+    <querytext>
+      select state_id
+      from   workflow_fsm_states
+      where  workflow_id = :workflow_id
+      order  by sort_order
+      limit  1
+    </querytext>
+  </fullquery>
+
   <fullquery name="workflow::case::insert.insert_case">
     <querytext>
       insert into workflow_cases (
@@ -32,7 +42,7 @@
     </querytext>
   </fullquery>
 
-  <fullquery name="workflow::case::get_user_roles.select_user_roles">
+  <fullquery name="workflow::case::get_user_roles_not_cached.select_user_roles">
     <querytext>
       select distinct rpm.role_id
       from   workflow_case_role_party_map rpm, 
@@ -43,7 +53,7 @@
     </querytext>
   </fullquery>
 
-  <fullquery name="workflow::case::get_enabled_actions.select_enabled_actions">
+  <fullquery name="workflow::case::get_enabled_actions_not_cached.select_enabled_actions">
     <querytext>
       select a.action_id
       from   workflow_cases c,
@@ -90,15 +100,6 @@
     </querytext>
   </fullquery>
 
-  <fullquery name="workflow::case::role::get_picklist.select_options">
-    <querytext>
-        select acs_object__name(p.party_id) || ' (' || p.email || ')'  as label, p.party_id
-        from   parties p
-        where  p.party_id in ([join $party_id_list ", "])
-        order  by label
-    </querytext>
-  </fullquery>
-
   <fullquery name="workflow::case::role::assignee_insert.delete_assignees">
     <querytext>
         delete from workflow_case_role_party_map
@@ -131,24 +132,6 @@
       select current_state
       from   workflow_case_fsm c
       where  c.case_id = :case_id
-    </querytext>
-  </fullquery>
-
-  <fullquery name="workflow::case::fsm::get.select_case_info">
-    <querytext>
-      select c.case_id,
-             c.workflow_id,
-             c.object_id,
-             s.state_id,
-             s.short_name as state_short_name,
-             s.pretty_name as pretty_state,
-             s.hide_fields as state_hide_fields
-      from   workflow_cases c,
-             workflow_case_fsm cfsm,
-             workflow_fsm_states s
-      where  c.case_id = :case_id
-      and    cfsm.case_id = c.case_id
-      and    s.state_id = cfsm.current_state
     </querytext>
   </fullquery>
 
@@ -199,8 +182,56 @@
   <fullquery name="workflow::case::action::execute.log_entry_exists_p">
     <querytext>
         select count(*)
-        from   cr_revisions
-        where  revision_id = :entry_id
+        from   cr_items
+        where  item_id = :entry_id
+    </querytext>
+  </fullquery>
+
+  <fullquery name="workflow::case::action::notify.enabled_action_assignees">
+    <querytext>
+        select distinct u.user_id
+        from   workflow_cases c,
+               workflow_actions a,
+               workflow_case_role_party_map rpm, 
+               party_approved_member_map pmm,
+               users u
+        where  c.case_id = :case_id
+        and    a.workflow_id = c.workflow_id
+        and    (a.always_enabled_p = 't' or 
+                exists (select 1 
+                        from   workflow_fsm_action_en_in_st waeis,
+                               workflow_case_fsm c_fsm
+                        where  waeis.action_id = a.action_id
+                        and    c_fsm.case_id = c.case_id
+                        and    waeis.state_id = c_fsm.current_state)
+               )
+        and    rpm.case_id = c.case_id
+        and    rpm.role_id = a.assigned_role
+        and    pmm.party_id = rpm.party_id
+        and    u.user_id = pmm.member_id
+    </querytext>
+  </fullquery>
+
+  <fullquery name="workflow::case::action::notify.case_players">
+    <querytext>
+        select distinct u.user_id
+        from   workflow_case_role_party_map rpm, 
+               party_approved_member_map pmm,
+               users u
+        where  rpm.case_id = :case_id
+        and    rpm.party_id = pmm.party_id
+        and    pmm.member_id = u.user_id
+    </querytext>
+  </fullquery>
+
+  <fullquery name="workflow::case::action::notify.select_object_type_info">
+    <querytext>
+        select lower(pretty_name) as pretty_name,
+               lower(pretty_plural) as pretty_plural
+        from   acs_object_types ot,
+               acs_objects o
+        where  o.object_id = :object_id
+        and    ot.object_type = o.object_type
     </querytext>
   </fullquery>
 

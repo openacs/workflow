@@ -153,6 +153,8 @@ create table workflow_actions (
                           references workflow_roles(role_id)
                           on delete set null,
   always_enabled_p        char(1) default 'f'
+                          constraint wf_acns_enabled_p_ck
+                          check (always_enabled_p in ('t','f'))
 );
 
 create sequence workflow_actions_seq;
@@ -278,7 +280,15 @@ create table workflow_fsm_action_en_in_st (
                           not null
                           constraint wf_fsm_acn_enb_in_st_st_id_fk
                           references workflow_fsm_states
-                          on delete cascade
+                          on delete cascade,
+  assigned_p              char(1) default 'f'
+                          constraint wf_fsm_acns_enabled_p_ck
+                          check (assigned_p in ('t','f'))
+  -- The users in the role assigned to an action are only assigned to take action
+  -- in the enabled states that have the assigned_p flag
+  -- set to true. For example, in Bug Tracker, the resolve action is enabled
+  -- in both the open and resolved states but only has assigned_p set to true
+  -- in the open state.
 );
 
 
@@ -415,18 +425,7 @@ create table workflow_case_log (
   action_id               integer 
 			  constraint wf_case_log_acn_id_fk
                           references workflow_actions(action_id)
-                          on delete cascade,
-  user_id                 constraint workflow_case_log_user_id_fk
-                          references users(user_id)
-                          on delete cascade,
-  action_date             date default sysdate 
-                          constraint workflow_case_log_acn_date_nn
-			  not null,
-  comment_text            varchar(4000),
-  comment_format          varchar(50) 
-                          default 'text/plain'
-                          constraint wf_clog_comment_format_nn
-                          not null
+                          on delete cascade
 );
 
 create table workflow_case_log_data (
@@ -442,3 +441,16 @@ create table workflow_case_log_data (
   primary key (entry_id, key)
 );
 
+begin
+    content_type.create_type (
+        content_type => 'workflow_case_log_entry',
+        supertype => 'content_revision',
+        pretty_name => 'Workflow Case Log Entry',
+        pretty_plural => 'Workflow Case Log Entries',
+        table_name => 'workflow_case_log_rev',
+        id_column => 'entry_rev_id',
+        name_method => null
+    );
+end;
+/
+show errors

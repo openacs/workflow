@@ -27,19 +27,6 @@
     </querytext>
   </fullquery>
 
-  <fullquery name="workflow::state::fsm::get.state_info">
-    <querytext>
-        select state_id,
-               workflow_id,
-               sort_order,
-               short_name,
-               pretty_name,
-               hide_fields
-        from   workflow_fsm_states
-        where  state_id = :state_id
-    </querytext>
-  </fullquery>
-
   <fullquery name="workflow::state::fsm::get_id.select_id">
     <querytext>
         select state_id 
