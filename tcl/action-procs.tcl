@@ -772,6 +772,9 @@ ad_proc -public workflow::action::fsm::edit {
 } {
     Edit an action. 
 
+    Attributes: new_state_id
+
+
     @param operation    insert, update, delete
 
     @param action_id    For update/delete: The action to update or delete. 
