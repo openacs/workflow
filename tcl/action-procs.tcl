@@ -1579,8 +1579,7 @@ ad_proc -private workflow::action::get_all_info_not_cached {
                 "$callback_row(impl_owner_name).$callback_row(impl_name)"
         lappend action_array_${action_id}(callback_ids) $callback_row(impl_id)
 
-        lappend action_array_${action_id}(callbacks_array) \
-            [list $callback_row(impl_id) [array get callback_row]]
+        lappend action_array_${action_id}(callbacks_array) $callback_row(impl_id) [array get callback_row]
     } 
 
     # Build an array for all allowed roles for all actions
