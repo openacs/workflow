@@ -1391,7 +1391,7 @@ ad_proc -public workflow::case::action::notify {
 
     set next_action_chunk(workflow_case) "You have a watch on this $object_type(pretty_name)."
 
-    set next_action_chunk(workflow) "You have requested to be notified about activity on all $object_type(pretty_plural) in this $workflow_object(name)."
+    set next_action_chunk(workflow) "You have requested to be notified about activity on all $object_type(pretty_plural) in $workflow_object(name)."
 
     # Initialize stuff that depends on the notification type
     foreach type { 
