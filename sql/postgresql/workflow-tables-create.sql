@@ -158,6 +158,8 @@ create table workflow_actions (
                           constraint wf_acns_pretty_name_nn
                           not null,
   pretty_past_tense       varchar(200),
+  description             text,
+  description_mime_type   varchar(200) default 'text/plain',
   edit_fields             varchar(4000),
   assigned_role           integer
                           constraint wf_acns_assigned_role_fk
