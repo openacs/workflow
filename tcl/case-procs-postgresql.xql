@@ -87,7 +87,7 @@
 
   <fullquery name="workflow::case::delete.delete_case">
     <querytext>
-	select workflow_case__delete(:case_id)
+	select workflow_case_pkg__delete(:case_id)
     </querytext>
   </fullquery>
 

@@ -22,7 +22,7 @@ begin
              from workflow_cases
              where workflow_id = delete_workflow_id loop
 
-        perform workflow_case__delete (rec.case_id);
+        perform workflow_case_pkg__delete (rec.case_id);
   end loop;
 
   perform acs_object__delete(delete_workflow_id);
@@ -30,7 +30,7 @@ begin
   return 0; 
 end;' language 'plpgsql';
 
-create or replace function workflow_case__delete (integer)
+create or replace function workflow_case_pkg__delete (integer)
 returns integer as '
 declare
   delete_case_id                alias for $1;
@@ -101,7 +101,7 @@ end;
 
 
 -- Function for getting the pretty state of a case
-create or replace function workflow_case__get_pretty_state (
+create or replace function workflow_case_pkg__get_pretty_state (
     varchar, -- workflow_short_name
     integer  -- object_id
 )

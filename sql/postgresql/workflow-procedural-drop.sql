@@ -36,5 +36,13 @@ drop function workflow_case_log_entry__new (
     varchar                   -- creation_ip
 );
 
+drop function workflow_case_pkg__delete (integer);
+
+drop function workflow_case_pkg__get_pretty_state (
+    varchar, -- workflow_short_name
+    integer  -- object_id
+);
+
+
 delete from acs_function_args
 where  function = 'workflow_case_log_entry__new';

@@ -8,7 +8,7 @@
     <singleton-p>t</singleton-p>
     <auto-mount>workflow</auto-mount>
 
-    <version name="1.0d3" url="http://openacs.org/repository/download/apm/workflow-1.0d3.apm">
+    <version name="1.0d4" url="http://openacs.org/repository/download/apm/workflow-1.0d4.apm">
     <database-support>
         <database>oracle</database>
         <database>postgresql</database>
@@ -22,7 +22,7 @@
 &lt;p&gt;
 For more information, see: &lt;a href=&quot;http://www.collaboraid.biz/developer/workflow-spec&quot;&gt;the workflow specification&lt;/a&gt;.</description>
 
-        <provides url="workflow" version="1.0d3"/>
+        <provides url="workflow" version="1.0d4"/>
         <requires url="notifications" version="0.3d"/>
         <requires url="acs-content-repository" version="4.6d1"/>
         <requires url="acs-kernel" version="4.6.2"/>
