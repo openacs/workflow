@@ -11,10 +11,15 @@
     <version name="1.2b2" url="http://openacs.org/repository/download/apm/workflow-1.2b2.apm">
         <owner url="http://petermarklund.com">Peter Marklund</owner>
         <owner url="http://pinds.com">Lars Pind</owner>
-        <summary>A Tcl API for creating workflows that support the Bug Tracker, CMS publication, simple approval, and much more.</summary>
+        <summary>A Tcl API for creating and managing workflows.</summary>
         <release-date>2003-11-10</release-date>
         <vendor url="http://www.collaboraid.biz">Collaboraid</vendor>
-        <description format="text/html">This package lets you define the process that your tickets, articles, documents, reports, claims, change requests, or any other object of interest, must go through to ensure consistent quality and to avoid that any cases falls through the cracks.
+        <description format="text/html">
+          This package lets you define the process that your tickets, articles,
+          documents, reports, claims, change requests, or any other
+          object of interest, must go through to ensure consistent quality and
+          to avoid that any cases falls through the cracks.
+          It supports the Bug Tracker, CMS publication, simple approval, and much more.
 &lt;p&gt;
 For more information, see: &lt;a href=&quot;http://www.collaboraid.biz/developer/workflow-spec&quot;&gt;the workflow specification&lt;/a&gt;.</description>
 
