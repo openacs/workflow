@@ -341,7 +341,7 @@ ad_proc -private workflow::case::get_activity_text {
             set $var $value
         }
 
-        set entry_text "$creation_date_pretty $action_pretty_past_tense [ad_decode $log_title "" "" "$log_title "]y $user_first_names $user_last_name ($user_email)"
+        set entry_text "$creation_date_pretty $action_pretty_past_tense [ad_decode $log_title "" "" "$log_title "]by $user_first_names $user_last_name ($user_email)"
 
         if { ![empty_string_p $comment] } {
             append entry_text ":\n\n    [join [split [ad_html_text_convert -from $comment_mime_type -to "text/plain" -maxlen 66 -- $comment] "\n"] "\n    "]"
