@@ -8,11 +8,11 @@
     <singleton-p>t</singleton-p>
     <auto-mount>workflow</auto-mount>
 
-    <version name="2.0d1" url="http://openacs.org/repository/download/apm/workflow-2.0d1.apm">
+    <version name="2.0.0b1" url="http://openacs.org/repository/download/apm/workflow-2.0.0b1.apm">
         <owner url="http://pinds.com">Lars Pind</owner>
         <owner url="http://petermarklund.com">Peter Marklund</owner>
         <summary>A Tcl API for creating and managing workflows.</summary>
-        <release-date>2003-11-18</release-date>
+        <release-date>2004-01-30</release-date>
         <vendor url="http://www.collaboraid.biz">Collaboraid</vendor>
         <description format="text/html">
           This package lets you define the process that your tickets, articles,
@@ -23,7 +23,7 @@
 &lt;p&gt;
 For more information, see: &lt;a href=&quot;http://www.collaboraid.biz/developer/workflow-spec&quot;&gt;the workflow specification&lt;/a&gt;.</description>
 
-        <provides url="workflow" version="2.0d1"/>
+        <provides url="workflow" version="2.0.0b1"/>
         <requires url="acs-content-repository" version="5.0.0b4"/>
         <requires url="acs-kernel" version="5.0.0b4"/>
         <requires url="acs-tcl" version="5.0.0b4"/>
