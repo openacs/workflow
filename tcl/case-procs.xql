@@ -44,12 +44,10 @@
 
   <fullquery name="workflow::case::get_user_roles_not_cached.select_user_roles">
     <querytext>
-      select distinct rpm.role_id
-      from   workflow_case_role_party_map rpm, 
-             party_approved_member_map pmm
-      where  rpm.case_id = :case_id
-      and    rpm.party_id = pmm.party_id
-      and    pmm.member_id = :user_id
+      select distinct role_id
+      from   workflow_case_role_user_map
+      where  case_id = :case_id
+      and    user_id = :user_id
     </querytext>
   </fullquery>
 
@@ -78,7 +76,7 @@
   <fullquery name="workflow::case::assign_roles.select_num_assignees">
     <querytext>
       select count(*)
-      from   workflow_case_role_party_map
+      from   workflow_case_role_user_map
       where  case_id = :case_id
       and    role_id = :role_id
     </querytext>
@@ -216,12 +214,10 @@
 
   <fullquery name="workflow::case::action::notify.enabled_action_assignees">
     <querytext>
-        select distinct u.user_id
+        select distinct rum.user_id
         from   workflow_cases c,
                workflow_actions a,
-               workflow_case_role_party_map rpm, 
-               party_approved_member_map pmm,
-               users u
+               workflow_case_role_user_map rum 
         where  c.case_id = :case_id
         and    a.workflow_id = c.workflow_id
         and    (a.always_enabled_p = 't' or 
@@ -232,22 +228,16 @@
                         and    c_fsm.case_id = c.case_id
                         and    waeis.state_id = c_fsm.current_state)
                )
-        and    rpm.case_id = c.case_id
-        and    rpm.role_id = a.assigned_role
-        and    pmm.party_id = rpm.party_id
-        and    u.user_id = pmm.member_id
+        and    rum.case_id = c.case_id
+        and    rum.role_id = a.assigned_role
     </querytext>
   </fullquery>
 
   <fullquery name="workflow::case::action::notify.case_players">
     <querytext>
-        select distinct u.user_id
-        from   workflow_case_role_party_map rpm, 
-               party_approved_member_map pmm,
-               users u
-        where  rpm.case_id = :case_id
-        and    rpm.party_id = pmm.party_id
-        and    pmm.member_id = u.user_id
+        select distinct user_id
+        from   workflow_case_role_user_map
+        where  case_id = :case_id
     </querytext>
   </fullquery>
 

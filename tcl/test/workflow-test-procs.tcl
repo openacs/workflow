@@ -238,8 +238,6 @@ ad_proc workflow::test::array_lists_equal_p { list1 list2 } {
     set len1 [llength $list1]
     set len2 [llength $list2]
 
-    ns_log Notice "LARS2: lists_equal_p, len1=$len1, len2=$len2\nList1=$list1\nList2=$list2"
-    
     if { $len1 != $len2 } {
         return 0
     }
@@ -274,8 +272,6 @@ ad_proc workflow::test::array_lists_equal_p { list1 list2 } {
         # List, treat as normal list
         
         foreach elm1 $list1 elm2 $list2 {
-            ns_log Notice "LARS2: foreach, len1=[llength $elm1], len2=[llength $elm2]\nElm1=$elm1\nElm2=$elm2"
-            
             if { ![array_lists_equal_p $elm1 $elm2] } {
                 return 0
             }
@@ -464,9 +460,6 @@ ad_proc workflow::test::run_bug_tracker_test {
 
         set generated_spec [workflow::fsm::generate_spec -workflow_id $workflow_id]
         
-        ns_log Notice "LARS: Generated spec 1: $generated_spec"
-        ns_log Notice "LARS: Hard-coded spec 1: [workflow_get_array_style_spec]"
-
         aa_true "Checking that generated spec 1 is identical to the spec that we created from (except for ordering)" \
                 [array_lists_equal_p $generated_spec [workflow_get_array_style_spec]]
         
@@ -549,6 +542,82 @@ ad_proc workflow::test::run_bug_tracker_test {
                 -expect_enabled_actions $expect_enabled_actions \
                 -expect_user_actions $expect_enabled_actions \
                 -expect_user_roles {}
+
+
+        #####
+        #
+        # Intermezzo: Check cache and flushing
+        #
+        #####
+
+        # -1. Basic sanity check
+        aa_equals "Stat is resolved" [workflow::case::get_element -case_id $case_id -element state_short_name] "resolved"
+
+        # 0. Desired output
+        global desired_output 
+        set desired_output [workflow::case::fsm::get_info_not_cached $case_id]
+
+        ns_log Notice "LARS: desired_output = '$desired_output' ([llength $desired_output])"
+
+        # 1. Make sure the cache is populated
+        set dummy [workflow::case::get_element -case_id $case_id -element state_short_name]
+
+        with_catch errmsg {
+
+            # 2. Stub the cache proc
+            aa_stub workflow::case::fsm::get_info_not_cached {
+                # Note that we got called
+                global i_got_called_p desired_output
+                set i_got_called_p 1
+                
+                return $desired_output
+            }
+            global i_got_called_p
+        
+            # 3. Check that it doesn't call stubbed proc
+            set i_got_called_p 0
+            set dummy [workflow::case::get_element -case_id $case_id -element state_short_name]
+            aa_false "Check that the value is in the cache (1st time)" $i_got_called_p
+            
+            # 4. Flush
+            workflow::case::flush_cache -case_id $case_id
+            
+            # 5. Check that it DOES call stubbed proc
+            set i_got_called_p 0
+            set dummy [workflow::case::get_element -case_id $case_id -element state_short_name]
+            aa_true "Check that the value is NOT in the cache (1st time)" $i_got_called_p
+            
+            # 6. Manually populate the cache
+            util_memoize_seed [list workflow::case::fsm::get_info_not_cached $case_id] $desired_output [workflow::case::cache_timeout]
+            
+            # 7. Check that it doesn't call stubbed proc
+            set i_got_called_p 0
+            set dummy [workflow::case::get_element -case_id $case_id -element state_short_name]
+            aa_false "Check that the value is in the cache (2nd time)" $i_got_called_p
+            
+            # 8. Flush
+            workflow::case::flush_cache
+            
+            # 9. Check that it DOES call stubbed proc
+            set i_got_called_p 0
+            set dummy [workflow::case::get_element -case_id $case_id -element state_short_name]
+            aa_true "Check that the value is NOT in the cache (2nd time)" $i_got_called_p
+        } {
+            aa_unstub workflow::case::fsm::get_info_not_cached
+            
+            global errorInfo
+            error $errmsg $errorInfo
+        }
+        
+        # 10. Unstub
+        aa_unstub workflow::case::fsm::get_info_not_cached
+
+        
+        #####
+        #
+        # Continue with case
+        #
+        #####
                                   
         # Close the bug
         workflow::case::action::execute \

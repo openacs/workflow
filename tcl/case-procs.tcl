@@ -113,8 +113,10 @@ ad_proc -public workflow::case::get {
 } {
     Get information about a case
 
-    @param caes_id The case ID
-    @param array The name of an array in which information will be returned.
+    @param case_id     The case ID
+    @param array       The name of an array in which information will be returned.
+    @param action_id   If specified, will return the case information as if the given action had already been executed. 
+                       This is useful for presenting forms for actions that do not take place until the user hits OK.
 
     @author Lars Pind (lars@collaboraid.biz)
 } {
@@ -137,9 +139,12 @@ ad_proc -public workflow::case::get_element {
 } {
     Return a single element from the information about a case.
 
-    @param case_id The ID of the case
-    @param element The element you want
-    @return The element you asked for
+    @param case_id     The ID of the case
+    @param element     The element you want
+    @param action_id   If specified, will return the case information as if the given action had already been executed. 
+                       This is useful for presenting forms for actions that do not take place until the user hits OK.
+
+    @return            The element you asked for
 
     @author Lars Pind (lars@collaboraid.biz)
 } {
@@ -163,11 +168,13 @@ ad_proc -public workflow::case::get_user_roles {
     {-case_id:required}
     -user_id
 } {
-    Get the roles which this user is assigned to
-of 
+    Get the roles which this user is assigned to. 
+    Takes deputies into account, so that if the user is a deputy for someone else, 
+    he or she will have the roles of the user for whom he/she is a deputy.
+
     @param case_id     The ID of the case.
-    @param user_id     The user_id of the user for which you want to know the roles.
-    @return A list of role_id's of the roles which the user is assigned to in this case.
+    @param user_id     The user_id of the user for which you want to know the roles. Defaults to ad_conn user_id.
+    @return            A list of role_id's of the roles which the user is assigned to in this case.
 
     @author Lars Pind (lars@collaboraid.biz)
 } {
@@ -271,12 +278,13 @@ ad_proc -private workflow::case::assign_roles {
         }
     }
 
-    workflow::case::role::flush_cache $case_id
+    workflow::case::role::flush_cache -case_id $case_id
 }
 
 ad_proc -private workflow::case::get_activity_html { 
     {-case_id:required}
     {-action_id ""}
+    {-max_n_actions ""}
 } {
     Get the activity log for a case as an HTML chunk.
     If action_id is non-empty, it means that we're in 
@@ -285,6 +293,7 @@ ad_proc -private workflow::case::get_activity_html {
 
     @param case_id The case for which you want the activity log.
     @param action_id optional action which is currently being executed.
+    @param max_n_actions Limit history to the max_n_actions number of most recent actions
     @return Activity log as HTML
 
     @author Lars Pind (lars@collaboraid.biz)
@@ -299,7 +308,14 @@ ad_proc -private workflow::case::get_activity_html {
     # Compile and evaluate the template
     set code [template::adp_compile -string $template]
 
-    foreach entry_arraylist [get_activity_log_info -case_id $case_id] {
+    set activity_entry_list [get_activity_log_info_not_cached -case_id $case_id]
+    set start_index 0
+    if { ![empty_string_p $max_n_actions] && [llength $activity_entry_list] > $max_n_actions} { 
+	# Only return the last max_n_actions actions
+	set start_index [expr [llength $activity_entry_list] - $max_n_actions]
+    } 
+
+    foreach entry_arraylist [lrange $activity_entry_list $start_index end] {
         foreach { var value } $entry_arraylist {
             set $var $value
         }
@@ -397,6 +413,7 @@ ad_proc -private workflow::case::get_activity_log_info_not_cached {
 
     
     set rowcount [template::multirow -local size entries]
+
     set counter 1
 
     set last_entry_id {}
@@ -604,6 +621,39 @@ ad_proc workflow::case::get_log_data {
     db_string select_log_data {} -default {}
 }
 
+ad_proc -private workflow::case::cache_timeout {} {
+    Number of seconds before we timeout the case level workflow cache.
+
+    @author Peter Marklund
+} {
+    # 60 * 60 seconds is 1 hour
+    return 3600
+}
+
+ad_proc -private workflow::case::flush_cache { 
+    {-case_id ""}
+} {
+    Flush all cached data for a given case or for all
+    cases if none is specified.
+
+    @param case_id The id of the workflow case to flush. If not provided the
+                   cache will be flushed for all workflow cases.
+
+    @author Peter Marklund
+} {
+    foreach proc_name {
+        workflow::case::fsm::get_info_not_cached
+        workflow::case::get_user_roles_not_cached
+        workflow::case::get_enabled_actions_not_cached
+    } {
+        util_memoize_flush_regexp "^$proc_name [ad_decode $case_id "" {\.*} $case_id]"
+    }
+
+    util_memoize_flush_regexp [list workflow::case::get_activity_log_info_not_cached -case_id $case_id]
+
+    # Flush role info (assignees etc)
+    workflow::case::role::flush_cache -case_id $case_id
+}
 
 
 
@@ -832,7 +882,7 @@ ad_proc -public workflow::case::role::set_assignee_values {
                 append display_value " (<a href=\"mailto:$cur_assignee(email)\">$cur_assignee(email)</a>)"
             }
 
-            uplevel [list element set_properties bug $element -display_value $display_value]
+            uplevel [list element set_properties $form_name $element -display_value $display_value]
         }
     }
 }
@@ -868,11 +918,13 @@ ad_proc -private workflow::case::role::get_assignees_not_cached { case_id role_i
     return $result    
 }
 
-ad_proc -private workflow::case::role::flush_cache { case_id } {
-    Flush all role related info for a certain case.
-
+ad_proc -private workflow::case::role::flush_cache { 
+    {-case_id ""}
+ } {
+    Flush all role related info for a certain case or for all
+    cases if none is specified.
 } {
-    util_memoize_flush_regexp [list workflow::case::role::get_assignees_not_cached $case_id]    
+    util_memoize_flush_regexp "^workflow::case::role::get_assignees_not_cached [ad_decode $case_id "" {\.*} $case_id]"
 }
 
 ad_proc -public workflow::case::role::assignee_insert {
@@ -907,7 +959,7 @@ ad_proc -public workflow::case::role::assignee_insert {
         }
     }
 
-    workflow::case::role::flush_cache $case_id
+    workflow::case::role::flush_cache -case_id $case_id
 }
 
 ad_proc -public workflow::case::role::assign {
@@ -962,7 +1014,8 @@ ad_proc -public workflow::case::fsm::get_current_state {
 
     @author Lars Pind (lars@collaboraid.biz)
 } {
-    return [db_string select_current_state {}]
+    #return [db_string select_current_state {}]
+    return [workflow::case::fsm::get_element -case_id $case_id -element state_id]
 }
 
 ad_proc -public workflow::case::fsm::get {
@@ -970,12 +1023,12 @@ ad_proc -public workflow::case::fsm::get {
     {-array:required}
     {-action_id {}}
 } {
-    Get information about an FSM case
+    Get information about an FSM case set as values in your array.
 
-    @param caes_id The case ID
-    @param array The name of an array in which information will be returned.
-    @param action_id If you supply an action here, you'll get 
-    the information as it'll look after executing the given action.
+    @param case_id     The ID of the case
+    @param array       The name of an array in which information will be returned.
+    @param action_id   If specified, will return the case information as if the given action had already been executed. 
+                       This is useful for presenting forms for actions that do not take place until the user hits OK.
 
     @author Lars Pind (lars@collaboraid.biz)
 } {
@@ -993,13 +1046,24 @@ ad_proc -public workflow::case::fsm::get {
     }
 }
 
-ad_proc -private workflow::case::cache_timeout {} {
-    Number of seconds before we timeout the case level workflow cache.
-
-    @author Peter Marklund
+ad_proc -public workflow::case::fsm::get_element {
+    {-case_id:required}
+    {-element:required}
+    {-action_id {}}
 } {
-    # 60 * 60 seconds is 1 hour
-    return 3600
+    Return a single element from the information about a case.
+
+    @param case_id     The ID of the case
+    @param element     The element you want
+    @param action_id   If specified, will return the case information as if the given action had already been executed. 
+                       This is useful for presenting forms for actions that do not take place until the user hits OK.
+
+    @return            The element you asked for
+
+    @author Lars Pind (lars@collaboraid.biz)
+} {
+    get -case_id $case_id -action_id $action_id -array row
+    return $row($element)
 }
 
 ad_proc -private workflow::case::fsm::get_info_not_cached { case_id } {
@@ -1013,23 +1077,6 @@ ad_proc -private workflow::case::fsm::get_info_not_cached { case_id } {
     return [array get row]
 }
 
-ad_proc -private workflow::case::flush_cache { case_id } {
-    Flush all cached data for the given case.
-
-    @author Peter Marklund
-} {
-    # Flush scalar attributes (for fsm::get proc)
-    util_memoize_flush [list workflow::case::fsm::get_info_not_cached $case_id]
-
-    # Flush role info (assignees etc)
-    workflow::case::role::flush_cache $case_id
-
-    # Flush roles
-    util_memoize_flush_regexp [list workflow::case::get_user_roles_not_cached $case_id]
-
-    # Flush enabled actions
-    util_memoize_flush [list workflow::case::get_enabled_actions_not_cached $case_id]
-}
 
 
 #####
@@ -1222,7 +1269,7 @@ ad_proc -public workflow::case::action::execute {
         
     }
 
-    workflow::case::flush_cache $case_id
+    workflow::case::flush_cache -case_id $case_id
 
     # Notifications
     notify \
@@ -1372,9 +1419,11 @@ ad_proc -public workflow::case::action::notify {
     set the_subject "[ad_decode $object_notification_tag "" "" "\[$object_notification_tag\] "]$object_one_line: $latest_action(action_pretty_past_tense) [ad_decode $latest_action(log_title) "" "" "$latest_action(log_title) "]by $latest_action(user_first_names) $latest_action(user_last_name)"
 
     # List of user_id's for people who are in the assigned_role to any enabled actions
+    # This takes deputies into account
     set assignee_list [db_list enabled_action_assignees {}]
 
     # List of users who play some role in this case
+    # This takes deputies into account
     set case_player_list [db_list case_players {}]
 
     # Get pretty_name and pretty_plural for the case's object type

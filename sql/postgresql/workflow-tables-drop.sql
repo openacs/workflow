@@ -37,6 +37,8 @@ drop function inline_0();
 
 -- Drop all tables
 drop table workflow_case_fsm;
+drop view workflow_case_role_user_map;
+drop table workflow_deputies;
 drop table workflow_case_role_party_map;
 drop table workflow_case_log_data;
 drop table workflow_case_log;

@@ -235,6 +235,12 @@ ad_proc -private workflow::flush_cache {
     workflow::role::flush_cache -workflow_id $workflow_id
     workflow::action::flush_cache -workflow_id $workflow_id
     workflow::state::flush_cache -workflow_id $workflow_id
+
+    # Flush all workflow cases from the cache. We are flushing more than needed here
+    # but this approach seems easier and faster than looping over a potentially big number
+    # of cases mapped to the workflow in the database, only a few of which may actually be 
+    # cached and need flushing
+    workflow::case::flush_cache
 }
 
 ad_proc -private workflow::cache_timeout {} {

@@ -93,3 +93,4 @@ aa_register_case workflow_spec_with_message_keys {
     
     workflow::test::run_with_teardown $test_chunk $teardown_chunk
 }
+
