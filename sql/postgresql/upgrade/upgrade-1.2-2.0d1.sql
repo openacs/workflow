@@ -258,3 +258,16 @@ create or replace view workflow_case_role_user_map as
            workflow_user_deputy_map wudm
     where  pamm.party_id = wcrpm.party_id
     and    wudm.on_behalf_of_user_id = pamm.member_id;
+
+-- pretty-name unique per parent, not per workflow
+alter table workflow_actions 
+  drop constraint wf_actions_pretty_name_un;
+alter table workflow_actions 
+  add constraint wf_actions_pretty_name_un
+  unique (workflow_id, parent_action_id, pretty_name);
+
+alter table workflow_fsm_states
+  drop constraint wf_fsm_states_pretty_name_un;
+alter table workflow_fsm_states
+  add constraint wf_fsm_states_pretty_name_un
+  unique (workflow_id, parent_action_id, pretty_name);

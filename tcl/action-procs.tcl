@@ -669,7 +669,7 @@ ad_proc -public workflow::action::get_existing_short_names {
 } {
     set result [list]
 
-    foreach action_id [workflow::get_actions -workflow_id $workflow_id] {
+    foreach action_id [workflow::get_actions -all -workflow_id $workflow_id] {
         if { [empty_string_p $ignore_action_id] || ![string equal $ignore_action_id $action_id] } {
             lappend result [workflow::action::get_element -action_id $action_id -element short_name]
         }
@@ -716,7 +716,9 @@ ad_proc -public workflow::action::generate_short_name {
 }
 
 ad_proc -public workflow::action::get_ids {
+    {-all:boolean}
     {-workflow_id:required}
+    {-parent_action_id {}}
 } {
     Get the action_id's of all the actions in the workflow.
     
@@ -728,16 +730,35 @@ ad_proc -public workflow::action::get_ids {
 } {
     # Use cached data about actions
     array set action_data [workflow::action::get_all_info -workflow_id $workflow_id]
-    return $action_data(action_ids)
+
+    if { $all_p } {
+        return $action_data(action_ids)
+    }
+        
+    set action_ids [list]
+    foreach action_id $action_data(action_ids) {
+        if { [workflow::action::get_element \
+                  -action_id $action_id \
+                  -element parent_action_id] == $parent_action_id } {
+            lappend action_ids $action_id
+        }
+    }
+    return $action_ids
 }
 
+
 ad_proc -public workflow::action::get_options {
+    {-all:boolean}
     {-workflow_id:required}
+    {-parent_action_id {}}
 } {
     Get an options list of actions for use with form builder.
 } {
     set result [list]
-    foreach action_id [workflow::action::get_ids -workflow_id $workflow_id] {
+    foreach action_id [workflow::get_actions \
+                           -all=$all_p \
+                           -workflow_id $workflow_id \
+                           -parent_action_id $parent_action_id] {
         workflow::action::get -action_id $action_id -array action
         lappend result [list $action(pretty_name) $action_id]
     }
@@ -747,6 +768,7 @@ ad_proc -public workflow::action::get_options {
 ad_proc -public workflow::action::pretty_name_unique_p {
     -workflow_id:required
     -pretty_name:required
+    {-parent_action_id {}}
     {-action_id {}}
 } {
     Check if suggested pretty_name is unique. 
@@ -758,6 +780,7 @@ ad_proc -public workflow::action::pretty_name_unique_p {
         from   workflow_actions
         where  workflow_id = :workflow_id
         and    pretty_name = :pretty_name
+        and    (:parent_action_id is null or parent_action_id = :parent_action_id)
         and    (:action_id is null or action_id != :action_id)
     }]
     return [expr !$exists_p]
@@ -1546,7 +1569,9 @@ ad_proc -private workflow::action::get_all_info_not_cached {
 }
 
 ad_proc -public workflow::action::fsm::get_ids {
+    {-all:boolean}
     {-workflow_id:required}
+    {-parent_action_id {}}
 } {
     Get the action_id's of all the actions in the workflow.
     
@@ -1556,6 +1581,6 @@ ad_proc -public workflow::action::fsm::get_ids {
 
     @author Lars Pind (lars@collaboraid.biz)
 } {
-    return [workflow::action::get_ids -workflow_id $workflow_id]
+    return [workflow::action::get_ids -all=$all_p -workflow_id $workflow_id -parent_action_id $parent_action_id]
 }
 

@@ -374,7 +374,7 @@ ad_proc -public workflow::state::fsm::get_existing_short_names {
 } {
     set result [list]
 
-    foreach state_id [workflow::fsm::get_states -workflow_id $workflow_id] {
+    foreach state_id [workflow::fsm::get_states -all -workflow_id $workflow_id] {
         if { [empty_string_p $ignore_state_id] || ![string equal $ignore_state_id $state_id] } {
             lappend result [workflow::state::fsm::get_element -state_id $state_id -element short_name]
         }
@@ -498,6 +498,7 @@ ad_proc -public workflow::state::fsm::get_workflow_id {
 ad_proc -public workflow::state::fsm::pretty_name_unique_p {
     -workflow_id:required
     -pretty_name:required
+    {-parent_action_id {}}
     {-state_id {}}
 } {
     Check if suggested pretty_name is unique. 
@@ -509,6 +510,7 @@ ad_proc -public workflow::state::fsm::pretty_name_unique_p {
         from   workflow_fsm_states
         where  workflow_id = :workflow_id
         and    pretty_name = :pretty_name
+        and    (:parent_action_id is null or parent_action_id = :parent_action_id)
         and    (:state_id is null or state_id != :state_id)
     }]
     return [expr !$exists_p]
@@ -521,6 +523,7 @@ ad_proc -public workflow::state::fsm::pretty_name_unique_p {
 #####
 
 ad_proc -private workflow::state::fsm::get_ids {
+    {-all:boolean}
     {-workflow_id:required}
     {-parent_action_id {}}
 } {
@@ -533,9 +536,14 @@ ad_proc -private workflow::state::fsm::get_ids {
 } {
     # Use cached data
     array set state_data [workflow::state::fsm::get_all_info -workflow_id $workflow_id]
+    if { $all_p } {
+        return $state_data(state_ids)
+    }
     set state_ids [list]
     foreach state_id $state_data(state_ids) {
-        if { [workflow::state::fsm::get_element -state_id $state_id -element parent_action_id] == $parent_action_id } {
+        if { [workflow::state::fsm::get_element \
+                  -state_id $state_id \
+                  -element parent_action_id] == $parent_action_id } {
             lappend state_ids $state_id
         }
     }

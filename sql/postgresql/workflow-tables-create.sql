@@ -189,7 +189,7 @@ create table workflow_actions (
   constraint wf_actions_short_name_un
   unique (workflow_id, short_name),
   constraint wf_actions_pretty_name_un
-  unique (workflow_id, pretty_name)
+  unique (workflow_id, parent_action_id, pretty_name)
 );
 
 create sequence workflow_actions_seq;
@@ -286,7 +286,7 @@ create table workflow_fsm_states (
   constraint wf_fsm_states_short_name_un
   unique (workflow_id, short_name),
   constraint wf_fsm_states_pretty_name_un
-  unique (workflow_id, pretty_name)
+  unique (workflow_id, parent_action_id, pretty_name)
 );
 
 create index wf_fsm_states_workflow_idx on workflow_fsm_states(workflow_id);

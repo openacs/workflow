@@ -423,7 +423,9 @@ ad_proc -public workflow::get_element {
 }
 
 ad_proc -public workflow::get_roles {
+    {-all:boolean}
     {-workflow_id:required}
+    {-parent_action_id {}}
 } {
     Get the role_id's of all the roles in the workflow.
     
@@ -432,11 +434,13 @@ ad_proc -public workflow::get_roles {
 
     @author Lars Pind (lars@collaboraid.biz)
 } {
-    return [workflow::role::get_ids -workflow_id $workflow_id]
+    return [workflow::role::get_ids -all=$all_p -workflow_id $workflow_id -parent_action_id $parent_action_id]
 }
 
 ad_proc -public workflow::get_actions {
+    {-all:boolean}
     {-workflow_id:required}
+    {-parent_action_id {}}
 } {
     Get the action_id's of all the actions in the workflow.
     
@@ -445,7 +449,7 @@ ad_proc -public workflow::get_actions {
 
     @author Lars Pind (lars@collaboraid.biz)
 } {
-    return [workflow::action::get_ids -workflow_id $workflow_id]
+    return [workflow::action::get_ids -all=$all_p -workflow_id $workflow_id -parent_action_id $parent_action_id]
 }
 
 ad_proc -public workflow::definition_changed_handler {
@@ -588,7 +592,7 @@ ad_proc -public workflow::generate_spec {
     foreach { key namespace } $handlers {
         set subspec [list]
         
-        foreach sub_id [${namespace}::get_ids -workflow_id $workflow_id] {
+        foreach sub_id [${namespace}::get_ids -all -workflow_id $workflow_id] {
             set sub_short_name [${namespace}::get_element \
                                 -one_id $sub_id \
                                 -element short_name]
@@ -1155,6 +1159,7 @@ ad_proc -public workflow::fsm::generate_spec {
 }
 
 ad_proc -public workflow::fsm::get_states {
+    {-all:boolean}
     {-workflow_id:required}
     {-parent_action_id {}}
 } {
@@ -1165,7 +1170,7 @@ ad_proc -public workflow::fsm::get_states {
 
     @author Lars Pind (lars@collaboraid.biz)
 } {
-    return [workflow::state::fsm::get_ids -workflow_id $workflow_id -parent_action_id $parent_action_id]
+    return [workflow::state::fsm::get_ids -all=$all_p -workflow_id $workflow_id -parent_action_id $parent_action_id]
 }
 
 ad_proc -public workflow::fsm::get_initial_state {

@@ -521,11 +521,15 @@ ad_proc -private workflow::role::generate_spec {
 }
 
 ad_proc -private workflow::role::get_ids {
+    {-all:boolean}
     {-workflow_id:required}
+    {-parent_action_id {}}
 } {
     Get the IDs of all the roles in the right order.
 
     @param workflow_id The id of the workflow to get roles for.
+    
+    @param parent_action_id No meaning. Provided for compatibility with similar procs for actions and states.
 
     @return A list of role IDs.
 
@@ -690,7 +694,7 @@ ad_proc -public workflow::role::get_existing_short_names {
 } {
     set result [list]
 
-    foreach role_id [workflow::get_roles -workflow_id $workflow_id] {
+    foreach role_id [workflow::get_roles -all -workflow_id $workflow_id] {
         if { [empty_string_p $ignore_role_id] || ![string equal $ignore_role_id $role_id] } {
             lappend result [workflow::role::get_element -role_id $role_id -element short_name]
         }
