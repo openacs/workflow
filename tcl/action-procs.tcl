@@ -418,7 +418,7 @@ ad_proc -public workflow::action::get_assigned_role {
     @param action_id The action_id of the action.
     @return role_id of the assigned role.
 } {
-    return [get_from_request_cache $action_id "assigned_role"]
+    return [get_from_request_cache $action_id "assigned_role_id"]
 }
 
 ad_proc -public workflow::action::get_allowed_roles {

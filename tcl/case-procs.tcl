@@ -1241,14 +1241,14 @@ ad_proc -public workflow::case::action::permission_p {
 
     set object_id [workflow::case::get_element -case_id $case_id -element object_id]
     set user_role_ids [workflow::case::get_user_roles -case_id $case_id -user_id $user_id]
-    
+
     set permission_p 0
 
     foreach role_id $user_role_ids {
 
         # Is this an assigned role for this action?
-        set assigned_role [workflow::action::get_assigned_role -action_id $action_id]
-        if { $assigned_role == $role_id } {
+        set assigned_role_id [workflow::action::get_assigned_role -action_id $action_id]
+        if { $assigned_role_id == $role_id } {
             set permission_p 1
             break
         }
