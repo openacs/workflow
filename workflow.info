@@ -25,7 +25,7 @@ For more information, see: &lt;a href=&quot;http://www.collaboraid.biz/developer
         <provides url="workflow" version="0.2d2"/>
         <requires url="notifications" version="0.3d"/>
         <requires url="acs-content-repository" version="4.6d1"/>
-        <requires url="acs-kernel" version="4.6.2d"/>
+        <requires url="acs-kernel" version="4.6.2"/>
         <requires url="acs-tcl" version="4.6.2d"/>
 
         <files>
