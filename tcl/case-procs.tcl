@@ -813,7 +813,7 @@ ad_proc workflow::case::get_notification_request_url {
     }
 
     if { ![exists_and_not_null return_url] } {
-        set return_url [util_get_current_url]
+        set return_url [ad_return_url]
     }
 
     set url [notification::display::subscribe_url \
