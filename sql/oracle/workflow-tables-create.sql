@@ -1,4 +1,4 @@
->-- Data model for the workflow package, part of the OpenACS system.
+-- Data model for the workflow package, part of the OpenACS system.
 --
 -- @author Lars Pind (lars@collaboraid.biz)
 -- @author Peter Marklund (peter@collaboraid.biz)
