@@ -4,39 +4,46 @@
   
   <table cellpadding=3 cellspacing=1 border=0>
     <tr class="form-element">
+      <td rowspan="2">
+        Enable
+      </td>
       <td class="form-label">Enabled in state
       </td>
       <td class="form-widget">
-      <listtemplate    name="states"></listtemplate>
-      <div class="form-help-text">
-        <img src="/shared/images/info.gif" width="12" height="9" alt="[i]" title="Help text" border="0"/>
-        The task is available only in these states.
-      </div>
-    </td>
+        <listtemplate    name="states"></listtemplate>
+        <div class="form-help-text">
+          <img src="/shared/images/info.gif" width="12" height="9" alt="[i]" title="Help text" border="0"/>
+          The task is available only in these states.
+        </div>
+      </td>
     </tr>
     <tr class="form-element">
       <td class="form-label">Other Preconditions
       </td>
       <td class="form-widget">
-              <input type="submit" value="Add a condition ..."/>
+        <input type="submit" value="Add a condition ..."/>
         <div class="form-help-text">
           <img src="/shared/images/info.gif" width="12" height="9" alt="[i]" title="Help text" border="0"/>
           All of these conditions must also be true for the task to be enabled.
         </div>
       </td>
     </tr>
-        <tr class="form-element">
-                  <td class="form-label">
-                Mode
-               </td>
-                  <td class="form-widget">
-              <font face="tahoma,verdana,arial,helvetica,sans-serif" size="-1">
-                <input type="radio">Trigger instantly</input><br/>
-                <input type="radio"><span style="color:green">Wait for a trigger</span></input><br/>
-                <input type="radio" checked><span style="color:red">Start another workflow</span></input>
-                </font>
-                <div class="form-help-text">
-                  <img src="/shared/images/info.gif" width="12" height="9" alt="[i]" title="Help text" border="0">
+    <tr class="form-element">
+    <td rowspan="8" style="border-top: 1px solid black; border-bottom: 1px solid black" >
+    Trigger
+    </td>
+      <td class="form-label">
+        Mode
+      </td>
+      <td class="form-widget">
+        <font face="tahoma,verdana,arial,helvetica,sans-serif" size="-1">
+          <input type="radio">Trigger instantly</input><br/>
+          <input type="radio"><span style="color:green">Wait for a trigger</span></input><br/>
+          <input type="radio" checked><span
+          style="color:red">Start another workflow and wait for it to complete</span></input>
+        </font>
+        <div class="form-help-text">
+          <img src="/shared/images/info.gif" width="12" height="9" alt="[i]" title="Help text" border="0">
                 </div>
             </td>
           </tr>
@@ -193,6 +200,9 @@
             </td>
           </tr>
         <tr class="form-element">
+        <td rowspan="3">
+        Outcome
+        </td>
                   <td class="form-label">
                 Duration
                </td>
@@ -202,7 +212,7 @@
                 <input type="radio">Trigger after <input type="text" name="timeout" size="10" /></input></input><br/>
                 <div class="form-help-text">
                   <img src="/shared/images/info.gif" width="12" height="9" alt="[i]" title="Help text" border="0">
-                  Duration is of the form '1 hour' or '1 day' etc
+                  Duration is of the form '1 hour' or '1 day' etc.  To have this expire without effect, put a time limit in the <a href="">parent task</a> (what if this task is in the top-level workflow)
                   
                   </div>
                                   </font>
