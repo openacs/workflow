@@ -443,6 +443,8 @@ ad_proc -private workflow::install::register_notification_impl {} {
     set spec {
         contract_name "NotificationType"
         name "WorkflowNotificationType"
+	owner "workflow"
+	pretty_name "Workflow Notifications"
         aliases {
             GetURL       workflow::impl::notification::get_url
             ProcessReply workflow::impl::notification::process_reply
