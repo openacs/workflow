@@ -1667,7 +1667,7 @@ ad_proc -public workflow::case::action::notify {
     set hr [string repeat "=" 70]
     
     # TODO: Get activity log for top-case
-    array set latest_action [lindex [workflow::case::get_activity_log_info -case_id $case_id] end]
+    array set latest_action [lindex [workflow::case::get_activity_log_info_not_cached -case_id $case_id] end]
 
     # Variables used by I18N messages:
     set action_past_tense "$latest_action(action_pretty_past_tense)[ad_decode $latest_action(log_title) "" "" " $latest_action(log_title)"]"
@@ -1807,25 +1807,24 @@ $hr
     foreach type { 
         workflow_assignee workflow_my_cases workflow_case workflow
     } {
-        set object_id [workflow::case::get_notification_object \
-                -type $type \
-                -workflow_id $case(workflow_id) \
-                -case_id $case_id]
+            set object_id [workflow::case::get_notification_object \
+                               -type $type \
+                               -workflow_id $case(workflow_id) \
+                               -case_id $case_id]
 
-        if { ![empty_string_p $object_id] } {
-
-            set notified_list [concat $notified_list [notification::new \
-                    -type_id [notification::type::get_type_id -short_name $type] \
-                    -object_id $object_id \
-                    -action_id $entry_id \
-                    -response_id $case(object_id) \
-                    -notif_subject $subject($type) \
-                    -notif_text $body($type) \
-                    -already_notified $notified_list \
-                    -subset $subset($type) \
-                    -return_notified]]
+        if { ![empty_string_p $object_id] && ($type eq "workflow" || ![empty_string_p $subset($type)])} {
+                set notified_list [concat $notified_list [notification::new \
+                                                              -type_id [notification::type::get_type_id -short_name $type] \
+                                                              -object_id $object_id \
+                                                              -action_id $entry_id \
+                                                              -response_id $case(object_id) \
+                                                              -notif_subject $subject($type) \
+                                                              -notif_text $body($type) \
+                                                              -already_notified $notified_list \
+                                                              -subset $subset($type) \
+                                                              -return_notified]]
+            }
         }
-    }
 }
 
 
