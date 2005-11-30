@@ -1732,8 +1732,15 @@ ad_proc -public workflow::case::action::notify {
     # This takes deputies into account
 
 #XXXXX Verify this ... probably wrong
-    set assignee_list [db_list enabled_action_assignees {}]
-
+    set assigned_role_id [workflow::action::get_assigned_role -action_id $action_id]
+    set assignee_list [list]
+    foreach assignee_array [workflow::case::role::get_assignees \
+                          -case_id $case_id \
+                          -role_id $assigned_role_id] {
+        array set ass $assignee_array
+        lappend assignee_list $ass(party_id)
+    }
+        
     # List of users who play some role in this case
     # This takes deputies into account
     set case_player_list [db_list case_players {}]
