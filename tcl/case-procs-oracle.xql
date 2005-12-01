@@ -65,7 +65,7 @@
                iou.last_name as user_last_name,
                iou.email as user_email,
                io.creation_date,
-               to_char(io.creation_date, 'fmMM/DDfm/YYYY') as creation_date_pretty,
+               to_char(io.creation_date, 'YYYY-MM-DD HH24:MI:SS') as creation_date_pretty,
                blob_to_string(r.content) as comment_string, -- needs il8-ing...
                r.mime_type as comment_mime_type,
                d.key,
