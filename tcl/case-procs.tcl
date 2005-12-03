@@ -1800,7 +1800,7 @@ $hr
                                -workflow_id $case(workflow_id) \
                                -case_id $case_id]
 
-        if { ![empty_string_p $object_id] && ($type eq "workflow" || ![empty_string_p $subset($type)])} {
+        if { ![empty_string_p $object_id] && ($type eq "workflow" || ![empty_string_p $subset($type)] || $type eq "workflow_case")} {
                 set notified_list [concat $notified_list [notification::new \
                                                               -type_id [notification::type::get_type_id -short_name $type] \
                                                               -object_id $object_id \
