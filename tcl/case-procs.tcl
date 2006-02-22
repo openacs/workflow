@@ -1711,7 +1711,7 @@ ad_proc -public workflow::case::action::notify {
 
     # Roles and their current assignees
     foreach role_id [workflow::get_roles -workflow_id $case(workflow_id)] {
-        set label [workflow::role::get_element -role_id $role_id -element pretty_name]
+        set label [lang::util::localize [workflow::role::get_element -role_id $role_id -element pretty_name]]
         foreach assignee_arraylist [workflow::case::role::get_assignees -case_id $case_id -role_id $role_id] {
             array set assignee $assignee_arraylist
             lappend object_details_list $label "$assignee(name) ($assignee(email))"
