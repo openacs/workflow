@@ -21,6 +21,7 @@ namespace eval workflow::case::action::fsm {}
 
 ad_proc -private workflow::case::insert {
     {-workflow_id:required}
+    {-case_id {}}
     {-object_id:required}
 } {
     Internal procedure that creates a new workflow case in the
@@ -37,7 +38,9 @@ ad_proc -private workflow::case::insert {
     @author Lars Pind (lars@collaboraid.biz)
 } {
     db_transaction {
-        set case_id [db_nextval "workflow_cases_seq"]
+	if { ![exists_and_not_null case_id] } {
+	    set case_id [db_nextval "workflow_cases_seq"]
+	}
         
         # Create the case
         db_dml insert_case {}
@@ -52,6 +55,7 @@ ad_proc -private workflow::case::insert {
 ad_proc -public workflow::case::new {
     {-no_notification:boolean}
     -workflow_id:required
+    {-case_id {}}
     {-object_id {}}
     {-comment {}}
     {-comment_mime_type {}}
@@ -127,6 +131,7 @@ ad_proc -public workflow::case::new {
         # Insert the case
         set case_id [insert \
                          -workflow_id $workflow_id \
+                         -case_id $case_id \
                          -object_id $object_id]
 
         # Assign roles
