@@ -27,7 +27,7 @@ For more information, see: &lt;a href=&quot;http://www.collaboraid.biz/developer
         <requires url="acs-content-repository" version="5.0.0b4"/>
         <requires url="acs-kernel" version="5.0.0b4"/>
         <requires url="acs-tcl" version="5.0.0b4"/>
-        <requires url="notifications" version="5.0.0b4"/>
+        <requires url="notifications" version="5.1.7"/>
 
         <callbacks>
             <callback type="after-install"  proc="workflow::install::package_install"/>
