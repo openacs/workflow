@@ -62,6 +62,7 @@ ad_proc -public workflow::case::new {
     -user_id
     -assignment
     -package_id
+    {-initial_action_id ""}
 } {
     Start a new case for this workflow and object.
 
@@ -89,7 +90,16 @@ ad_proc -public workflow::case::new {
     db_transaction {
 
         # Initial action
-        set initial_action_id [workflow::get_element -workflow_id $workflow_id -element initial_action_id]
+	if {0} {
+	    # get initial action not from cache
+	    array set row [workflow::get_not_cached -workflow_id $workflow_id]
+	    set initial_action_id $row(initial_action_id)
+	    array unset row
+	}
+
+	if {[empty_string_p $initial_action_id]} {
+	    set initial_action_id [workflow::get_element -workflow_id $workflow_id -element initial_action_id]
+	}
 
         if { [empty_string_p $initial_action_id] } {
             # If there is no initial-action, we create one now
@@ -1855,6 +1865,7 @@ $hr
 ad_proc -public workflow::case::action::execute {
     {-no_notification:boolean}
     {-no_perm_check:boolean}
+    {-no_logging:boolean}
     {-enabled_action_id {}}
     {-case_id {}}
     {-action_id {}}
@@ -1888,6 +1899,8 @@ ad_proc -public workflow::case::action::execute {
                               with a non-empty action_id, it will generate a new entry_id for you, which you can pass in here.
 
     @param no_perm_check      Set this switch if you do not want any permissions chcecking, e.g. for automatic actions.
+
+    @param no_perm_check      Set this switch if you do not want to have any workflow_case loggings.
 
     @param package_id         The package_id the case object belongs to. This is optional but is useful if the case objects are not CR items.
 
@@ -1987,12 +2000,14 @@ ad_proc -public workflow::case::action::execute {
         oacs_util::vars_to_ns_set \
                 -ns_set $extra_vars \
                 -var_list { entry_id case_id action_id comment comment_mime_type package_id}
-        
-        set entry_id [package_instantiate_object \
-                -creation_user $user_id \
-                -extra_vars $extra_vars \
-                -package_name "workflow_case_log_entry" \
-                "workflow_case_log_entry"]
+
+        if {!$no_logging_p} {
+	    set entry_id [package_instantiate_object \
+			      -creation_user $user_id \
+			      -extra_vars $extra_vars \
+			      -package_name "workflow_case_log_entry" \
+			      "workflow_case_log_entry"]
+	}
 
         # Fire side-effects
         workflow::case::action::do_side_effects \
