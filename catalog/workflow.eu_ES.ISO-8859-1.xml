@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="ISO-8859-1"?>
-<message_catalog package_key="workflow" package_version="2.0.0b3" locale="eu_ES" charset="ISO-8859-1">
+<message_catalog package_key="workflow" package_version="2.1.1" locale="eu_ES" charset="ISO-8859-1">
 
   <msg key="lt_Please_click_here_to_">Mesedez, klikatu hemen %object_type.pretty_name% hau bisitatzeko:</msg>
   <msg key="lt_You_are_a_participant">%object_type.pretty_name% honetan partaidea zara.</msg>

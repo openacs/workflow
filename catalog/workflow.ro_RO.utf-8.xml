@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<message_catalog package_key="workflow" package_version="2.1.1" locale="ro_RO" charset="utf-8">
+
+  <msg key="Case">Caz</msg>
+  <msg key="lt_Please_click_here_to_">Daţi click aici pentru a vizita %object_type.pretty_name%:</msg>
+  <msg key="lt_You_are_a_participant">Sunteţi participant in acest %object_type.pretty_name%.</msg>
+  <msg key="lt_You_are_assigned_to_t">Sunteţi alocat pentru acţiunea care urmează</msg>
+  <msg key="lt_You_have_a_watch_on_t">Aveţi o monitorizare setată pentru %object_type.pretty_name%.</msg>
+  <msg key="lt_You_have_requested_to">Aţi cerut sa fiţi informat despre orice activitate în legătură cu %object_type.pretty_plural% în %workflow_object.name%.</msg>
+  <msg key="notification_email_latest_action_chunk">%action_past_tense% de către  %user_name% (%user_email%)</msg>
+</message_catalog>
