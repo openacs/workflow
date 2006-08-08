@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<message_catalog package_key="workflow" package_version="2.1.1" locale="hi_IN" charset="utf-8">
+
+  <msg key="Case">विषय </msg>
+  <msg key="lt_Please_click_here_to_">यहा जाने के लिए क्रपया यहा पर खटखट कीजिए  %object_type.pretty_name%:</msg>
+  <msg key="lt_You_are_a_participant">आप इस्मे एक भागदारी हे %object_type.pretty_name%.</msg>
+  <msg key="lt_You_are_assigned_to_t">आप अगले कार्य के लिए निशचित किए गए हे   </msg>
+  <msg key="lt_You_have_a_watch_on_t">आप इस पर नज़र रखे
+%object_type.pretty_name%.</msg>
+  <msg key="lt_You_have_requested_to">आपने इस क्रिया के बारे मे सूचित किये जाने के लिये आग्र्ह किया है  %object_type.pretty_plural% in %workflow_object.name%.
+</msg>
+  <msg key="notification_email_latest_action_chunk">%action_past_tense% ने %user_name% (%user_email%)</msg>
+</message_catalog>

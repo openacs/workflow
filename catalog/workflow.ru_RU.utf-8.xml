@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<message_catalog package_key="workflow" package_version="2.1.1" locale="ru_RU" charset="utf-8">
+
+  <msg key="Case">Случай</msg>
+  <msg key="lt_Please_click_here_to_">Нажмите здесь, что бы посмотреть на %object_type.pretty_name%:</msg>
+  <msg key="lt_You_are_a_participant">Вы участник в %object_type.pretty_name%.</msg>
+  <msg key="lt_You_have_a_watch_on_t">Вы установили надзор за %object_type.pretty_name%.</msg>
+  <msg key="lt_You_have_requested_to">Вы просили, что бы вас извещали о любых изменениях всех %object_type.pretty_plural% в %workflow_object.name%.</msg>
+  <msg key="notification_email_latest_action_chunk">%action_past_tense% пользователь %user_name% (%user_email%)</msg>
+</message_catalog>

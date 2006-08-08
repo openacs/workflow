@@ -217,7 +217,7 @@ as
     else
         -- this will return null if the app stores the package_id
         -- in a package-specific table instead of acs_objects
-        v_package_id := acs_object__package_id(v_case_object_id);
+        v_package_id := acs_object.package_id(v_case_object_id);
     end if;
 
     v_item_id := content_item.new (

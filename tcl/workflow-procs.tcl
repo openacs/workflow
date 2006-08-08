@@ -1022,6 +1022,8 @@ ad_proc -public workflow::fsm::new_from_spec {
     {-object_id {}}
     {-spec:required}
     {-array {}}
+    {-workflow_handler {}}
+    {-handlers {}}
 } {
     Create a new workflow from spec. Workflows must belong to either a package key or an object id.
 

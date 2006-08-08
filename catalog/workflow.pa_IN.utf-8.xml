@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<message_catalog package_key="workflow" package_version="2.1.1" locale="pa_IN" charset="utf-8">
+
+  <msg key="Case">ਕੇਸ</msg>
+  <msg key="lt_Please_click_here_to_">ਕਿਰਪਾ ਕਰਕੇ ਇਸ %object_type.pretty_name% ਨੂੰ ਖੋਲਣ ਲਈ ਇੱਥੇ ਦਬਾਉ:</msg>
+  <msg key="lt_You_are_a_participant">ਤੁਸੀਂ ਇਸ %object_type.pretty_name% ਵਿੱਚ ਭਾਗ ਲੈ ਰਹੇ ਹੋ:</msg>
+  <msg key="lt_You_are_assigned_to_t">ਤੁਹਾਨੂੰ ਅਗਲੀ ਕਾਰਵਾਈ ਜਾੀਰੀ ਕੀਤੀ ਗਈ ਹੈ।</msg>
+  <msg key="lt_You_have_a_watch_on_t">ਤੁਸੀਂ ਇਸ %object_type.pretty_name% 'ਤੇ ਨਿਗਾ ਰੱਖ ਰਹੇ ਹੋ।</msg>
+  <msg key="lt_You_have_requested_to">ਤੁਸੀਂ %workflow_object.name% 'ਚੋਂ ਸਭ %object_type.pretty_name%  ਬਾਰੇ ਜਾਣਕਾਰੀ ਲੈਣ ਲਈ ਬੇਨਤੀ ਕੀਤੀ ਹੈ।</msg>
+  <msg key="notification_email_latest_action_chunk">%user_name% (%user_email%) ਵਲੋਂ %action_past_tense%</msg>
+</message_catalog>
