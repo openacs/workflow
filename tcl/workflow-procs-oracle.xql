@@ -19,7 +19,7 @@
       where  w.workflow_id = :workflow_id
         and  w.workflow_id = a.workflow_id (+)
         and  a.parent_action_id is null
-        and  (a.trigger_type = 'init' or a.trigger_type is null)
+	and  a.trigger_type(+) = 'init'
     </querytext>
   </fullquery>
 
