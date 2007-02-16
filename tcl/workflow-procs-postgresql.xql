@@ -10,8 +10,8 @@
              w.object_id,
              w.package_key,
              w.object_type,
-             w.description,
-             w.description_mime_type,
+             a.description,
+             a.description_mime_type,
              a.short_name as initial_action,
              a.action_id as initial_action_id
       from   workflows w left outer join

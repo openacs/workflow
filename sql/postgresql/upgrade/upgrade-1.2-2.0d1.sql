@@ -176,7 +176,17 @@ alter table workflow_fsm_actions add
 
 -- Adding unique constraint on workflow fsm enabled in actions
 -- This could cause upgrades to fail, if there are in fact duplicates, so let's pray that there aren't
--- alter table workflow_fsm_action_en_in_st add constraint workflow_fsm_action_en_in_st_pk primary key (action_id, state_id);
+-- Nima: Therefore we remove duplicates
+delete from workflow_fsm_action_en_in_st
+        where oid in (
+                select w1.oid from workflow_fsm_action_en_in_st w1, workflow_fsm_action_en_in_st w2
+                        where   w1.action_id = w2.action_id and
+                                w1.state_id = w2.state_id and
+                                w1.oid <> w2.oid and
+                                w1.assigned_p = 'f'
+                );
+-- Nima: and now we uncomment this:
+alter table workflow_fsm_action_en_in_st add constraint workflow_fsm_action_en_in_st_pk primary key (action_id, state_id);
 
 -- Workflow deputies should use timestamp, not date
 alter table workflow_deputies rename column start_date to start_date_old;
