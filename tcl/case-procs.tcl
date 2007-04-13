@@ -511,7 +511,7 @@ ad_proc -private workflow::case::get_activity_html {
     }
 
     if { ![empty_string_p $action_id] } {
-        set action_pretty_past_tense [workflow::action::get_element -action_id $action_id -element pretty_past_tense]
+        set action_pretty_past_tense [lang::util::localize [workflow::action::get_element -action_id $action_id -element pretty_past_tense]]
 
         # sets first_names, last_name, email
         acs_user::get -user_id [ad_conn untrusted_user_id] -array user
