@@ -92,6 +92,8 @@ ad_proc -public workflow::impl::role_assignee_pick_list::current_assignees::get_
 } {
     Return the list of current assignees for this case and role
 } {
+    set workflow_id [workflow::role::get_workflow_id -role_id $role_id]
+    
     return [db_list select_current_assignees {}]
 }
 

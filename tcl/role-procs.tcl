@@ -721,3 +721,132 @@ ad_proc -public workflow::role::generate_short_name {
 
     return $short_name
 }
+
+ad_proc -public workflow::role::get_assignee_widget {
+    {-role_id:required}
+    {-prefix "role_"}
+    {-mode "display"}
+} {
+    Get the assignee widget for use with ad_form for this role.
+
+    @param case_id the ID of the case.
+    @param role_id the ID of the role.
+
+    @author Lars Pind (lars@collaboraid.biz)
+} {
+
+    workflow::role::get -role_id $role_id -array role
+    set element "${prefix}$role(short_name)"
+    
+    set query [workflow::role::get_search_query -role_id $role_id]
+    set picklist [workflow::role::get_picklist -role_id $role_id]
+    return [list "${element}:search(search),optional" [list label $role(pretty_name)] [list mode $mode] \
+            [list search_query $query] [list options $picklist]]
+}
+
+ad_proc -public workflow::role::get_search_query {
+    {-role_id:required}
+} {
+    Get the search query for this role.
+
+    @param case_id the ID of the case.
+    @param role_id the ID of the role.
+
+    @author Lars Pind (lars@collaboraid.biz)
+} {
+    set contract_name [workflow::service_contract::role_assignee_subquery]
+
+    set impl_names [workflow::role::get_callbacks \
+            -role_id $role_id \
+            -contract_name $contract_name]
+    return         "select distinct acs_object__name(p.party_id) || ' (' || p.email || ')' as label, p.party_id
+        from   cc_users p
+        where  upper(coalesce(acs_object__name(p.party_id) || ' ', '')  || p.email) like upper('%'||:value||'%')
+        order  by label"
+
+    
+}
+
+
+ad_proc -public workflow::role::get_picklist {
+    {-role_id:required}
+} {
+    Get the picklist for this role.
+
+    @param role_id the ID of the role.
+
+    @author Lars Pind (lars@collaboraid.biz)
+} {
+    set contract_name [workflow::service_contract::role_assignee_pick_list]
+
+    set party_id_list [list]
+
+    db_transaction {
+
+        set impl_names [workflow::role::get_callbacks \
+                -role_id $role_id \
+                -contract_name $contract_name]
+
+        foreach impl_name $impl_names {
+            # Call the service contract implementation
+            set party_id_list [acs_sc::invoke \
+                    -contract $contract_name \
+                    -operation "GetPickList" \
+                    -impl $impl_name \
+                    -call_args [list "" "" $role_id]]
+    
+            if { [llength $party_id_list] != 0 } {
+                # Return after the first non-empty list
+                break
+            }
+        }
+
+    }
+
+    if { [ad_conn isconnected] && [ad_conn user_id] != 0 } {
+        lappend party_id_list [ad_conn user_id]
+    }
+
+    if { [llength $party_id_list] > 0 } { 
+        set options [db_list_of_lists select_options "select acs_object__name(p.party_id) || ' (' || p.email || ')'  as label, p.party_id
+        from   parties p
+        where  p.party_id in ([join $party_id_list ", "])
+        order  by label"]
+    } else {
+        set options {}
+    }
+
+    set options [concat { { "Unassigned" "" } } $options]
+    lappend options { "Search..." ":search:"}
+
+    return $options
+}
+
+ad_proc -public workflow::role::add_assignee_widgets {
+    {-form_name:required}
+    {-prefix "role_"}
+    {-workflow_id:required}
+    {-roles {}}
+    {-mode {display}}
+} {
+    Get the assignee widget for use with ad_form for this role.
+
+    @param case_id the ID of the case.
+    @param role_id the ID of the role.
+    @param role_ids Only add assignee widgets for the roles supplied. If no roles are
+                    specified then all roles are used.
+
+    @author Lars Pind (lars@collaboraid.biz)
+} {
+    foreach role $roles {
+	lappend role_ids [get_id -short_name $role -workflow_id $workflow_id] 
+    }
+
+    if { [empty_string_p $role_ids] } {
+        set role_ids [workflow::get_roles -workflow_id $workflow_id]
+    }
+
+    foreach role_id $role_ids {
+        ad_form -extend -name $form_name -form [list [get_assignee_widget -role_id $role_id -prefix $prefix -mode $mode]]
+    }
+}
