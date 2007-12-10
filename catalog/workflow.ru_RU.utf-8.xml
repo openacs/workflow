@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<message_catalog package_key="workflow" package_version="2.1.1" locale="ru_RU" charset="utf-8">
+<message_catalog package_key="workflow" locale="ru_RU" charset="utf-8">
 
   <msg key="Case">Случай</msg>
   <msg key="lt_Please_click_here_to_">Нажмите здесь, что бы посмотреть на %object_type.pretty_name%:</msg>
