@@ -503,7 +503,14 @@ ad_proc -private workflow::case::get_activity_html {
         }
 
         set comment_html [ad_html_text_convert -from $comment_mime_type -to "text/html" -- $comment] 
-        set community_member_url [acs_community_member_url -user_id $creation_user]
+        if { [ad_conn isconnected] == 1 } {
+            set community_member_url [acs_community_member_url -user_id $creation_user]
+        } else {
+            set community_member_url [export_vars -base [parameter::get -package_id [ad_acs_kernel_id] \
+                                          -parameter CommunityMemberURL \
+                                          -default "/shared/community-member"] \
+                                     {user_id $ass(party_id)}]
+	}
 
         # The output of this procedure will be placed in __adp_output in this stack frame.
         template::code::adp::$file_stub
@@ -525,7 +532,14 @@ ad_proc -private workflow::case::get_activity_html {
         set user_first_names $user(first_names)
         set user_last_name $user(last_name)
         
-        set community_member_url [acs_community_member_url -user_id [ad_conn untrusted_user_id]]
+        if { [ad_conn isconnected] == 1 } {
+            set community_member_url [acs_community_member_url -user_id [ad_conn untrusted_user_id]]
+        } else {
+            set community_member_url [export_vars -base [parameter::get -package_id [ad_acs_kernel_id] \
+                                          -parameter CommunityMemberURL \
+                                          -default "/shared/community-member"] \
+                                     {user_id $ass(party_id)}]
+	}
 
         # The output of this procedure will be placed in __adp_output in this stack frame.
         template::code::adp::$file_stub
