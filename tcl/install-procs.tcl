@@ -382,7 +382,7 @@ ad_proc -private workflow::install::register_default_assignees_creation_user_imp
     }
     
     lappend spec contract_name [workflow::service_contract::role_default_assignees] 
-    lappend spec owner [workflow::package_key]
+    lappend spec owner workflow
     
     acs_sc::impl::new_from_spec -spec $spec
 }
@@ -399,7 +399,7 @@ ad_proc -private workflow::install::register_default_assignees_static_assignee_i
     }
     
     lappend spec contract_name [workflow::service_contract::role_default_assignees] 
-    lappend spec owner [workflow::package_key]
+    lappend spec owner workflow
     
     acs_sc::impl::new_from_spec -spec $spec
 }
@@ -416,7 +416,7 @@ ad_proc -private workflow::install::register_pick_list_current_assignee_impl {} 
     }
 
     lappend spec contract_name [workflow::service_contract::role_assignee_pick_list]
-    lappend spec owner [workflow::package_key]
+    lappend spec owner workflow
 
     acs_sc::impl::new_from_spec -spec $spec
 }
@@ -433,7 +433,7 @@ ad_proc -private workflow::install::register_search_query_registered_users_impl 
     }
     
     lappend spec contract_name [workflow::service_contract::role_assignee_subquery]
-    lappend spec owner [workflow::package_key]
+    lappend spec owner workflow
     
     acs_sc::impl::new_from_spec -spec $spec
 }
@@ -451,7 +451,7 @@ ad_proc -private workflow::install::register_notification_impl {} {
         }  
     }
     
-    lappend spec owner [workflow::package_key]
+    lappend spec owner workflow
     
     acs_sc::impl::new_from_spec -spec $spec
 }
@@ -466,7 +466,7 @@ ad_proc -private workflow::install::register_notification_impl {} {
 ad_proc -public workflow::install::register_notification_types {} {
     Register workflow notification types
 } {
-    set sc_impl_id [acs_sc::impl::get_id -owner [workflow::package_key] -name "WorkflowNotificationType"]
+    set sc_impl_id [acs_sc::impl::get_id -owner workflow -name "WorkflowNotificationType"]
     
     set type_id [list]
     

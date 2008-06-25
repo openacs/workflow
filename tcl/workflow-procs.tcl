@@ -17,10 +17,6 @@ namespace eval workflow::service_contract {}
 #
 #####
 
-ad_proc -public workflow::package_key {} {
-    return "workflow"
-}
-
 ad_proc -public workflow::new {
     {-pretty_name:required}
     {-short_name {}}
@@ -1187,27 +1183,27 @@ ad_proc -public workflow::fsm::edit {
 #####
 
 ad_proc -public workflow::service_contract::role_default_assignees {} {
-    return "[workflow::package_key].Role_DefaultAssignees"
+    return "workflow.Role_DefaultAssignees"
 }
 
 ad_proc -public workflow::service_contract::role_assignee_pick_list {} {
-    return "[workflow::package_key].Role_AssigneePickList"
+    return "workflow.Role_AssigneePickList"
 }
 
 ad_proc -public workflow::service_contract::role_assignee_subquery {} {
-    return "[workflow::package_key].Role_AssigneeSubQuery"
+    return "workflow.Role_AssigneeSubQuery"
 }
 
 ad_proc -public workflow::service_contract::action_side_effect {} {
-    return "[workflow::package_key].Action_SideEffect"
+    return "workflow.Action_SideEffect"
 }
 
 ad_proc -public workflow::service_contract::activity_log_format_title {} {
-    return "[workflow::package_key].ActivityLog_FormatTitle"
+    return "workflow.ActivityLog_FormatTitle"
 }
 
 ad_proc -public workflow::service_contract::notification_info {} {
-    return "[workflow::package_key].NotificationInfo"
+    return "workflow.NotificationInfo"
 }
 
 ad_proc -public workflow::service_contract::get_impl_id {
