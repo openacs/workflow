@@ -58,6 +58,8 @@
 				</span>
 			</td>
 		</tr>
+        <tr> <td> Assigned Role: </td>      <td><formwidget id=assigned_role></td> </tr>
+        <tr> <td> Privileges: </td>      <td><formwidget id=privileges></td> </tr>
 	</table>
 	<center> <formwidget id=sub></center>
 </formtemplate>

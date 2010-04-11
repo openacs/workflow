@@ -30,6 +30,10 @@ set trigger_options [list \
 	[list "parallel" "parallel"] \
 ]
 
+set role_options [workflow::role::get_options -workflow_id $workflow_id]
+set role_options [linsert $role_options 0 [list "" ""]]
+set privilege_options {{read read} {write write} {admin admin}}
+
 ad_form -name "add_edit" -form {
     action_id:key
     {short_name:text(text) {label {Short Name:}}}
@@ -43,6 +47,8 @@ ad_form -name "add_edit" -form {
     {always_enabled_p:text(radio) {label {Always Enabled?}} {options $yes_no_options}}
     {enabled_states:text(checkbox),multiple,optional {label {Enabled States:}} {options $state_options}}
     {assigned_states:text(checkbox),multiple,optional {label {Assigned States:}} {options $state_options}}
+    {assigned_role:text(select),optional {label {Assigned Role:}} {options $role_options}}
+    {privileges:text(multiselect),multiple,optional {label {Privileges:}} {options $privilege_options}}
     {sub:text(submit) {label {Submit}}}
 } -new_data {
 
@@ -59,6 +65,9 @@ ad_form -name "add_edit" -form {
     set update_array(assigned_state_ids) $assigned_states
     set update_array(new_state_id) $new_state_id
 
+    set update_array(assigned_role) $assigned_role
+    set update_array(privileges) $privileges
+    
     #callbacks
     set callback_list [list]
     foreach callback_name [split $callbacks "\n"] {
@@ -98,6 +107,9 @@ ad_form -name "add_edit" -form {
     set update_array(enabled_state_ids) $enabled_states
     set update_array(assigned_state_ids) $assigned_states
     set update_array(new_state_id) $new_state_id
+
+    set update_array(assigned_role) $assigned_role
+    set update_array(privileges) $privileges
 
     #callbacks
     set callback_list [list]
@@ -144,6 +156,9 @@ ad_form -name "add_edit" -form {
     set new_state              $action_info(new_state)
     set new_state_id           $action_info(new_state_id)
     set callbacks              [join $action_info(callbacks) "\n"]
+    
+    set assigned_role          $action_info(assigned_role)
+    set privileges             $action_info(privileges)
 
 } -after_submit {
     ad_returnredirect $return_url
