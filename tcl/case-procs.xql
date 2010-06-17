@@ -137,7 +137,7 @@
     </querytext>
   </fullquery>
 
-  <fullquery name="workflow::case::role::assignee_insert.delete_assignees">
+  <fullquery name="workflow::case::role::assignees_remove.delete_assignees">
     <querytext>
         delete from workflow_case_role_party_map
         where  case_id = :case_id

@@ -1206,12 +1206,17 @@ ad_proc -public workflow::case::role::assignee_insert {
 } {
     db_transaction { 
         if { $replace_p } {
-            db_dml delete_assignees {}
+            workflow::case::role::assignees_remove -case_id $case_id -role_id $role_id
         }
         
         foreach party_id $party_ids {
             if { [catch {
                 db_dml insert_assignee {}
+
+		callback workflow::case::role::after_assign \
+		    -case_id $case_id \
+		    -party_id $party_id
+
             } errMsg] } {
                 set already_assigned_p [db_string already_assigned_p {}]
                 if { !$already_assigned_p } {
@@ -1239,6 +1244,35 @@ ad_proc -public workflow::case::role::assignee_remove {
     @author Peter Marklund
 } {
     db_dml delete_assignee {}
+
+    callback workflow::case::role::after_unassign \
+	-case_id $case_id \
+	-party_id $party_id
+
+    workflow::case::role::flush_cache -case_id $case_id
+}
+
+ad_proc -public workflow::case::role::assignees_remove {
+    {-case_id:required}
+    {-role_id:required}
+} {
+    Remove all assignees in this role
+    
+    @param case_id the ID of the case.
+    @param role_id the ID of the role to remove the assignees from.
+
+    @author Ryan Gallimore
+} {
+    set assignees [workflow::case::role::get_assignees -case_id $case_id -role_id $role_id]
+    foreach assignee $assignees {
+        foreach {party_id email name} {
+            callback workflow::case::role::after_unassign \
+                -case_id $case_id \
+                -party_id $party_id
+        }
+    }
+
+    db_dml delete_assignees {}
 
     workflow::case::role::flush_cache -case_id $case_id
 }
