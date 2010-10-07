@@ -1265,7 +1265,7 @@ ad_proc -public workflow::case::role::assignees_remove {
 } {
     set assignees [workflow::case::role::get_assignees -case_id $case_id -role_id $role_id]
     foreach assignee $assignees {
-        foreach {party_id email name} {
+        foreach {party_id email name} $assignee {
             callback workflow::case::role::after_unassign \
                 -case_id $case_id \
                 -party_id $party_id
