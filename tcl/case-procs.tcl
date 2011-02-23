@@ -1265,11 +1265,13 @@ ad_proc -public workflow::case::role::assignees_remove {
 } {
     set assignees [workflow::case::role::get_assignees -case_id $case_id -role_id $role_id]
     foreach assignee $assignees {
-        foreach {party_id email name} $assignee {
+        array set elm $assignee
+        if { [exists_and_not_null elm(party_id)] } {
             callback workflow::case::role::after_unassign \
                 -case_id $case_id \
-                -party_id $party_id
+                -party_id $elm(party_id)
         }
+        array unset elm
     }
 
     db_dml delete_assignees {}
