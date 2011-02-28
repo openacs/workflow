@@ -523,10 +523,7 @@ ad_proc -private workflow::case::get_activity_html {
         # sets first_names, last_name, email
         acs_user::get -user_id [ad_conn untrusted_user_id] -array user
 
-        set creation_date_pretty [clock format [clock seconds] -format "%m/%d/%Y"]
-        # Get rid of leading zeros
-        regsub {^0} $creation_date_pretty {} creation_date_pretty
-        regsub {/0} $creation_date_pretty {/} creation_date_pretty
+        set creation_date_pretty [clock format [clock seconds] -format "%b %e, %Y"]
 
         set comment_html {}
         set user_first_names $user(first_names)
