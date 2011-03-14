@@ -30,8 +30,8 @@ set trigger_options [list \
 	[list "parallel" "parallel"] \
 ]
 
-set role_options [workflow::role::get_options -workflow_id $workflow_id]
-set role_options [linsert $role_options 0 [list "" ""]]
+set role_options_no_blank [workflow::role::get_options -workflow_id $workflow_id]
+set role_options [linsert $role_options_no_blank 0 [list "" ""]]
 set privilege_options {{read read} {write write} {admin admin}}
 
 ad_form -name "add_edit" -form {
@@ -48,6 +48,7 @@ ad_form -name "add_edit" -form {
     {enabled_states:text(checkbox),multiple,optional {label {Enabled States:}} {options $state_options}}
     {assigned_states:text(checkbox),multiple,optional {label {Assigned States:}} {options $state_options}}
     {assigned_role:text(select),optional {label {Assigned Role:}} {options $role_options}}
+    {allowed_roles:text(multiselect),multiple,optional {label {Allowed Roles:}} {options $role_options_no_blank}}
     {privileges:text(multiselect),multiple,optional {label {Privileges:}} {options $privilege_options}}
     {sub:text(submit) {label {Submit}}}
 } -new_data {
@@ -66,6 +67,7 @@ ad_form -name "add_edit" -form {
     set update_array(new_state_id) $new_state_id
 
     set update_array(assigned_role) $assigned_role
+    set update_array(allowed_roles) $allowed_roles
     set update_array(privileges) $privileges
     
     #callbacks
@@ -109,6 +111,7 @@ ad_form -name "add_edit" -form {
     set update_array(new_state_id) $new_state_id
 
     set update_array(assigned_role) $assigned_role
+    set update_array(allowed_roles) $allowed_roles
     set update_array(privileges) $privileges
 
     #callbacks
@@ -158,6 +161,7 @@ ad_form -name "add_edit" -form {
     set callbacks              [join $action_info(callbacks) "\n"]
     
     set assigned_role          $action_info(assigned_role)
+    set allowed_roles          $action_info(allowed_roles)
     set privileges             $action_info(privileges)
 
 } -after_submit {
