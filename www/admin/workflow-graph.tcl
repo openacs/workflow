@@ -12,6 +12,6 @@ set flag [workflow::graph::draw -workflow_id $workflow_id -highlight $states_to_
 if {$flag==0} {
     ad_returnredirect graph/workflow_$workflow_id\.jpg
 } else {
-    ad_returnredirect [get_referrer]
+    ad_returnredirect -allow_complete_url [get_referrer]
 }
 

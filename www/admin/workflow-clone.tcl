@@ -61,5 +61,5 @@ ad_form -name "clone" -form {
 	    -array "update_array"
 
 } -after_submit {
-    ad_returnredirect $return_url
+    ad_returnredirect -allow_complete_url $return_url
 } -export {return_url}

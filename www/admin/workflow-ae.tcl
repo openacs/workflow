@@ -122,5 +122,5 @@ ad_form -name "add-edit" -form $the_form -new_data {
     set callbacks $wf_info(callbacks)
     set callbacks [join $callbacks "\n"]
 } -after_submit {
-    ad_returnredirect $return_url
+    ad_returnredirect -allow_complete_url $return_url
 } -export {return_url}

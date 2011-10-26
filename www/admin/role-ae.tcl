@@ -71,6 +71,6 @@ ad_form -name "add-edit" -form {
     set callbacks              [join $role_info(callbacks) "\n"]
 
 } -after_submit {
-    ad_returnredirect $return_url
+    ad_returnredirect -allow_complete_url $return_url
     ad_script_abort
 } -export {return_url workflow_id} 

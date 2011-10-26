@@ -48,5 +48,5 @@ ad_form -name "confirm" -form {
     }
     
 } -after_submit {
-    ad_returnredirect $return_url
+    ad_returnredirect -allow_complete_url $return_url
 } -export {id return_url type msg}

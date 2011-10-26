@@ -165,6 +165,6 @@ ad_form -name "add_edit" -form {
     set privileges             $action_info(privileges)
 
 } -after_submit {
-    ad_returnredirect $return_url
+    ad_returnredirect -allow_complete_url $return_url
     ad_script_abort
 } -export {return_url workflow_id} 
