@@ -1,5 +1,5 @@
 <master>
-  <property name="title">@page_title;noquote@</property>
+  <property name="doc(title)">@page_title;noquote@</property>
   <property name="context">@context;noquote@</property>
 <h3 style="margin-top: 24px; border-top: 1px solid black">Properties</h3>
 <formtemplate id="task"></formtemplate>

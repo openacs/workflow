@@ -1,5 +1,5 @@
 <master>
-<property name=title> @title@ </property>
+<property name="doc(title)"> @title@ </property>
 <property name=context> @context@ </property>
 
 Edit a boiler plate so that all future uses of the workflow will have the changes.  Note that current workflow instances using
