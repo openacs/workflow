@@ -95,7 +95,7 @@ ad_proc -public workflow::role::edit {
 } {        
     switch $operation {
         update - delete {
-            if { [empty_string_p $role_id] } {
+            if { $role_id eq "" } {
                 error "You must specify the role_id of the role to $operation."
             }
         }
@@ -117,11 +117,11 @@ ad_proc -public workflow::role::edit {
     }
     switch $operation {
         insert {
-            if { [empty_string_p $workflow_id] } {
+            if { $workflow_id eq "" } {
                 error "You must supply workflow_id"
             }
             # Default sort_order
-            if { ![exists_and_not_null row(sort_order)] } {
+            if { (![info exists row(sort_order)] || $row(sort_order) eq "") } {
                 set row(sort_order) [workflow::default_sort_order \
                                          -workflow_id $workflow_id \
                                          -table_name "workflow_roles"]
@@ -132,7 +132,7 @@ ad_proc -public workflow::role::edit {
             }
         }
         update {
-            if { [empty_string_p $workflow_id] } {
+            if { $workflow_id eq "" } {
                 set workflow_id [workflow::role::get_element \
                                      -role_id $role_id \
                                      -element workflow_id]
@@ -156,8 +156,8 @@ ad_proc -public workflow::role::edit {
                     # Convert the Tcl value to something we can use in the query
                     switch $attr {
                         short_name {
-                            if { ![exists_and_not_null row(pretty_name)] } {
-                                if { [empty_string_p $row(short_name)] } {
+                            if { (![info exists row(pretty_name)] || $row(pretty_name) eq "") } {
+                                if { $row(short_name) eq "" } {
                                     error "You cannot $operation with an empty short_name without also setting pretty_name"
                                 } else {
                                     set row(pretty_name) {}
@@ -204,7 +204,7 @@ ad_proc -public workflow::role::edit {
         # Do the insert/update/delete
         switch $operation {
             insert {
-                if { [empty_string_p $role_id] } {
+                if { $role_id eq "" } {
                     set role_id [db_nextval "workflow_roles_seq"]
                 }
 
@@ -324,7 +324,7 @@ ad_proc -public workflow::role::get_id {
     foreach role_id $role_data(role_ids) {
         array set one_role $role_data($role_id)
         
-        if { [string equal $one_role(short_name) $short_name] } {
+        if {$one_role(short_name) eq $short_name} {
             return $one_role(role_id)
         }
     }
@@ -390,13 +390,13 @@ ad_proc -public workflow::role::get_element {
 
     @author Lars Pind (lars@collaboraid.biz)
 } {
-    if { [empty_string_p $role_id] } {
-        if { [empty_string_p $one_id] } {
+    if { $role_id eq "" } {
+        if { $one_id eq "" } {
             error "You must supply either role_id or one_id"
         }
         set role_id $one_id
     } else {
-        if { ![empty_string_p $one_id] } {
+        if { $one_id ne "" } {
             error "You can only supply either role_id or one_id"
         }
     }
@@ -469,13 +469,13 @@ ad_proc -private workflow::role::generate_spec {
 
     @author Lars Pind (lars@collaboraid.biz)
 } {
-    if { [empty_string_p $role_id] } {
-        if { [empty_string_p $one_id] } {
+    if { $role_id eq "" } {
+        if { $one_id eq "" } {
             error "You must supply either role_id or one_id"
         }
         set role_id $one_id
     } else {
-        if { ![empty_string_p $one_id] } {
+        if { $one_id ne "" } {
             error "You can only supply either role_id or one_id"
         }
     }
@@ -494,7 +494,7 @@ ad_proc -private workflow::role::generate_spec {
 
     set spec {}
     foreach name [lsort [array names row]] {
-        if { ![empty_string_p $row($name)] } {
+        if { $row($name) ne "" } {
             lappend spec $name $row($name)
         }
     }
@@ -542,7 +542,7 @@ ad_proc -public workflow::role::callback_insert {
         set acs_sc_impl_id [workflow::service_contract::get_impl_id -name $name]
 
         # Get the sort order
-        if { ![exists_and_not_null sort_order] } {
+        if { (![info exists sort_order] || $sort_order eq "") } {
             set sort_order [db_string select_sort_order {}]
         }
 
@@ -677,7 +677,7 @@ ad_proc -public workflow::role::get_existing_short_names {
     set result [list]
 
     foreach role_id [workflow::get_roles -all -workflow_id $workflow_id] {
-        if { [empty_string_p $ignore_role_id] || ![string equal $ignore_role_id $role_id] } {
+        if { $ignore_role_id eq "" || $ignore_role_id ne $role_id } {
             lappend result [workflow::role::get_element -role_id $role_id -element short_name]
         }
     }
@@ -700,8 +700,8 @@ ad_proc -public workflow::role::generate_short_name {
                                   -workflow_id $workflow_id \
                                   -ignore_role_id $role_id]
     
-    if { [empty_string_p $short_name] } {
-        if { [empty_string_p $pretty_name] } {
+    if { $short_name eq "" } {
+        if { $pretty_name eq "" } {
             error "Cannot have empty pretty_name when short_name is empty"
         }
         set short_name [util_text_to_url \
@@ -842,7 +842,7 @@ ad_proc -public workflow::role::add_assignee_widgets {
 	lappend role_ids [get_id -short_name $role -workflow_id $workflow_id] 
     }
 
-    if { [empty_string_p $role_ids] } {
+    if { $role_ids eq "" } {
         set role_ids [workflow::get_roles -workflow_id $workflow_id]
     }
 

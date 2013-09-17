@@ -28,7 +28,7 @@ ad_proc -public workflow::graph::draw {
     set path [acs_package_root_dir workflow]
          append path /www/admin/graph
      
-    if {![empty_string_p $options_array_name]} {
+    if {$options_array_name ne ""} {
 	         upvar $options_array_name options
     }
      
@@ -46,19 +46,19 @@ ad_proc -public workflow::graph::draw {
      
      
          #exchange some defaults for more descriptive values
-    if {[string equal $options(subject_term) ""]} {
+    if {$options(subject_term) eq ""} {
 	         set options(subject_term) "subject"
 	         set options(subject_term_pl) "subjects"
     }
      
      
-    if {[empty_string_p $filename]} {
+    if {$filename eq ""} {
 	         set filename workflow_$workflow_id
     }
      
          set current_state ""
          set previous_state ""
-    if {![empty_string_p $highlight]} {
+    if {$highlight ne ""} {
 	set current_state [lindex $highlight 0]
 	set previous_state [lreplace $highlight 0 0]
     }
@@ -106,14 +106,14 @@ ad_proc -public workflow::graph::draw {
     foreach action_id $actions {
 	         workflow::action::get -action_id $action_id -array "action_info"
 	 
-	if {![empty_string_p $action_info(new_state)]} {
-	    if {![empty_string_p $action_info(assigned_states)]} {
+	if {$action_info(new_state) ne ""} {
+	    if {$action_info(assigned_states) ne ""} {
 		foreach x $action_info(assigned_state_ids) {
 		    append dot "  state_$x -> state_$action_info(new_state_id) \[label=\"$action_info(pretty_name)\"\];\n"
 		}
 	    }
 	     
-	    if {![empty_string_p $action_info(enabled_states)]} {
+	    if {$action_info(enabled_states) ne ""} {
 		foreach x $action_info(enabled_state_ids) {
 		    append dot "  state_$x -> state_$action_info(new_state_id) \[label=\"$action_info(pretty_name)\"\];\n"
 		}

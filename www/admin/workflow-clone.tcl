@@ -32,7 +32,7 @@ foreach item $unprocessed_list {
     set new_lines	""
 
     for {set i 0} {$i < [string length $name]} {incr i} {
-	if {[string index $name $i] == " "} {
+	if {[string index $name $i] eq " "} {
 	    append new_lines "&nbsp;"
 	} else {
 	    break;

@@ -192,7 +192,7 @@ ad_proc -public workflow::action::edit {
 } {
     switch $operation {
         update - delete {
-            if { [empty_string_p $action_id] } {
+            if { $action_id eq "" } {
                 error "You must specify the action_id of the action to $operation."
             }
         }
@@ -214,11 +214,11 @@ ad_proc -public workflow::action::edit {
     }
     switch $operation {
         insert {
-            if { [empty_string_p $workflow_id] } {
+            if { $workflow_id eq "" } {
                 error "You must supply workflow_id"
             }
             # Default sort_order
-            if { ![exists_and_not_null row(sort_order)] } {
+            if { (![info exists row(sort_order)] || $row(sort_order) eq "") } {
                 set row(sort_order) [workflow::default_sort_order \
                                          -workflow_id $workflow_id \
                                          -table_name "workflow_actions"]
@@ -229,7 +229,7 @@ ad_proc -public workflow::action::edit {
             }
         }
         update - delete {
-            if { [empty_string_p $workflow_id] } {
+            if { $workflow_id eq "" } {
                 set workflow_id [workflow::action::get_element \
                                      -action_id $action_id \
                                      -element workflow_id]
@@ -246,7 +246,7 @@ ad_proc -public workflow::action::edit {
                 if { [info exists row(parent_action_id)] } {
                     error "You cannot supply both parent_action ($row(parent_action)) (takes short_name) and parent_action_id ($row(parent_action_id)) (takes action_id)"
                 }
-                if { ![empty_string_p $row(parent_action)] } {
+                if { $row(parent_action) ne "" } {
                     set row(parent_action_id) [workflow::action::get_id \
                                                     -workflow_id $workflow_id \
                                                     -short_name $row(parent_action)]
@@ -259,7 +259,7 @@ ad_proc -public workflow::action::edit {
 
             # Record if this is an initial action (deprecated)
             if { [info exists row(initial_action_p)] } {
-                if { [info exists row(trigger_type)] && ![string equal $row(trigger_type) "user"] } {
+                if { [info exists row(trigger_type)] && $row(trigger_type) ne "user" } {
                     error "You can't specify both initial_action_p (which is deprecated) and trigger_type (which has replaced it) at the same time. Stick to trigger_type."
                 }
                 if { [template::util::is_true $row(initial_action_p)] } {
@@ -292,8 +292,8 @@ ad_proc -public workflow::action::edit {
                     # Convert the Tcl value to something we can use in the query
                     switch $attr {
                         short_name {
-                            if { ![exists_and_not_null row(pretty_name)] } {
-                                if { [empty_string_p $row(short_name)] } {
+                            if { (![info exists row(pretty_name)] || $row(pretty_name) eq "") } {
+                                if { $row(short_name) eq "" } {
                                     error "You cannot edit with an empty short_name without also setting pretty_name"
                                 } else {
                                     set row(pretty_name) {}
@@ -310,7 +310,7 @@ ad_proc -public workflow::action::edit {
                             set $varname [db_boolean [template::util::is_true $row($attr)]]
                         }
                         assigned_role {
-                            if { [empty_string_p $row($attr)] } {
+                            if { $row($attr) eq "" } {
                                 set $varname [db_null]
                             } else {
                                 # Get role_id by short_name
@@ -358,7 +358,7 @@ ad_proc -public workflow::action::edit {
         # Do the insert/update/delete
         switch $operation {
             insert {
-                if { [empty_string_p $action_id] } {
+                if { $action_id eq "" } {
                     set action_id [db_nextval "workflow_actions_seq"]
                 }
 
@@ -538,7 +538,7 @@ ad_proc -public workflow::action::get_id {
     foreach action_id [set __workflow_action_data,${workflow_id}(action_ids)] {
         array set one_action [set __workflow_action_data,${workflow_id}($action_id)]
         
-        if { [string equal $one_action(short_name) $short_name] } {
+        if {$one_action(short_name) eq $short_name} {
             return $action_id
         }
     }
@@ -609,13 +609,13 @@ ad_proc -public workflow::action::get_element {
 
     @author Lars Pind (lars@collaboraid.biz)
 } {
-    if { [empty_string_p $action_id] } {
-        if { [empty_string_p $one_id] } {
+    if { $action_id eq "" } {
+        if { $one_id eq "" } {
             error "You must supply either action_id or one_id"
         }
         set action_id $one_id
     } else {
-        if { ![empty_string_p $one_id] } {
+        if { $one_id ne "" } {
             error "You can only supply either action_id or one_id"
         }
     }
@@ -644,7 +644,7 @@ ad_proc -public workflow::action::callback_insert {
         set acs_sc_impl_id [workflow::service_contract::get_impl_id -name $name]
 
         # Get the sort order
-        if { ![exists_and_not_null sort_order] } {
+        if { (![info exists sort_order] || $sort_order eq "") } {
             set sort_order [db_string select_sort_order {}]
         }
 
@@ -677,7 +677,7 @@ ad_proc -private workflow::action::get_callbacks {
     foreach callback_id $callback_ids {
         array set one_callback $callbacks($callback_id)
 
-        if { [string equal $one_callback(contract_name) $contract_name] } {
+        if {$one_callback(contract_name) eq $contract_name} {
             lappend impl_names $one_callback(impl_name)            
         }
     }
@@ -710,7 +710,7 @@ ad_proc -public workflow::action::get_existing_short_names {
     set result [list]
 
     foreach action_id [workflow::get_actions -all -workflow_id $workflow_id] {
-        if { [empty_string_p $ignore_action_id] || ![string equal $ignore_action_id $action_id] } {
+        if { $ignore_action_id eq "" || $ignore_action_id ne $action_id } {
             lappend result [workflow::action::get_element -action_id $action_id -element short_name]
         }
     }
@@ -733,8 +733,8 @@ ad_proc -public workflow::action::generate_short_name {
                                   -workflow_id $workflow_id \
                                   -ignore_action_id $action_id]
     
-    if { [empty_string_p $short_name] } {
-        if { [empty_string_p $pretty_name] } {
+    if { $short_name eq "" } {
+        if { $pretty_name eq "" } {
             error "Cannot have empty pretty_name when short_name is empty"
         }
         set short_name [util_text_to_url \
@@ -823,7 +823,7 @@ ad_proc -public workflow::action::pretty_name_unique_p {
         and    (:parent_action_id is null or parent_action_id = :parent_action_id)
         and    (:action_id is null or action_id != :action_id)
     }]
-    return [expr !$exists_p]
+    return [expr {!$exists_p}]
 }
 
 
@@ -890,7 +890,7 @@ ad_proc -public workflow::action::fsm::new {
         enabled_states assigned_states
         enabled_state_ids assigned_state_ids
     } {
-        if { [exists_and_not_null $elm] } {
+        if { ([info exists $elm] && $$elm ne "") } {
             set row($elm) [set $elm]
         }
     }
@@ -949,7 +949,7 @@ ad_proc -public workflow::action::fsm::edit {
 } {
     switch $operation {
         update - delete {
-            if { [empty_string_p $action_id] } {
+            if { $action_id eq "" } {
                 error "You must specify the action_id of the action to $operation."
             }
         }
@@ -969,12 +969,12 @@ ad_proc -public workflow::action::fsm::edit {
     }
     switch $operation {
         insert {
-            if { [empty_string_p $workflow_id] } {
+            if { $workflow_id eq "" } {
                 error "You must supply workflow_id"
             }
         }
         update - delete {
-            if { [empty_string_p $workflow_id] } {
+            if { $workflow_id eq "" } {
                 set workflow_id [workflow::action::get_element \
                                      -action_id $action_id \
                                      -element workflow_id]
@@ -990,7 +990,7 @@ ad_proc -public workflow::action::fsm::edit {
                 if { [info exists row(new_state_id)] } {
                     error "You cannot supply both new_state (takes short_name) and new_state_id (takes state_id)"
                 }
-                if { ![empty_string_p $row(new_state)] } {
+                if { $row(new_state) ne "" } {
                     set row(new_state_id) [workflow::state::fsm::get_id \
                                                -workflow_id $workflow_id \
                                                -short_name $row(new_state)]
@@ -1213,13 +1213,13 @@ ad_proc -public workflow::action::fsm::get_element {
     @author Peter Marklund
     @author Lars Pind (lars@collaboraid.biz)
 } {
-    if { [empty_string_p $action_id] } {
-        if { [empty_string_p $one_id] } {
+    if { $action_id eq "" } {
+        if { $one_id eq "" } {
             error "You must supply either action_id or one_id"
         }
         set action_id $one_id
     } else {
-        if { ![empty_string_p $one_id] } {
+        if { $one_id ne "" } {
             error "You can only supply either action_id or one_id"
         }
     }
@@ -1240,7 +1240,7 @@ ad_proc -public workflow::action::fsm::set_enabled_in_state {
 
     @author Lars Pind (lars@collaboraid.biz)
 } {
-    if { [empty_string_p $workflow_id] } {
+    if { $workflow_id eq "" } {
         set workflow_id [workflow::action::get_element \
                              -action_id $action_id \
                              -element workflow_id]
@@ -1253,7 +1253,7 @@ ad_proc -public workflow::action::fsm::set_enabled_in_state {
         and    state_id = :state_id
     } -default {}]
 
-    set currently_enabled_p [expr ![empty_string_p $currently_assigned_p]]
+    set currently_enabled_p [expr {$currently_assigned_p ne ""}] 
     set currently_assigned_p [template::util::is_true $currently_assigned_p]
 
     set db_assigned_p [db_boolean $assigned_p]
@@ -1349,13 +1349,13 @@ ad_proc -private workflow::action::fsm::generate_spec {
 
     @author Lars Pind (lars@collaboraid.biz)
 } {
-    if { [empty_string_p $action_id] } {
-        if { [empty_string_p $one_id] } {
+    if { $action_id eq "" } {
+        if { $one_id eq "" } {
             error "You must supply either action_id or one_id"
         }
         set action_id $one_id
     } else {
-        if { ![empty_string_p $one_id] } {
+        if { $one_id ne "" } {
             error "You can only supply either action_id or one_id"
         }
     }
@@ -1396,7 +1396,7 @@ ad_proc -private workflow::action::fsm::generate_spec {
         }
     }
 
-    if { ![exists_and_not_null row(description)] } {
+    if { (![info exists row(description)] || $row(description) eq "") } {
         array unset row description_mime_type
     }
 
@@ -1408,7 +1408,7 @@ ad_proc -private workflow::action::fsm::generate_spec {
 
     set spec [list]
     foreach name [lsort [array names row]] {
-        if { ![empty_string_p $row($name)] && ![exists_and_equal defaults($name) $row($name)] } {
+        if { $row($name) ne "" && ![exists_and_equal defaults($name) $row($name)] } {
             lappend spec $name $row($name)
         }
     }
@@ -1481,7 +1481,7 @@ ad_proc -private workflow::action::get_from_request_cache {
         array set $action_var_name [set __workflow_action_data,${workflow_id}($action_id)]
     }
 
-    if { [empty_string_p $element] } {
+    if { $element eq "" } {
         return [array get $action_var_name]
     } else {
         return [set "${action_var_name}($element)"]
@@ -1546,7 +1546,7 @@ ad_proc -private workflow::action::get_all_info_not_cached {
             child_state_ids {}
         }
         array set action_array_${action_id} [array get action_row]
-        if { ![empty_string_p $action_row(parent_action_id)] } {
+        if { $action_row(parent_action_id) ne "" } {
             lappend action_array_$action_row(parent_action_id)(child_action_ids) $action_id
             lappend action_array_$action_row(parent_action_id)(child_actions) $action_row(short_name)
         }
@@ -1563,7 +1563,7 @@ ad_proc -private workflow::action::get_all_info_not_cached {
     # Get child states
     foreach state_id [workflow::fsm::get_states -all -workflow_id $workflow_id] {
         workflow::state::fsm::get -state_id $state_id -array state_array
-        if { ![empty_string_p $state_array(parent_action_id)] } {
+        if { $state_array(parent_action_id) ne "" } {
             lappend action_array_$state_array(parent_action_id)(child_state_ids) $state_id
             lappend action_array_$state_array(parent_action_id)(child_states) $state_array(short_name)
         }
@@ -1602,7 +1602,7 @@ ad_proc -private workflow::action::get_all_info_not_cached {
 
     # Build arrays of enabled and assigned state short names for all actions
     db_foreach action_enabled_in_states {} {
-        if { [string equal $assigned_p "t"] } {
+        if {$assigned_p eq "t"} {
             lappend action_array_${action_id}(assigned_states) $short_name
             lappend action_array_${action_id}(assigned_state_ids) $state_id
         } else {

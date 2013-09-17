@@ -89,7 +89,7 @@ ad_proc -public workflow::tree::sorter::make_full_key_for {
     upvar ${multirow}_tree_sorter_sort_stack        stack
     
     set top         [llength $stack]
-    set newtop      [expr $level - 1]
+    set newtop      [expr {$level - 1}]
      
     # Pop from the top of the stack and the sort-key if necessary
     if {$newtop < $top && $newtop >= 0} {
@@ -203,7 +203,7 @@ ad_proc -public workflow::tree::sorter::sort_list_of_lists {
 	set sort_key            [format $sort_key_format [lindex $row $sort_by] $parent_id]
 		  
 	# Find parent in stack
-	set pos_in_stack        [expr [lsearch $object_id_stack $parent_id] + 1]
+	set pos_in_stack        [expr {[lsearch $object_id_stack $parent_id] + 1}]
 	
 	# Clear anything after parent from the stack
 	if {$pos_in_stack < [llength $object_id_stack]} {

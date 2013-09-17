@@ -112,7 +112,7 @@ ad_proc -public workflow::state::fsm::edit {
 } {        
     switch $operation {
         update - delete {
-            if { [empty_string_p $state_id] } {
+            if { $state_id eq "" } {
                 error "You must specify the state_id of the state to $operation."
             }
         }
@@ -134,11 +134,11 @@ ad_proc -public workflow::state::fsm::edit {
     }
     switch $operation {
         insert {
-            if { [empty_string_p $workflow_id] } {
+            if { $workflow_id eq "" } {
                 error "You must supply workflow_id"
             }
             # Default sort_order
-            if { ![exists_and_not_null row(sort_order)] } {
+            if { (![info exists row(sort_order)] || $row(sort_order) eq "") } {
                 set row(sort_order) [workflow::default_sort_order \
                                          -workflow_id $workflow_id \
                                          -table_name "workflow_fsm_states"]
@@ -149,7 +149,7 @@ ad_proc -public workflow::state::fsm::edit {
             }
         }
         update {
-            if { [empty_string_p $workflow_id] } {
+            if { $workflow_id eq "" } {
                 set workflow_id [workflow::state::fsm::get_element \
                                      -state_id $state_id \
                                      -element workflow_id]
@@ -166,7 +166,7 @@ ad_proc -public workflow::state::fsm::edit {
                 if { [info exists row(parent_action_id)] } {
                     error "You cannot supply both parent_action (takes short_name) and parent_action_id (takes action_id)"
                 }
-                if { ![empty_string_p $row(parent_action)] } {
+                if { $row(parent_action) ne "" } {
                     set row(parent_action_id) [workflow::action::get_id \
                                                     -workflow_id $workflow_id \
                                                     -short_name $row(parent_action)]
@@ -190,8 +190,8 @@ ad_proc -public workflow::state::fsm::edit {
                     # Convert the Tcl value to something we can use in the query
                     switch $attr {
                         short_name {
-                            if { ![exists_and_not_null row(pretty_name)] } {
-                                if { [empty_string_p $row(short_name)] } {
+                            if { (![info exists row(pretty_name)] || $row(pretty_name) eq "") } {
+                                if { $row(short_name) eq "" } {
                                     error "You cannot edit with an empty short_name without also setting pretty_name"
                                 } else {
                                     set row(pretty_name) {}
@@ -279,7 +279,7 @@ ad_proc -public workflow::state::fsm::edit {
         # Do the insert/update/delete
         switch $operation {
             insert {
-                if { [empty_string_p $state_id] } {
+                if { $state_id eq "" } {
                     set state_id [db_nextval "workflow_fsm_states_seq"]
                 }
 
@@ -376,7 +376,7 @@ ad_proc -public workflow::state::fsm::get_existing_short_names {
     set result [list]
 
     foreach state_id [workflow::fsm::get_states -all -workflow_id $workflow_id] {
-        if { [empty_string_p $ignore_state_id] || ![string equal $ignore_state_id $state_id] } {
+        if { $ignore_state_id eq "" || $ignore_state_id ne $state_id } {
             lappend result [workflow::state::fsm::get_element -state_id $state_id -element short_name]
         }
     }
@@ -399,8 +399,8 @@ ad_proc -public workflow::state::fsm::generate_short_name {
                                   -workflow_id $workflow_id \
                                   -ignore_state_id $state_id]
     
-    if { [empty_string_p $short_name] } {
-        if { [empty_string_p $pretty_name] } {
+    if { $short_name eq "" } {
+        if { $pretty_name eq "" } {
             error "Cannot have empty pretty_name when short_name is empty"
         }
         set short_name [util_text_to_url \
@@ -454,13 +454,13 @@ ad_proc -public workflow::state::fsm::get_element {
 
     @author Lars Pind (lars@collaboraid.biz)
 } {
-    if { [empty_string_p $state_id] } {
-        if { [empty_string_p $one_id] } {
+    if { $state_id eq "" } {
+        if { $one_id eq "" } {
             error "You must supply either state_id or one_id"
         }
         set state_id $one_id
     } else {
-        if { ![empty_string_p $one_id] } {
+        if { $one_id ne "" } {
             error "You can only supply either state_id or one_id"
         }
     }
@@ -514,7 +514,7 @@ ad_proc -public workflow::state::fsm::pretty_name_unique_p {
         and    (:parent_action_id is null or parent_action_id = :parent_action_id)
         and    (:state_id is null or state_id != :state_id)
     }]
-    return [expr !$exists_p]
+    return [expr {!$exists_p}]
 }
 
 
@@ -611,13 +611,13 @@ ad_proc -private workflow::state::fsm::generate_spec {
 
     @author Lars Pind (lars@collaboraid.biz)
 } {
-    if { [empty_string_p $state_id] } {
-        if { [empty_string_p $one_id] } {
+    if { $state_id eq "" } {
+        if { $one_id eq "" } {
             error "You must supply either state_id or one_id"
         }
         set state_id $one_id
     } else {
-        if { ![empty_string_p $one_id] } {
+        if { $one_id ne "" } {
             error "You can only supply either state_id or one_id"
         }
     }
@@ -638,7 +638,7 @@ ad_proc -private workflow::state::fsm::generate_spec {
     
     set spec {}
     foreach name [lsort [array names row]] {
-        if { ![empty_string_p $row($name)] } {
+        if { $row($name) ne "" } {
             lappend spec $name $row($name)
         }
     }
@@ -776,14 +776,14 @@ ad_proc -private workflow::state::fsm::get_all_info_not_cached {
         }
 
         # Store as a child of parent NOTE: Not needed any longer
-        if { ![empty_string_p $parent_action_id] } {
+        if { $parent_action_id ne "" } {
             lappend action_info(${parent_action_id},child_action_ids) $action_id
         }
 
         # Mark enabled in all states that have the same parent as the action
         if { $action_info(${action_id},always_enabled_p) } {
             foreach state_id $state_ids {
-                if { [string equal $parent_action_id [set state_array_${state_id}(parent_action_id)]] } {
+                if {$parent_action_id eq [set state_array_${state_id}(parent_action_id)]} {
                     set assigned_p_${state_id}($action_id) 0
                 }
             }

@@ -26,7 +26,7 @@ ad_proc -public workflow::deputy::new {
 
     @author Peter Marklund
 } {
-    if { [empty_string_p $user_id] } {
+    if { $user_id eq "" } {
 	set user_id [ad_conn user_id]
     }
 

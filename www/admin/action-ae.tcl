@@ -74,7 +74,7 @@ ad_form -name "add_edit" -form {
     set callback_list [list]
     foreach callback_name [split $callbacks "\n"] {
 	set callback_name [string trim $callback_name]
-	if {![empty_string_p $callback_name]} {
+	if {$callback_name ne ""} {
 	    lappend callback_list $callback_name
 	}
     }
@@ -118,7 +118,7 @@ ad_form -name "add_edit" -form {
     set callback_list [list]
     foreach callback_name [split $callbacks "\n"] {
 	set callback_name [string trim $callback_name]
-	if {![empty_string_p $callback_name]} {
+	if {$callback_name ne ""} {
 	    lappend callback_list $callback_name
 	}
     }

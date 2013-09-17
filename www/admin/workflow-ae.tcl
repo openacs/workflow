@@ -30,7 +30,7 @@ foreach item $unprocessed_list {
     set new_lines	""
 
     for {set i 0} {$i < [string length $name]} {incr i} {
-	if {[string index $name $i] == " "} {
+	if {[string index $name $i] eq " "} {
 	    append new_lines "&nbsp;"
 	} else {
 	    break;
@@ -62,7 +62,7 @@ ad_form -name "add-edit" -form $the_form -new_data {
     set callback_list [list]
     foreach callback_name [split $callbacks "\n"] {
 	set callback_name [string trim $callback_name]
-	if {![empty_string_p $callback_name]} {
+	if {$callback_name ne ""} {
 	    lappend callback_list $callback_name
 	}
     }
@@ -92,7 +92,7 @@ ad_form -name "add-edit" -form $the_form -new_data {
     set callback_list [list]
     foreach callback_name [split $callbacks "\n"] {
 	set callback_name [string trim $callback_name]
-	if {![empty_string_p $callback_name]} {
+	if {$callback_name ne ""} {
 	    lappend callback_list $callback_name
 	}
     }

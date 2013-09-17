@@ -26,7 +26,7 @@ ad_form -name "confirm" -form {
     {cancel:text(submit) {label {Cancel}}}
 } -on_submit {
 
-    if {![empty_string_p $ok]} {
+    if {$ok ne ""} {
 	switch $type {
 	    role {
 		workflow::role::edit \

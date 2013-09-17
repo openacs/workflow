@@ -108,7 +108,7 @@ ad_proc -public workflow::edit {
 } {        
     switch $operation {
         update - delete {
-            if { [empty_string_p $workflow_id] } {
+            if { $workflow_id eq "" } {
                 error "You must specify the workflow_id of the workflow to $operation."
             }
         }
@@ -217,8 +217,8 @@ ad_proc -public workflow::edit {
                     # Convert the Tcl value to something we can use in the query
                     switch $attr {
                         short_name {
-                            if { ![exists_and_not_null row(pretty_name)] } {
-                                if { [empty_string_p $row(short_name)] } {
+                            if { (![info exists row(pretty_name)] || $row(pretty_name) eq "") } {
+                                if { $row(short_name) eq "" } {
                                     error "You cannot $operation with an empty short_name without also setting pretty_name"
                                 } else {
                                     set row(pretty_name) {}
@@ -249,7 +249,7 @@ ad_proc -public workflow::edit {
                             }
                         }
                         creation_user - creation_ip - context_id {
-                            if { ![string equal $operation insert] } {
+                            if { $operation ne "insert" } {
                                 error "Cannot update creation_user, creation_ip, context_id"
                             }
                         }
@@ -486,7 +486,7 @@ ad_proc -public workflow::get_existing_short_names {
         where  package_key = :package_key
         and    object_id = :object_id
     } {
-        if { [empty_string_p $ignore_workflow_id] || ![string equal $ignore_workflow_id $workflow_id] } {
+        if { $ignore_workflow_id eq "" || $ignore_workflow_id ne $workflow_id } {
             lappend result $short_name
         }
     }
@@ -512,8 +512,8 @@ ad_proc -public workflow::generate_short_name {
                                   -object_id $object_id \
                                   -ignore_workflow_id $workflow_id]
     
-    if { [empty_string_p $short_name] } {
-        if { [empty_string_p $pretty_name] } {
+    if { $short_name eq "" } {
+        if { $pretty_name eq "" } {
             error "Cannot have empty pretty_name when short_name is empty"
         }
         set short_name [util_text_to_url \
@@ -569,7 +569,7 @@ ad_proc -public workflow::generate_spec {
     array unset row initial_action
     array unset row initial_action_id
 
-    if { ![exists_and_not_null row(description)] } {
+    if { (![info exists row(description)] || $row(description) eq "") } {
         array unset row description_mime_type
     }
 
@@ -577,7 +577,7 @@ ad_proc -public workflow::generate_spec {
 
     # Output sorted, and with no empty elements
     foreach name [lsort [array names row]] {
-        if { ![empty_string_p $row($name)] } {
+        if { $row($name) ne "" } {
             lappend spec $name $row($name)
         }
     }
@@ -625,7 +625,7 @@ ad_proc -public workflow::clone {
     @author Lars Pind (lars@collaboraid.biz)
     @see workflow::new
 } {
-    if { ![empty_string_p $array] } {
+    if { $array ne "" } {
         upvar 1 $array row
         set array row
     } 
@@ -688,10 +688,10 @@ ad_proc -public workflow::new_from_spec {
     array set workflow_array [lindex $spec 1]
     
     # Override workflow attributes from the array
-    if { ![empty_string_p $array] } {
+    if { $array ne "" } {
         upvar 1 $array row
         foreach name [array names row] {
-            if { [string equal $name short_name] } {
+            if {$name eq "short_name"} {
                 set short_name $row($name)
             } else {
                 set workflow_array($name) $row($name)
@@ -746,7 +746,7 @@ ad_proc -private workflow::parse_spec {
 
     # Override stuff in the spec with stuff provided as an argument here
     foreach var { short_name package_key object_id } {
-        if { ![empty_string_p [set $var]] || ![exists_and_not_null workflow($var)] } {
+        if { ![empty_string_p [set $var]] || (![info exists workflow($var)] || $workflow($var) eq "") } {
             set workflow($var) [set $var]
         }
     }
@@ -872,8 +872,8 @@ ad_proc -private workflow::get_id_not_cached {
     Private proc not to be used by applications, use workflow::get_id
     instead.
 } {
-    if { [empty_string_p $package_key] } {
-        if { [empty_string_p $object_id] } {
+    if { $package_key eq "" } {
+        if { $object_id eq "" } {
             if { [ad_conn isconnected] } {
                 set package_key [ad_conn package_key]
                 set query_name select_workflow_id_by_package_key
@@ -884,7 +884,7 @@ ad_proc -private workflow::get_id_not_cached {
             set query_name select_workflow_id_by_object_id
         }
     } else {
-        if { [empty_string_p $object_id] } {
+        if { $object_id eq "" } {
             set query_name select_workflow_id_by_package_key
         } else {
             error "You must supply only one of either package_key or object_id"
@@ -940,7 +940,7 @@ ad_proc -private workflow::default_sort_order {
 } {
     set max_sort_order [db_string max_sort_order {} -default 0]
 
-    return [expr $max_sort_order + 1]
+    return [expr {$max_sort_order + 1}]
 }
 
 ad_proc -private workflow::callback_insert {
@@ -963,7 +963,7 @@ ad_proc -private workflow::callback_insert {
         set acs_sc_impl_id [workflow::service_contract::get_impl_id -name $name]
 
         # Get the sort order
-        if { ![exists_and_not_null sort_order] } {
+        if { (![info exists sort_order] || $sort_order eq "") } {
             set sort_order [db_string select_sort_order {}]
         }
 
@@ -1040,7 +1040,7 @@ ad_proc -public workflow::fsm::new_from_spec {
     @author Lars Pind (lars@collaboraid.biz)
     @see workflow::new
 } {
-    if { ![empty_string_p $array] } {
+    if { $array ne "" } {
         upvar 1 $array row
         set array row
     } 
@@ -1079,7 +1079,7 @@ ad_proc -public workflow::fsm::clone {
     @author Lars Pind (lars@collaboraid.biz)
     @see workflow::new
 } {
-    if { ![empty_string_p $array] } {
+    if { $array ne "" } {
         upvar 1 $array row
         set array row
     } 
@@ -1158,7 +1158,7 @@ ad_proc -public workflow::fsm::edit {
     {-array {}}
     {-internal:boolean}
 } {
-    if { ![empty_string_p $array] } {
+    if { $array ne "" } {
         upvar 1 $array row
         set array row
     }

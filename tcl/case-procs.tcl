@@ -38,7 +38,7 @@ ad_proc -private workflow::case::insert {
     @author Lars Pind (lars@collaboraid.biz)
 } {
     db_transaction {
-	if { ![exists_and_not_null case_id] } {
+	if { (![info exists case_id] || $case_id eq "") } {
 	    set case_id [db_nextval "workflow_cases_seq"]
 	}
         
@@ -79,11 +79,11 @@ ad_proc -public workflow::case::new {
 
     @author Lars Pind (lars@collaboraid.biz)
 } {
-    if { ![exists_and_not_null user_id] } {
+    if { (![info exists user_id] || $user_id eq "") } {
         set user_id [ad_conn user_id]
     }
 
-    if { ![exists_and_not_null package_id] } {
+    if { (![info exists package_id] || $package_id eq "") } {
         set package_id [ad_conn package_id]
     }
     
@@ -97,11 +97,11 @@ ad_proc -public workflow::case::new {
 	    array unset row
 	}
 
-	if {[empty_string_p $initial_action_id]} {
+	if {$initial_action_id eq ""} {
 	    set initial_action_id [workflow::get_element -workflow_id $workflow_id -element initial_action_id]
 	}
 
-        if { [empty_string_p $initial_action_id] } {
+        if { $initial_action_id eq "" } {
             # If there is no initial-action, we create one now
             # TODO: Should we do this here, or throw an error like we used to?
             # If we change this, we should throw an error instead
@@ -133,7 +133,7 @@ ad_proc -public workflow::case::new {
             workflow::action::fsm::get -action_id $initial_action_id -array initial_action
             set new_state $initial_action(new_state)
 
-            if { [empty_string_p $new_state] } {
+            if { $new_state eq "" } {
                 error "Initial action with short_name \"$initial_action(short_name)\" does not have any new_state. In order to be an initial state, it must have new_state set."
             }
         }
@@ -145,7 +145,7 @@ ad_proc -public workflow::case::new {
                          -object_id $object_id]
 
         # Assign roles
-        if { [exists_and_not_null assignment] } {
+        if { ([info exists assignment] && $assignment ne "") } {
             array set assignment_array $assignment
             workflow::case::role::assign -case_id $case_id -array assignment_array
         }
@@ -225,7 +225,7 @@ ad_proc -public workflow::case::active_p {
         set enabled_actions [workflow::case::get_enabled_actions -case_id $case_id]
     }
     
-    return [expr [llength $enabled_actions] > 0]
+    return [expr {[llength $enabled_actions] > 0}]
 }
 
 ad_proc -public workflow::case::get_element {
@@ -274,7 +274,7 @@ ad_proc -public workflow::case::get_user_roles {
 
     @author Lars Pind (lars@collaboraid.biz)
 } {
-    if { ![exists_and_not_null user_id] } {
+    if { (![info exists user_id] || $user_id eq "") } {
         set user_id [ad_conn user_id]
     }
     return [util_memoize [list workflow::case::get_user_roles_not_cached $case_id $user_id] \
@@ -345,7 +345,7 @@ ad_proc -public workflow::case::get_enabled_action_ids_not_cached {
     Used internally by the workflow API only. Goes to the database to
     get the enabled actions for the case.
 } {
-    if { [empty_string_p $trigger_type] } {
+    if { $trigger_type eq "" } {
         return [db_list select_enabled_actions {
             select ena.enabled_action_id
             from   workflow_case_enabled_actions ena
@@ -379,7 +379,7 @@ ad_proc -public -deprecated workflow::case::get_available_actions {
 
     @see workflow::case::get_available_enabled_action_ids
 } {
-    if { ![exists_and_not_null user_id] } {
+    if { (![info exists user_id] || $user_id eq "") } {
         set user_id [ad_conn user_id]
     }
 
@@ -408,7 +408,7 @@ ad_proc -public workflow::case::get_available_enabled_action_ids {
 
     @author Lars Pind (lars@collaboraid.biz)
 } {
-    if { ![exists_and_not_null user_id] } {
+    if { (![info exists user_id] || $user_id eq "") } {
         set user_id [ad_conn user_id]
     }
 
@@ -490,9 +490,9 @@ ad_proc -private workflow::case::get_activity_html {
 
     set activity_entry_list [get_activity_log_info_not_cached -case_id $case_id]
     set start_index 0
-    if { ![empty_string_p $max_n_actions] && [llength $activity_entry_list] > $max_n_actions} { 
+    if { $max_n_actions ne "" && [llength $activity_entry_list] > $max_n_actions} { 
 	# Only return the last max_n_actions actions
-	set start_index [expr [llength $activity_entry_list] - $max_n_actions]
+	set start_index [expr {[llength $activity_entry_list] - $max_n_actions}]
     } 
 
     set log_html {}
@@ -517,7 +517,7 @@ ad_proc -private workflow::case::get_activity_html {
         append log_html $__adp_output
     }
 
-    if { ![empty_string_p $action_id] } {
+    if { $action_id ne "" } {
         set action_pretty_past_tense [lang::util::localize [workflow::action::get_element -action_id $action_id -element pretty_past_tense]]
 
         # sets first_names, last_name, email
@@ -562,7 +562,7 @@ ad_proc -private workflow::case::get_activity_text {
 
         set entry_text "$creation_date_pretty $action_pretty_past_tense [ad_decode $log_title "" "" "$log_title "]by $user_first_names $user_last_name ($user_email)"
 
-        if { ![empty_string_p $comment] } {
+        if { $comment ne "" } {
             append entry_text ":\n\n    [join [split [ad_html_text_convert -from $comment_mime_type -to "text/plain" -maxlen 66 -- $comment] "\n"] "\n    "]"
         }
 
@@ -631,11 +631,11 @@ ad_proc -private workflow::case::get_activity_log_info_not_cached {
     set entries [list]
     template::multirow -local foreach entries {
 
-        if { ![empty_string_p $key] } {
+        if { $key ne "" } {
             lappend data_arraylist $key $value
         }
 
-        if { $counter == $rowcount || ![string equal $last_entry_id [set "entries:[expr $counter + 1](entry_id)"]] } {
+        if { $counter == $rowcount || $last_entry_id ne [set "entries:[expr {$counter + 1}](entry_id)"] } {
             
             set log_title_elements [list]
             foreach impl_name $impl_names {
@@ -644,7 +644,7 @@ ad_proc -private workflow::case::get_activity_log_info_not_cached {
                                 -operation "GetTitle" \
                                 -impl $impl_name \
                                 -call_args [list $case_id $object_id $action_id $entry_id $data_arraylist]]
-                if { ![empty_string_p $result] } {
+                if { $result ne "" } {
                     lappend log_title_elements $result
                 }
             }
@@ -681,13 +681,13 @@ ad_proc workflow::case::get_notification_object {
 } {
     switch $type {
         workflow_case {
-            if { ![exists_and_not_null case_id] } {
+            if { (![info exists case_id] || $case_id eq "") } {
                 return {}
             }
             return [workflow::case::get_element -case_id $case_id -element object_id]
         }
         default {
-            if { ![exists_and_not_null workflow_id] } {
+            if { (![info exists workflow_id] || $workflow_id eq "") } {
                 return {}
             }
             return [workflow::get_element -workflow_id $workflow_id -element object_id]
@@ -717,11 +717,11 @@ ad_proc workflow::case::get_notification_request_url {
             -workflow_id $workflow_id \
             -case_id $case_id]
 
-    if { [empty_string_p $object_id] } {
+    if { $object_id eq "" } {
         return {}
     }
 
-    if { ![exists_and_not_null return_url] } {
+    if { (![info exists return_url] || $return_url eq "") } {
         set return_url [ad_return_url]
     }
 
@@ -763,9 +763,9 @@ ad_proc workflow::case::get_notification_requests_multirow {
                 -case_id $case_id \
                 -return_url $return_url]
 
-        if { ![empty_string_p $url] } {
+        if { $url ne "" } {
             set title "Subscribe to $pretty($type)"
-            if { ![empty_string_p $label] } {
+            if { $label ne "" } {
                 set row_label $label
             } else {
                 set row_label $title
@@ -1070,7 +1070,7 @@ ad_proc -public workflow::case::role::get_search_query {
                 -impl $impl_name \
                 -call_args [list $case_id $object_id $role_id]]
 
-        if { ![empty_string_p $subquery] } {
+        if { $subquery ne "" } {
             # Return after the first non-empty list
             break
         }
@@ -1122,7 +1122,7 @@ ad_proc -public workflow::case::role::add_assignee_widgets {
 } {
     set workflow_id [workflow::case::get_element -case_id $case_id -element workflow_id]
 
-    if { [empty_string_p $role_ids] } {
+    if { $role_ids eq "" } {
         set role_ids [workflow::get_roles -workflow_id $workflow_id]
     }
 
@@ -1160,12 +1160,12 @@ ad_proc -public workflow::case::role::set_assignee_values {
 
         if { [uplevel info exists $form_name:$element] } {
             # Set normal value
-            if { [uplevel template::form is_request $form_name] || [string equal [uplevel [list element get_property $form_name $element mode]] "display"] } {
+            if { [uplevel template::form is_request $form_name] || [uplevel [list element get_property $form_name $element mode]] eq "display" } {
                 uplevel [list element set_value $form_name $element $cur_assignee(party_id)]
             }
             
             # Set display value
-            if { [empty_string_p $cur_assignee(party_id)] } {
+            if { $cur_assignee(party_id) eq "" } {
                 set display_value "<i>None</i>"
             } else {
                 set display_value [acs_community_member_link \
@@ -1175,7 +1175,7 @@ ad_proc -public workflow::case::role::set_assignee_values {
                     append display_value " (<a href=\"mailto:$cur_assignee(email)\">$cur_assignee(email)</a>)"
                 } else {
 		    append display_value " ([string replace $cur_assignee(email) \
-			    [expr [string first "@" $cur_assignee(email)]+3] end "..."])"
+			    [expr {[string first "@" $cur_assignee(email)]+3}] end "..."])"
 		}
             }
 
@@ -1313,7 +1313,7 @@ ad_proc -public workflow::case::role::assignees_remove {
     set assignees [workflow::case::role::get_assignees -case_id $case_id -role_id $role_id]
     foreach assignee $assignees {
         array set elm $assignee
-        if { [exists_and_not_null elm(party_id)] } {
+        if { ([info exists elm(party_id)] && $elm(party_id) ne "") } {
             callback workflow::case::role::after_unassign \
                 -case_id $case_id \
                 -party_id $elm(party_id)
@@ -1411,8 +1411,8 @@ ad_proc -public workflow::case::fsm::get {
     # Select the info into the upvar'ed Tcl Array
     upvar $array row
 
-    if { ![empty_string_p $action_id] } {
-        if { ![empty_string_p $enabled_action_id] } {
+    if { $action_id ne "" } {
+        if { $enabled_action_id ne "" } {
             error "You cannot specify both action_id and enabled_action_id. enabled_action_id is preferred."
         }
         set enabled_action_id [workflow::case::action::get_enabled_action_id \
@@ -1421,7 +1421,7 @@ ad_proc -public workflow::case::fsm::get {
                                    -any_parent]
     }
 
-    if { [empty_string_p $enabled_action_id] } {
+    if { $enabled_action_id eq "" } {
         array set row [util_memoize [list workflow::case::fsm::get_info_not_cached $case_id $parent_enabled_action_id] \
                            [workflow::case::cache_timeout]]
         set row(entry_id) {}
@@ -1459,7 +1459,7 @@ ad_proc -private workflow::case::fsm::get_info_not_cached { case_id { parent_ena
 
     @author Peter Marklund
 } {
-    if { [empty_string_p $parent_enabled_action_id] } {
+    if { $parent_enabled_action_id eq "" } {
         db_1row select_case_info_null_parent_id {} -column_array row
     } else {
         db_1row select_case_info {} -column_array row
@@ -1497,7 +1497,7 @@ ad_proc -private workflow::case::fsm::get_state_info_not_cached {
     if { $all_p  } {
         return [db_list_of_lists select_state_info {}]
     } else {
-        if { [empty_string_p $parent_enabled_action_id] } {
+        if { $parent_enabled_action_id eq "" } {
             return [db_string null_parent {
                 select current_state
                 from   workflow_case_fsm
@@ -1543,11 +1543,11 @@ ad_proc -public workflow::case::action::permission_p {
 
     @author Lars Pind (lars@collaboraid.biz)
 } {
-    if { ![exists_and_not_null user_id] } {
+    if { (![info exists user_id] || $user_id eq "") } {
         set user_id [ad_conn user_id]
     }
 
-    if { ![empty_string_p $enabled_action_id] } {
+    if { $enabled_action_id ne "" } {
         ns_log notice "#### workflow::case::enabled_action_get -enabled_action_id $enabled_action_id -array enabled_action"
         workflow::case::enabled_action_get -enabled_action_id $enabled_action_id -array enabled_action
         set case_id $enabled_action(case_id)
@@ -1635,11 +1635,11 @@ ad_proc -public workflow::case::action::available_p {
     @author Lars Pind (lars@collaboraid.biz)
 } {
     # Always permit the no-op
-    if { [empty_string_p $action_id] && [empty_string_p $enabled_action_id] } {
+    if { $action_id eq "" && $enabled_action_id eq "" } {
         return 1
     }
 
-    if { ![empty_string_p $enabled_action_id] } {
+    if { $enabled_action_id ne "" } {
         workflow::case::enabled_action_get -enabled_action_id $enabled_action_id -array enabled_action
         set case_id $enabled_action(case_id)
         set action_id $enabled_action(action_id)
@@ -1682,7 +1682,7 @@ ad_proc -private workflow::case::action::get_enabled_action_id {
             and    completed_p = 'f'
         }]
     } else {
-        if { [empty_string_p $parent_enabled_action_id] } {
+        if { $parent_enabled_action_id eq "" } {
             set result [db_list select_enabled_action_id {
                 select enabled_action_id
                 from   workflow_case_enabled_actions
@@ -1783,7 +1783,7 @@ ad_proc -public workflow::case::action::notify {
     set user_email $latest_action(user_email)
     set latest_action_chunk [_ workflow.notification_email_latest_action_chunk]
     
-    if { ![empty_string_p $latest_action(comment)] } {
+    if { $latest_action(comment) ne "" } {
         append latest_action_chunk ":\n\n    [join [split [ad_html_text_convert -from $latest_action(comment_mime_type) -to "text/plain" -maxlen 66 -- $latest_action(comment)] "\n"] "\n    "]"
     }
     
@@ -1796,7 +1796,7 @@ ad_proc -public workflow::case::action::notify {
     # We only use the first callback
     set impl_name [lindex $impl_names 0]
     
-    if { ![empty_string_p $impl_name] } {
+    if { $impl_name ne "" } {
         set notification_info [acs_sc::invoke \
                                    -contract $contract_name \
                                    -operation "GetNotificationInfo" \
@@ -1813,7 +1813,7 @@ ad_proc -public workflow::case::action::notify {
     set object_details_list [lindex $notification_info 2]
     set object_notification_tag [lindex $notification_info 3]
 
-    if { [empty_string_p $object_one_line] } {
+    if { $object_one_line eq "" } {
         # Default: Case #$case_id: acs_object__name(case.object_id)
 
         set object_id $case(object_id)
@@ -1843,8 +1843,8 @@ ad_proc -public workflow::case::action::notify {
     # Output notification info
     set object_details_lines [list]
     foreach { label value } $object_details_list {
-        if { ![empty_string_p $label] } {
-            lappend object_details_lines "$label[string repeat " " [expr $max_label_len - [string length $label]]] : $value"
+        if { $label ne "" } {
+            lappend object_details_lines "$label[string repeat " " [expr {$max_label_len - [string length $label]}]] : $value"
         } else {
             lappend object_details_lines "[string repeat " " $max_label_len]   $value"
         }
@@ -1927,7 +1927,7 @@ $hr
                                -workflow_id $case(workflow_id) \
                                -case_id $case_id]
 
-        if { ![empty_string_p $object_id] && ($type eq "workflow" || ![empty_string_p $subset($type)] || $type eq "workflow_case")} {
+        if { $object_id ne "" && ($type eq "workflow" || $subset($type) ne "" || $type eq "workflow_case")} {
                 set notified_list [concat $notified_list [notification::new \
                                                               -type_id [notification::type::get_type_id -short_name $type] \
                                                               -object_id $object_id \
@@ -2006,7 +2006,7 @@ ad_proc -public workflow::case::action::execute {
 
     @author Lars Pind (lars@collaboraid.biz)
 } {
-    if { ![exists_and_not_null user_id] } {
+    if { (![info exists user_id] || $user_id eq "") } {
         if { ![ad_conn isconnected] } {
             set user_id 0
         } else {
@@ -2014,7 +2014,7 @@ ad_proc -public workflow::case::action::execute {
         }
     }
 
-    if { ![exists_and_not_null package_id] } {
+    if { (![info exists package_id] || $package_id eq "") } {
         if { ![ad_conn isconnected] } {
             set package_id {}
         } else {
@@ -2022,12 +2022,12 @@ ad_proc -public workflow::case::action::execute {
         }
     }
 
-    if { [empty_string_p $case_id] || [empty_string_p $action_id] } {
-        if { [empty_string_p $enabled_action_id] } {
+    if { $case_id eq "" || $action_id eq "" } {
+        if { $enabled_action_id eq "" } {
             error "You must supply either case_id and action_id, or enabled_action_id"
         }
     }
-    if { [empty_string_p $enabled_action_id] } {
+    if { $enabled_action_id eq "" } {
         if { $initial_p } {
             set enabled_action_id {}
         } else {
@@ -2038,12 +2038,12 @@ ad_proc -public workflow::case::action::execute {
                                        -any_parent \
                                        -case_id $case_id \
                                        -action_id $action_id]
-            if { [empty_string_p $enabled_action_id] } {
+            if { $enabled_action_id eq "" } {
                 error "This action is not enabled at this time."
             }
         }
     }
-    if { ![empty_string_p $enabled_action_id] } {
+    if { $enabled_action_id ne "" } {
         workflow::case::enabled_action_get -enabled_action_id $enabled_action_id -array enabled_action
         set case_id $enabled_action(case_id)
         set action_id $enabled_action(action_id)
@@ -2059,20 +2059,20 @@ ad_proc -public workflow::case::action::execute {
         }
     }
 
-    if { [empty_string_p $comment] } {
+    if { $comment eq "" } {
         # single-space comment
         set comment { }
     }
 
     # We can't have empty comment_mime_type, default to text/plain
-    if { [empty_string_p $comment_mime_type] } {
+    if { $comment_mime_type eq "" } {
         set comment_mime_type "text/plain"
     }
     ns_log notice "case::execute start = [set start [clock clicks -milliseconds]]"
     db_transaction {
 
         # Double-click protection
-        if { ![empty_string_p $entry_id] } {
+        if { $entry_id ne "" } {
             if {  [db_string log_entry_exists_p {}] } {
                 return $entry_id
             }
@@ -2087,7 +2087,7 @@ ad_proc -public workflow::case::action::execute {
             -parent_enabled_action_id $parent_enabled_action_id
 	ns_log notice "case::execute two = [expr {[set two [clock clicks -milliseconds]] - $start}]"
         # Mark the action completed
-        if { ![empty_string_p $enabled_action_id] } {
+        if { $enabled_action_id ne "" } {
             workflow::case::action::complete \
                 -enabled_action_id $enabled_action_id \
                 -user_id $user_id
@@ -2114,7 +2114,7 @@ ad_proc -public workflow::case::action::execute {
                 -entry_id $entry_id
 	ns_log notice "case::execute five = [expr {[set five [clock clicks -milliseconds]] - $three}]"        
         # Scan for enabled actions
-        if { [string equal $parent_trigger_type "workflow"] } {
+        if {$parent_trigger_type eq "workflow"} {
             workflow::case::state_changed_handler \
                 -case_id $case_id \
                 -parent_enabled_action_id $parent_enabled_action_id \
@@ -2132,7 +2132,7 @@ ad_proc -public workflow::case::action::execute {
         }
 	ns_log notice "case::execute seven = [expr {[set seven [clock clicks -milliseconds]] - $six}]"                
         # If there's a parent, alert the parent
-        if { ![empty_string_p $parent_enabled_action_id] } {
+        if { $parent_enabled_action_id ne "" } {
             workflow::case::child_state_changed_handler \
                 -parent_enabled_action_id $parent_enabled_action_id \
                 -user_id $user_id
@@ -2193,7 +2193,7 @@ ad_proc -private workflow::case::state_changed_handler {
         #----------------------------------------------------------------------
         # 2. Get the rows in workflow_case_enabled_actions
         #----------------------------------------------------------------------
-        if { [empty_string_p $parent_enabled_action_id] } {
+        if { $parent_enabled_action_id eq "" } {
             set db_rows [db_list_of_lists select_previously_enabled_actions_null_parent {}]
         } else {
             set db_rows [db_list_of_lists select_previously_enabled_actions {}]
@@ -2320,7 +2320,7 @@ ad_proc -private workflow::case::action::enable {
     db_transaction {
         set enabled_action_id [db_nextval "workflow_case_enbl_act_seq"]
 
-        if { ![string equal $action(trigger_type) "user"] } {
+        if { $action(trigger_type) ne "user" } {
             # Action can only be assigned if it has trigger_type user
             # But its children can be assigned, so we keep the original assigned_p variable
             set db_assigned_p f
@@ -2332,7 +2332,7 @@ ad_proc -private workflow::case::action::enable {
         db_dml insert_enabled {}
 
         # Insert assignees
-        if { [exists_and_not_null assignees] } {
+        if { ([info exists assignees] && $assignees ne "") } {
             foreach party_id $assignees {
                 db_dml insert_assignee {
                     insert into workflow_case_action_assignees (enabled_action_id, party_id)
@@ -2351,12 +2351,12 @@ ad_proc -private workflow::case::action::enable {
                     and    trigger_type = 'init'
                 } -default {}]
                 
-                if { [empty_string_p $child_init_id] } {
+                if { $child_init_id eq "" } {
                     error "Child workflow for action $action(pretty_name) doesn't have an action with trigger_type = 'init', or it has more than one."
                 }
                 
                 workflow::action::fsm::get -action_id $child_init_id -array initial_action
-                if { [empty_string_p $initial_action(new_state)] } {
+                if { $initial_action(new_state) eq "" } {
                     error "Initial action with short_name \"$initial_action(short_name)\" does not have any new_state. In order to be an initial state, it must have new_state set."
                 }
 
@@ -2520,13 +2520,13 @@ ad_proc -private workflow::case::action::fsm::execute_state_change {
 
     db_transaction {
 
-        if { [empty_string_p $case_id] || [empty_string_p $action_id] } {
-            if { [empty_string_p $enabled_action_id] } {
+        if { $case_id eq "" || $action_id eq "" } {
+            if { $enabled_action_id eq "" } {
                 error "You must supply either case_id and action_id, or enabled_action_id"
             }
         } 
 
-        if { [empty_string_p $enabled_action_id] } {
+        if { $enabled_action_id eq "" } {
             if { $initial_p } {
                 set enabled_action_p {}
                 # We rely on parent_enabled_action_id being set by the caller here
@@ -2539,7 +2539,7 @@ ad_proc -private workflow::case::action::fsm::execute_state_change {
             }
         }
 
-        if { ![empty_string_p $enabled_action_id] } {
+        if { $enabled_action_id ne "" } {
             workflow::case::enabled_action_get -enabled_action_id $enabled_action_id -array enabled_action
             # Even if these are provided, we overide them with the DB call
             set case_id $enabled_action(case_id)
@@ -2552,10 +2552,10 @@ ad_proc -private workflow::case::action::fsm::execute_state_change {
         set new_state_id $action(new_state_id)
 
         # Actually change the state, if any state change
-        if { ![empty_string_p $new_state_id] } {
+        if { $new_state_id ne "" } {
             # Delete any existing state with this parent_enabled_action_id
 
-            if { [empty_string_p $parent_enabled_action_id] } {
+            if { $parent_enabled_action_id eq "" } {
                 db_dml delete_fsm_state {
                     delete 
                     from   workflow_case_fsm

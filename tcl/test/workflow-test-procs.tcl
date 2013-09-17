@@ -102,7 +102,7 @@ ad_proc workflow::test::assert_case_state {
     }
 
     if { [info exists expect_user_actions] } { 
-        if { [empty_string_p $user_id] } {
+        if { $user_id eq "" } {
             set user_id [workflow::test::admin_owner_id]
         }
         set user_actions [workflow::test::action_short_names \
@@ -125,7 +125,7 @@ ad_proc workflow::test::assert_user_actions {
 } {
     Make assertions about user actions.
 } {
-    if { [empty_string_p $user_id] } {
+    if { $user_id eq "" } {
         set user_id [workflow::test::admin_owner_id]
     }
     set user_actions [workflow::test::action_short_names \
@@ -280,7 +280,7 @@ ad_proc workflow::test::array_lists_equal_p { list1 list2 } {
         # Single element list
 
         return [string equal [lindex $list1 0] [lindex $list2 0]]
-    } elseif { [expr $len1 % 2] == 0 } {
+    } elseif { ($len1 % 2)== 0 } {
 
         # List, treat as array-list
 
@@ -530,7 +530,7 @@ ad_proc workflow::test::run_bug_tracker_test {
             workflow::role::get -role_id $role_id -array role
 
             aa_true "checking that role names of workflow can be fetched with workflow::get_roles and workflow::role::get" \
-                  [expr [lsearch -exact $expect_role_names $role(short_name)] != -1]
+                  [expr {[lsearch -exact $expect_role_names $role(short_name)] != -1}]
 
         }
 
@@ -540,7 +540,7 @@ ad_proc workflow::test::run_bug_tracker_test {
             workflow::action::get -action_id $action_id -array action
 
             aa_true "checking retrieval of action names with workflow::get_actions and workflow::get" \
-                    [expr [lsearch -exact $expect_action_names $action(short_name)] != -1]
+                    [expr {[lsearch -exact $expect_action_names $action(short_name)] != -1}]
 
         }
 
