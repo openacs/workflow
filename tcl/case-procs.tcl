@@ -836,7 +836,7 @@ ad_proc -private workflow::case::cache_timeout {} {
     return 3600
 }
 
-ad_proc -private workflow::case::flush_cache { 
+ad_proc -private workflow::case::flush_cache0 { 
     {-case_id ""}
 } {
     Flush all cached data for a given case or for all
@@ -859,8 +859,44 @@ ad_proc -private workflow::case::flush_cache {
     util_memoize_flush_regexp [list workflow::case::get_activity_log_info_not_cached -case_id $case_id]
 
     # Flush role info (assignees etc)
+    workflow::case::role::flush_cache0 -case_id $case_id
+}
+
+ad_proc -private workflow::case::flush_cache {
+    {-case_id ""}
+} {
+    Flush all cached data for a given case or for all
+    cases if none is specified.
+
+    @param case_id The id of the workflow case to flush. If not provided the
+                   cache will be flushed for all workflow cases.
+
+    @author Peter Marklund
+} {
+    foreach proc_name {
+        workflow::case::fsm::get_info_not_cached
+        workflow::case::get_user_roles_not_cached
+        workflow::case::get_enabled_action_ids_not_cached
+    } {
+        if {$case_id eq ""} {
+           util_memoize_flush_pattern "$proc_name *"
+        } else {
+           util_memoize_flush_pattern "$proc_name $case_id *"
+        }
+    }
+
+    if {$case_id eq ""} {
+       util_memoize_flush_pattern "workflow::case::get_activity_log_info_not_cached -case_id *"
+       util_memoize_flush_pattern "workflow::case::get_enabled_actions_not_cached *"
+    } else {
+       util_memoize_flush "workflow::case::get_activity_log_info_not_cached -case_id $case_id"
+       util_memoize_flush "workflow::case::get_enabled_actions_not_cached $case_id"
+    }
+
+    # Flush role info (assignees etc)
     workflow::case::role::flush_cache -case_id $case_id
 }
+
 
 
 ad_proc -public workflow::case::timed_actions_sweeper {} {
@@ -888,6 +924,7 @@ ad_proc -public workflow::case::enabled_action_get {
     # Select the info into the upvar'ed Tcl Array
     upvar $array row
 
+   
     db_1row select_enabled_action {} -column_array row
 }
 
@@ -1178,13 +1215,26 @@ ad_proc -private workflow::case::role::get_assignees_not_cached { case_id role_i
     return $result    
 }
 
-ad_proc -private workflow::case::role::flush_cache { 
+ad_proc -private workflow::case::role::flush_cache0 {
     {-case_id ""}
  } {
     Flush all role related info for a certain case or for all
     cases if none is specified.
 } {
     util_memoize_flush_regexp "^workflow::case::role::get_assignees_not_cached [ad_decode $case_id "" {\.*} $case_id]"
+}
+
+ad_proc -private workflow::case::role::flush_cache {
+    {-case_id ""}
+ } {
+    Flush all role related info for a certain case or for all
+    cases if none is specified.
+} {
+    if {$case_id eq ""} {
+       util_memoize_flush_pattern "workflow::case::role::get_assignees_not_cached *"
+    } else {
+       util_memoize_flush_pattern "workflow::case::role::get_assignees_not_cached $case_id *"
+    }
 }
 
 ad_proc -public workflow::case::role::assignee_insert {
@@ -1498,6 +1548,7 @@ ad_proc -public workflow::case::action::permission_p {
     }
 
     if { ![empty_string_p $enabled_action_id] } {
+        ns_log notice "#### workflow::case::enabled_action_get -enabled_action_id $enabled_action_id -array enabled_action"
         workflow::case::enabled_action_get -enabled_action_id $enabled_action_id -array enabled_action
         set case_id $enabled_action(case_id)
         set action_id $enabled_action(action_id)
@@ -2017,7 +2068,7 @@ ad_proc -public workflow::case::action::execute {
     if { [empty_string_p $comment_mime_type] } {
         set comment_mime_type "text/plain"
     }
-
+    ns_log notice "case::execute start = [set start [clock clicks -milliseconds]]"
     db_transaction {
 
         # Double-click protection
@@ -2034,14 +2085,14 @@ ad_proc -public workflow::case::action::execute {
             -case_id $case_id \
             -action_id $action_id \
             -parent_enabled_action_id $parent_enabled_action_id
-
+	ns_log notice "case::execute two = [expr {[set two [clock clicks -milliseconds]] - $start}]"
         # Mark the action completed
         if { ![empty_string_p $enabled_action_id] } {
             workflow::case::action::complete \
                 -enabled_action_id $enabled_action_id \
                 -user_id $user_id
         }
-
+	ns_log notice "case::execute three = [expr {[set three [clock clicks -milliseconds]] - $two}]"
         # Insert activity log entry
         set extra_vars [ns_set create]
         oacs_util::vars_to_ns_set \
@@ -2061,7 +2112,7 @@ ad_proc -public workflow::case::action::execute {
                 -case_id $case_id \
                 -action_id $action_id \
                 -entry_id $entry_id
-        
+	ns_log notice "case::execute five = [expr {[set five [clock clicks -milliseconds]] - $three}]"        
         # Scan for enabled actions
         if { [string equal $parent_trigger_type "workflow"] } {
             workflow::case::state_changed_handler \
@@ -2069,7 +2120,7 @@ ad_proc -public workflow::case::action::execute {
                 -parent_enabled_action_id $parent_enabled_action_id \
                 -user_id $user_id
         }
-
+	ns_log notice "case::execute six = [expr {[set six [clock clicks -milliseconds]] - $five}]"        
         # Notifications
         if { !$no_notification_p } {
             workflow::case::action::notify \
@@ -2079,7 +2130,7 @@ ad_proc -public workflow::case::action::execute {
                 -comment $comment \
                 -comment_mime_type $comment_mime_type
         }
-        
+	ns_log notice "case::execute seven = [expr {[set seven [clock clicks -milliseconds]] - $six}]"                
         # If there's a parent, alert the parent
         if { ![empty_string_p $parent_enabled_action_id] } {
             workflow::case::child_state_changed_handler \
@@ -2087,9 +2138,10 @@ ad_proc -public workflow::case::action::execute {
                 -user_id $user_id
         }
     }
-    
+	ns_log notice "case::execute eight = [expr {[set eight [clock clicks -milliseconds]] - $seven}]"                    
     workflow::case::flush_cache -case_id $case_id
-
+	ns_log notice "case::execute nine = [expr {[set nine [clock clicks -milliseconds]] - $eight}]"                    
+	ns_log notice "case::execute end = [expr {[set end [clock clicks -milliseconds]] - $start}]"                    
     return $entry_id
 }
 
