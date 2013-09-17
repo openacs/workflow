@@ -2065,7 +2065,7 @@ ad_proc -public workflow::case::action::execute {
                 -case_id $case_id \
                 -action_id $action_id \
                 -entry_id $entry_id
-	ns_log notice "case::execute five = [expr {[set five [clock clicks -milliseconds]] - $four}]"        
+	ns_log notice "case::execute five = [expr {[set five [clock clicks -milliseconds]] - $three}]"        
         # Scan for enabled actions
         if { [string equal $parent_trigger_type "workflow"] } {
             workflow::case::state_changed_handler \
