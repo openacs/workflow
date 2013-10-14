@@ -747,7 +747,7 @@ ad_proc -public workflow::action::generate_short_name {
         regsub -all {[- ]} $short_name {_} short_name
         regsub -all {[^a-zA-Z_0-9]} $short_name {} short_name
 
-        if { [lsearch -exact $existing_short_names $short_name] != -1 } {
+        if {$short_name in $existing_short_names} {
             error "Action with short_name '$short_name' already exists in this workflow."
         }
     }
@@ -1602,7 +1602,7 @@ ad_proc -private workflow::action::get_all_info_not_cached {
 
     # Build arrays of enabled and assigned state short names for all actions
     db_foreach action_enabled_in_states {} {
-        if {$assigned_p eq "t"} {
+        if {$assigned_p == "t"} {
             lappend action_array_${action_id}(assigned_states) $short_name
             lappend action_array_${action_id}(assigned_state_ids) $state_id
         } else {

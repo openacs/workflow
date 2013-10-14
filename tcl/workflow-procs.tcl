@@ -526,7 +526,7 @@ ad_proc -public workflow::generate_short_name {
         regsub -all {[- ]} $short_name {_} short_name
         regsub -all {[^a-zA-Z_0-9]} $short_name {} short_name
 
-        if { [lsearch -exact $existing_short_names $short_name] != -1 } {
+        if {$short_name in $existing_short_names} {
             error "Workflow with short_name '$short_name' already exists for this package_key and object_id."
         }
     }

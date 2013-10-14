@@ -413,7 +413,7 @@ ad_proc -public workflow::state::fsm::generate_short_name {
         regsub -all {[- ]} $short_name {_} short_name
         regsub -all {[^a-zA-Z_0-9]} $short_name {} short_name
 
-        if { [lsearch -exact $existing_short_names $short_name] != -1 } {
+        if {$short_name in $existing_short_names} {
             error "State with short_name '$short_name' already exists in this workflow."
         }
     }

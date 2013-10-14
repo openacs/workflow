@@ -2428,7 +2428,7 @@ ad_proc -private workflow::case::action::complete {
         workflow::case::enabled_action_get -enabled_action_id $enabled_action_id -array enabled_action
         workflow::action::get -action_id $enabled_action(action_id) -array action
         
-        if { [lsearch -exact { parallel dynamic } $enabled_action(parent_trigger_type)] != -1 } {
+        if {$enabled_action(parent_trigger_type) in { parallel dynamic }} {
             db_dml completed_p {
                 update workflow_case_enabled_actions
                 set    completed_p = 't'
