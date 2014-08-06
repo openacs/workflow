@@ -4,7 +4,7 @@ ad_page_contract {
     @creation-date 4/5/2005
     @cvs-id  $Id$
 } {
-    {workflow_id}
+    {workflow_id:naturalnum,notnull}
     {states_to_highlight ""}
 }
 

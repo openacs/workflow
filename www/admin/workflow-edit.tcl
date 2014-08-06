@@ -8,7 +8,7 @@ ad_page_contract {
     @cvs-id  $Id$
 } {
     {return_url [get_referrer]}
-    {workflow_id:integer,notnull}
+    {workflow_id:naturalnum,notnull}
 }
 
 set title "Workflow Edit"

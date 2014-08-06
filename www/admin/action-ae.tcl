@@ -8,8 +8,8 @@ ad_page_contract {
     @cvs-id  $Id$
 } {
     {return_url [get_referrer]}
-    {action_id:optional}
-    {workflow_id:notnull}
+    {action_id:naturalnum,optional}
+    {workflow_id:naturalnum,notnull}
 }
 
 

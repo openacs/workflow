@@ -8,8 +8,8 @@ ad_page_contract {
     @cvs-id  $Id$
 } {
     {return_url [get_referrer]}
-    {state_id:optional}
-    {workflow_id:notnull}
+    {state_id:naturalnum,optional}
+    {workflow_id:naturalnum,notnull}
 }
 
 set title "State Add or Edit"
