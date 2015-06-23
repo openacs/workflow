@@ -746,7 +746,7 @@ ad_proc -private workflow::parse_spec {
 
     # Override stuff in the spec with stuff provided as an argument here
     foreach var { short_name package_key object_id } {
-        if { ![empty_string_p [set $var]] || (![info exists workflow($var)] || $workflow($var) eq "") } {
+        if { [set $var] ne "" || (![info exists workflow($var)] || $workflow($var) eq "") } {
             set workflow($var) [set $var]
         }
     }

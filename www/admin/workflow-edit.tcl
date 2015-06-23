@@ -22,26 +22,26 @@ db_multirow -extend {edit_url delete_url} get_states get_states {} {
 	    -state_id $state_id \
 	    -array "state_info"
     set msg "You are about to delete $state_info(pretty_name). Are you sure?"
-    set delete_url "[export_url_vars id=$state_id {type state} msg]"
+    set delete_url [export_vars {{id $state_id} {type state} msg}]
 }
 
 db_multirow -extend {edit_url delete_url} get_actions get_actions {} {
-    set edit_url "action-ae?[export_vars -url {action_id workflow_id}]"
+    set edit_url [export_vars -base action-ae {action_id workflow_id}]
     workflow::action::fsm::get \
 	    -action_id $action_id \
 	    -array "action_info"
     set msg "You are about to delete $action_info(pretty_name). Are you sure?"
-    set delete_url "delete-confirm?[export_url_vars id=$action_id {type action} msg]"
+    set delete_url [export_vars -base delete-confirm {{id $action_id} {type action} msg}]
 }
 
 
 db_multirow -extend {edit_url delete_url} get_roles get_roles {} {
-    set edit_url [export_vars -base role-ae -url {role_id workflow_id}]
+    set edit_url [export_vars -base role-ae {role_id workflow_id}]
     workflow::role::get \
 	     -role_id $role_id \
 	    -array "role_info"
     set msg "You are about to delete $role_info(pretty_name). Are you sure?"
-    set delete_url "delete-confirm?[export_url_vars id=$role_id msg {type role}]"
+    set delete_url [export_vars -base delete-confirm {{id $role_id} msg {type role}}]
 }
 
 set wf_meta_edit   [export_vars -base workflow-ae {workflow_id}]
