@@ -2,7 +2,7 @@
   <property name="doc(title)">@page_title;noquote@</property>
   <property name="context">@context;noquote@</property>
   
-  <table cellpadding=3 cellspacing=1 border=0>
+  <table cellpadding="3" cellspacing="1" border="0">
     <tr class="form-element">
       <td class="form-label">Enabled in state
       </td>

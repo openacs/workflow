@@ -7,7 +7,7 @@ this boiler plate will not be affected. If you want to change a specific instanc
 <br><br>
 
 <fieldset> <legend> Workflow Boiler Plates</legend>
-	<a href=@new_wf_url@> New Workflow </a>
+	<a href="@new_wf_url@"> New Workflow </a>
 	<multiple name="get_bps">
 		<if @get_bps.rownum@ eq 1>
 			<table>
@@ -21,9 +21,9 @@ this boiler plate will not be affected. If you want to change a specific instanc
 		<tr>	<td>@get_bps.workflow_id@</td>
 		   	<td>@get_bps.short_name@</td>
 			<td>@get_bps.pretty_name@</td>
-			<td><a href=@get_bps.edit_url;noquote@> Edit </a> | 
-				<a href=@get_bps.delete_url;noquote@> Delete </a> |
-			        <a href=@get_bps.view_url;noquote@> View </a>
+			<td><a href="@get_bps.edit_url@"> Edit </a> | 
+				<a href="@get_bps.delete_url@"> Delete </a> |
+			        <a href="@get_bps.view_url@"> View </a>
 			</td>
 		</tr>
 
@@ -43,7 +43,7 @@ Editing a specific instance when you want to change a workflow that is already i
 <br><br>
 
 <fieldset> <legend> Workflow Instances  </legend>
-	<a href=@clone_url@> Clone an existing boiler plate workflow </a>
+	<a href="@clone_url@"> Clone an existing boiler plate workflow </a>
 	<multiple name="get_instances">
 		<if @get_instances.rownum@ eq 1>
 			<table>
@@ -58,9 +58,9 @@ Editing a specific instance when you want to change a workflow that is already i
 			<td> @get_instances.workflow_id@</td>
 		   	<td> @get_instances.short_name@</td>
 			<td> @get_instances.pretty_name@</td>
-			<td> 	<a href=@get_instances.edit_url@> Edit </a> |
-				<a href=@get_instances.delete_url@> Delete </a> |
-			        <a href=@get_instances.view_url;noquote@> View </a>
+			<td> 	<a href="@get_instances.edit_url@"> Edit </a> |
+				<a href="@get_instances.delete_url@"> Delete </a> |
+			        <a href="@get_instances.view_url@"> View </a>
 			 </td>
 		</tr>
 
