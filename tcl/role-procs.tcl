@@ -254,7 +254,7 @@ ad_proc -public workflow::role::edit {
                 }
 
                 # Check that there are no unknown attributes
-                if { [llength [array names missing_elm]] > 0 && !$no_complain } {
+                if { [array size missing_elm] > 0 && !$no_complain } {
                     error "Trying to set illegal role attributes: [join [array names missing_elm] ", "]"
                 }
             }

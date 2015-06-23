@@ -337,7 +337,7 @@ ad_proc -public workflow::state::fsm::edit {
                 }
 
                 # Check that there are no unknown attributes
-                if { [llength [array names missing_elm]] > 0 && !$no_complain_p } {
+                if { [array size missing_elm] > 0 && !$no_complain_p } {
                     error "Trying to set illegal state attributes: [join [array names missing_elm] ", "]"
                 }
             }
