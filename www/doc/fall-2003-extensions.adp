@@ -4,23 +4,30 @@ Design}</property>
 <property name="doc(title)">Fall 2003 Workflow Extensions Requirements and
 Design</property>
 <master>
-
-<body>
-<h1>Fall 2003 Workflow Extensions</h1><a href=".">Workflow Documentation</a> : Fall 2003 Workflow
+<h1>Fall 2003 Workflow Extensions</h1>
+<a href=".">Workflow Documentation</a>
+ : Fall 2003 Workflow
 Extensions
 <p>By <a href="http://www.pinds.com">Lars Pind</a>
-</p><p>This requirements and design document is primarily motivated
-by:</p><ul>
+</p>
+<p>This requirements and design document is primarily motivated
+by:</p>
+<ul>
 <li>A client project developing the Simulation package (in CVS at
 openacs.org:/cvsroot openacs-4/contrib/packages/simulation), which
 is a workflow-based law simulation engine.</li><li>The need for an application that can handle the TIP voting
 process.</li>
-</ul><ul>
+</ul>
+<ul>
 <li><a href="#hierarchy">Hierarchical Workflows</a></li><li><a href="#hierarchy2">Hierarchical Workflows, Design 2</a></li><li><a href="#trigger-conditions">Trigger Conditions</a></li><li><a href="#case-state">Case State</a></li><li><a href="#conditional-transformation">Conditional
 Transformation For Atomic Actions</a></li><li><a href="#conditional-child">Conditional Transformation Based
 on Child Workflows</a></li><li><a href="#gated-actions">Gated Actions</a></li><li><a href="#enable-callback">Enable Condition Callback</a></li><li><a href="#non-user-trigger">Non-User Triggered Actions</a></li><li><a href="#resolution-codes">Resolution Codes</a></li><li><a href="#assignment-notif">Assignment Notifications</a></li><li><a href="#assignment-reminder">Assignment Reminders</a></li><li><a href="#trying-to-sum-up">Trying to Sum Up</a></li><li><a href="#timers">Timers</a></li>
-</ul><h2><a name="hierarchy" id="hierarchy">Hierarchical
-Workflows</a></h2><h3>Requirements</h3><p>Use cases:</p><ul>
+</ul>
+<h2><a name="hierarchy" id="hierarchy">Hierarchical
+Workflows</a></h2>
+<h3>Requirements</h3>
+<p>Use cases:</p>
+<ul>
 <li>Leiden: We have several occurances of the simple
 AskInfo-GiveInfo question/response pair. Defining simulation
 templates would be simplified if that was a reusable
@@ -28,9 +35,13 @@ component.</li><li>TIP Voting: There's a master workflow case for the TIP itself
 When voting, there'll be a sub-workflow case for each TIP member to
 vote on the issue, with timeouts so if they don't vote within a
 week, their vote is automatically 'Abstained'.</li>
-</ul><h3>Questions we need answered by the design</h3><ol>
+</ul>
+<h3>Questions we need answered by the design</h3>
+<ol>
 <li>Which actions are enabled?</li><li>How is the state changed after this action has executed?</li><li>Which roles are assigned/allowed to perform an action?</li><li>Which roles do a user play?</li><li>What is the activity history on this case?</li><li>What is the name of this action?</li><li>How do we clone a workflow?</li>
-</ol><h3>Design</h3><ul>
+</ol>
+<h3>Design</h3>
+<ul>
 <li>Actions will no longer be atomic. An action can be "in
 progress" for a long time, while the child workflow(s)
 completes.</li><li>We will introduce an uber-state of a case, which can be
@@ -44,7 +55,9 @@ cancel all remaining 'active' child cases.</li><li>If the action becomes enabled
 cases.</li><li>A case which is a child of another case cannot leave the
 'completed' or 'canceled' state, unless its parent enabled action
 is still enabled.</li>
-</ul><h4>Data Model</h4><pre>
+</ul>
+<h4>Data Model</h4>
+<pre>
 create table workflow_action_children(
   child_id                  integer
                             constraint ...
@@ -115,8 +128,11 @@ create table workflow_case_child_cases(
                           constraint wf_case_child_cases_en_act_nn
                           not null
 );
-</pre><h4>Enabled States Explained</h4><p>The enabled_state of rows in workflow_case_enabled_actions can
-be in one of the following:</p><ul>
+</pre>
+<h4>Enabled States Explained</h4>
+<p>The enabled_state of rows in workflow_case_enabled_actions can
+be in one of the following:</p>
+<ul>
 <li>
 <b>Enabled</b>. The action is currently enabled.</li><li>
 <b>Running</b>. The action is currently running, specifically
@@ -135,21 +151,30 @@ FSM, input places with tokens in Petri, plus dependencies on other
 tasks met), but the "CanEnableP" callback refused to let the action
 become enabled. (Note: This is not necessary, we could just delete
 the row instead.)</li>
-</ul><h4>When Enabled</h4><p>When an action with child workflows is enabled, we start the
+</ul>
+<h4>When Enabled</h4>
+<p>When an action with child workflows is enabled, we start the
 child cases defined by the parent workflow, executing the initial
-action on each of them.</p><p>We create one case per role in workflow_action_children times
+action on each of them.</p>
+<p>We create one case per role in workflow_action_children times
 one case per member/user for roles with a mapping_type of
 'per_member'/'per_user'. If more than one role has a mapping_type
 other than 'per_role', we will create cases for the cartesian
-product of members/users of those roles in the parent workflow.</p><h4>When Triggered</h4><p>The action can be triggered by a timeout, by the user, by child
+product of members/users of those roles in the parent workflow.</p>
+<h4>When Triggered</h4>
+<p>The action can be triggered by a timeout, by the user, by child
 cases reaching a certain state, or by all child cases being
-completed.</p><p>An example of "child cases reaching a certain state" would be
+completed.</p>
+<p>An example of "child cases reaching a certain state" would be
 the TIP voting process, where 2/3rd Approved votes is enough to
 determine the outcome, and we don't need the rest to vote
-anymore.</p><p>When triggered, all child cases with a case_state of 'active'
+anymore.</p>
+<p>When triggered, all child cases with a case_state of 'active'
 are put into the 'canceled' state. All child cases have their
-'locked_p' flag set to true, so they cannot be reopened.</p><h2><a name="hierarchy2" id="hierarchy2">Hierarchy, Design
-2</a></h2><pre>
+'locked_p' flag set to true, so they cannot be reopened.</p>
+<h2><a name="hierarchy2" id="hierarchy2">Hierarchy, Design
+2</a></h2>
+<pre>
 ----------------------------------------------------------------------
 -- Knowledge level
 ----------------------------------------------------------------------
@@ -194,7 +219,9 @@ create table workflow_case_actions(
   assigned_p                boolean
   execution_time            timestamptz
 );
-</pre><h3>Example I: Simple AskInfo/GiveInfo Pair</h3><pre>
+</pre>
+<h3>Example I: Simple AskInfo/GiveInfo Pair</h3>
+<pre>
 roles                 role_id
                      ---------            
                       lawyer
@@ -234,7 +261,8 @@ case_enabled_actions   ID | action_id  | parent_enabled_action_id | assigned_p
                        #1 | ask client |                          | no                       
                        #2 | ac-ask     | #1                       | yes
                        #3 | abort      |                          | no
-</pre><ol>
+</pre>
+<ol>
 <li>case::enabled_actions -case_id
 <ol>
 <li>Find the case state (open)</li><li>Find the actions enabled in this state (ask client, abort)</li><li>"abort" is final, put it on the list.</li><li>"ask client" has a child; look in workflow_enabled_actions for
@@ -254,12 +282,17 @@ design.</li><li>How do we clone a workflow?
 <ol><li>We need to have a provision for actions to include other
 actions in the spec.</li></ol>
 </li>
-</ol><h3>Notes</h3><ul>
+</ol>
+<h3>Notes</h3>
+<ul>
 <li>Keeping the sub-state in the workflow_case_enabled_actions
 table.</li><li>Kill the completed rows in workflow_case_enabled_actions, move
 stuff into the case-log instead =&gt; that's going to be much, much
 better for performance.</li>
-</ul><h3>Design 2, Parallel Actions</h3><h3>Example II: Parallel</h3><pre>
+</ul>
+<h3>Design 2, Parallel Actions</h3>
+<h3>Example II: Parallel</h3>
+<pre>
 roles                 role_id
                      ---------            
                       lawyer
@@ -304,7 +337,8 @@ case_enabled_actions   ID | action_id    | parent_enabled_action_id | assigned_p
                        #3 |     review   | #2                       | yes
                        #4 |   opinion-wr | #1                       | no
                        #5 |     opinion  | #4                       | yes
-</pre><ol><li>case::action::execute -case_id #1 -action_id "init"
+</pre>
+<ol><li>case::action::execute -case_id #1 -action_id "init"
 <ol>
 <li>set cases.state_id to init's new_state ("open")</li><li>call case::state_changed_handler -case_id #1
 <ol>
@@ -324,10 +358,12 @@ skip to next action. (not already enabled)</li><li>if not, call case::action::en
 </ol>
 </li>
 </ol>
-</li></ol><p>Difference between parallel sub-actions and non-parallel
+</li></ol>
+<p>Difference between parallel sub-actions and non-parallel
 sub-actions: If they are parallel, we enable all of them and don't
 maintain state there; if they're not, we look for an init-action,
-and do maintain state.</p><pre>
+and do maintain state.</p>
+<pre>
 actions               action_id      | parent_action_id | assigned_role | trigger_type | new_state  
 (workflow)           ----------------+------------------+---------------+--------------+---------------
                       init           |                  |               | init         | open
@@ -347,11 +383,14 @@ actions               action_id      | parent_action_id | assigned_role | trigge
                         opinion-wr   | rev &amp; op         |               | workflow     | 
                           opi-init   | opinion-wr       | lawyer        | init         | opi-open
                           opinion    | opinion-wr       | lawyer        | user         | opi-done
-</pre><p>An action with type 'workflow' will maintain state inside
-itself.</p><p>Can we do away with the extra layer of 'workflow' inside the
+</pre>
+<p>An action with type 'workflow' will maintain state inside
+itself.</p>
+<p>Can we do away with the extra layer of 'workflow' inside the
 'parallel' track? How do we know that the child workflow has been
 completed -- i guess we do, because we keep the state until its
-parent is gone...</p><pre>
+parent is gone...</p>
+<pre>
 actions               action_id      | parent_action_id | assigned_role | trigger_type | new_state  
 (parallel-simple)    ----------------+------------------+---------------+--------------+---------------
                       init           |                  |               | init         | open
@@ -375,13 +414,16 @@ case_enabled_actions   ID | action_id    | parent_enabled_action_id | assigned_p
                        #2 |   review     | #1                       | yes        | no
                        #3 |   opinion    | #1                       | yes        | no
 
-</pre><p>Simple: We'd have to keep the row in case_enabled_actions around
+</pre>
+<p>Simple: We'd have to keep the row in case_enabled_actions around
 with completed_p = yes until the parent action is also complete.
 When an action is completed, it deletes the rows for all its
 children. If the action does not have a parent action, we delete
 the row (thus we don't keep completed_p rows around for top-level
-actions).</p><h3>Design 2, Action-Per-User (Or Dynamic Number of Parallel
-Actions With Different Assignees)</h3><pre>
+actions).</p>
+<h3>Design 2, Action-Per-User (Or Dynamic Number of Parallel
+Actions With Different Assignees)</h3>
+<pre>
 actions               action_id      | parent_action_id | assigned_role | trigger_type | new_state  
 (dynamic-simple)     ----------------+------------------+---------------+--------------+---------------
                       init           |                  |               | init         | open
@@ -407,7 +449,8 @@ case_action_assignees  enabled_action_id | party_id
                       -------------------+----------
                        #B                | malte
                        #C                | peter
-</pre><pre>
+</pre>
+<pre>
 actions               action_id      | parent_action_id | assigned_role | trigger_type | new_state  
 (dynamic-workflow)   ----------------+------------------+---------------+--------------+---------------
                       init           |                  |               | init         | open
@@ -455,8 +498,11 @@ case_action_assignees  enabled_action_id | party_id
                        #D                | malte
                        #F                | peter
                        #G                | peter
-</pre><p>When a dynamic action is enabled, we create new enabled_action
-rows for each of the child actions/workflows needed</p><h3>Views</h3><ul>
+</pre>
+<p>When a dynamic action is enabled, we create new enabled_action
+rows for each of the child actions/workflows needed</p>
+<h3>Views</h3>
+<ul>
 <li>Enabled? Action is enabled if:
 <ol>
 <li>It has workflow_actions.always_enabled_p = true</li><li>There is a row in workflow_fsm_action_en_in_st for the current
@@ -481,7 +527,9 @@ role workflow_actions.assigned_role.</li>
 </li><li>Use the workflow_deputies table to find the actual users.</li>
 </ol>
 </li>
-</ul><h3>Engine Algorithms</h3><pre>
+</ul>
+<h3>Engine Algorithms</h3>
+<pre>
 state_changed_handler
 --------------------
 - find all actually enabled actions
@@ -522,7 +570,8 @@ calculating the actual state-action map (which we can do later, if we want to)
 - apply the state-action mapping table
 - add always-enabled actions with parent_id to the states in which their parent is enabled (or all, if no parent)
 - add actions with parent.trigger_type dynamic/parallel to states in which their parent is enabled
-</pre><pre>
+</pre>
+<pre>
 always_enabled_p
 ----------------
 - if parent_action_id is null, it means it's always enabled
@@ -540,25 +589,36 @@ always_enabled_p
 How about the state_changed_handler only deals with state change at a particular parent_enabled_action_id level?
 
 
-</pre><h2><a name="trigger-conditions" id="trigger-conditions">Trigger
-Conditions</a></h2><h3>Requirements</h3><p>If any change to any child workflow of a case attempts to
+</pre>
+<h2><a name="trigger-conditions" id="trigger-conditions">Trigger
+Conditions</a></h2>
+<h3>Requirements</h3>
+<p>If any change to any child workflow of a case attempts to
 trigger the parent action, the trigger condition would tell us
-whether to allow the trigger to go through.</p><p>The trigger condition could check to see if all child cases are
+whether to allow the trigger to go through.</p>
+<p>The trigger condition could check to see if all child cases are
 completed, or it could check if there's enough to determine the
 outcome, e.g. a 2/3 approval.</p>
+
 XXXXXXXXXXXXXXX
 <h4>Child Case State Changed Logic</h4>
+
 &gt; We execute the OnChildCaseStateChange callback, if any. This
 gets to determine whether the parent action is now complete and
 should fire.
 <p>We provide a default implementation, which simply checks if the
-child cases are in the 'complete' state, and if so, fires.</p><p>NOTE: What do we do if any of the child cases are canceled?
+child cases are in the 'complete' state, and if so, fires.</p>
+<p>NOTE: What do we do if any of the child cases are canceled?
 Consider the complete and move on with the parent workflow? Cancel
-the parent workflow?</p><p>NOTE: Should we provide this as internal workflow logic or as a
+the parent workflow?</p>
+<p>NOTE: Should we provide this as internal workflow logic or as a
 default callback implementation? If we leave this as a service
 contract with a default implementation, then applications can
 customize. But would that ever be relevant? Maybe this callback is
-never needed.</p><h2><a name="case-state" id="case-state">Case State</a></h2><h3>Requirements</h3><ul>
+never needed.</p>
+<h2><a name="case-state" id="case-state">Case State</a></h2>
+<h3>Requirements</h3>
+<ul>
 <li>We want to be able to suspend a case, to reopen it later,
 without having to create an explicit state in the workflow for
 this. Suspending the case means it doesn't show up on people's task
@@ -570,7 +630,9 @@ should be counted as bugs needing attention, whereas those in
 "closed" state are complete and do not.</li><li>A case can be canceled, which is the same as suspended, except
 it doesn't resurface unless someone actively goes reopen it.</li><li>Child cases must be locked down so they cannot be reactivated
 when the parent workflow has moved on to some other state.</li>
-</ul><h3>Design</h3><pre>
+</ul>
+<h3>Design</h3>
+<pre>
 create table workflow_cases(
   ...
   state                     char(40)
@@ -582,17 +644,24 @@ create table workflow_cases(
   suspended_until           timestamptz,
   ...
 );
-</pre><p>Cases can be active, complete, suspended, or canceled.</p><p>They start out as active. For FSMs, when they hit a state with
-<code>complete_p = t</code>, the case is moved to 'complete'.</p><p>Users can choose to cancel or suspend a case. When suspending,
+</pre>
+<p>Cases can be active, complete, suspended, or canceled.</p>
+<p>They start out as active. For FSMs, when they hit a state with
+<code>complete_p = t</code>, the case is moved to 'complete'.</p>
+<p>Users can choose to cancel or suspend a case. When suspending,
 they can type in a date, on which the case will spring back to
-'active' life.</p><p>When a parent worfklow completes an action with a sub-workflow,
+'active' life.</p>
+<p>When a parent worfklow completes an action with a sub-workflow,
 the child cases that are 'completed' are marked 'closed', and the
-child cases that are 'active' are marked 'canceled'.</p><p>The difference between 'completed' and 'closed' is that
+child cases that are 'active' are marked 'canceled'.</p>
+<p>The difference between 'completed' and 'closed' is that
 completed does not prevent the workflow from continuing (e.g.
 bug-tracker 'closed' state doesn't mean that it cannot be
 reopened), whereas a closed case cannot be reactivarted
-(terminology confusion alert!).</p><h2><a name="conditional-transformation" id="conditional-transformation">Conditional Transformation For Atomic
-Actions</a></h2><pre>
+(terminology confusion alert!).</p>
+<h2><a name="conditional-transformation" id="conditional-transformation">Conditional Transformation For Atomic
+Actions</a></h2>
+<pre>
 create table workflow_action_fsm_output_map(
   action_id                 integer
                             not null
@@ -604,25 +673,35 @@ create table workflow_action_fsm_output_map(
   constraint ...
   primary key (action_id, output_value)
 );
-</pre><p>Callback: <b>Action.OnFire -&gt; (output)</b>: Executed when the
+</pre>
+<p>Callback: <b>Action.OnFire -&gt; (output)</b>: Executed when the
 action fires. Output can be used to determine the new state of the
-case (see below).</p><p>The callback must enumerate all the values it can possible
+case (see below).</p>
+<p>The callback must enumerate all the values it can possible
 output (similar contruct to GetObjectType operation on other
 current workflow service contracts), and the callback itself must
-return one of those possible values.</p><p>The workflow engine will then allow the workflow designer to map
+return one of those possible values.</p>
+<p>The workflow engine will then allow the workflow designer to map
 these possible output values of the callback to new states, in the
 case of an FSM, or similar relevant state changes for other
-models.</p><h3>Service Contract</h3><pre>
+models.</p>
+<h3>Service Contract</h3>
+<pre>
 <b>workflow.Action_OnFire:</b>
   OnFire -&gt; string
   GetObjectType -&gt; string
   GetOutputs -&gt; [string]
-</pre><p>GetOutputs returns a list of short_names and pretty_names
+</pre>
+<p>GetOutputs returns a list of short_names and pretty_names
 (possibly localizable, with #...# notation) of possible
-outputs.</p><h3>Note</h3><p>The above table could be merged with the current
+outputs.</p>
+<h3>Note</h3>
+<p>The above table could be merged with the current
 workflow_fsm_actions table, which only contains one possible new
-state, with a null output_short_name.</p><h2><a name="conditional-child" id="conditional-child">Conditional
-Transformation Based on Child Workflows</a></h2><pre>
+state, with a null output_short_name.</p>
+<h2><a name="conditional-child" id="conditional-child">Conditional
+Transformation Based on Child Workflows</a></h2>
+<pre>
 create table workflow_outcomes(
   outcome_id                integer
                             constraint ...
@@ -649,12 +728,18 @@ create table workflow_fsm_states(
   ...
 );
 
-</pre><h2><a name="gated-actions" id="gated-actions">Gated
-Actions</a></h2><h3>Requirements</h3><p>An action does not become avilable until a given list of other
+</pre>
+<h2><a name="gated-actions" id="gated-actions">Gated
+Actions</a></h2>
+<h3>Requirements</h3>
+<p>An action does not become avilable until a given list of other
 actions have completed. The advanced version is that you can also
 specify for each of these other tasks how many times they must've
-been executed.</p><p>Also, an action can at most be executed a certain number of
-times.</p><h3>Design</h3><pre>
+been executed.</p>
+<p>Also, an action can at most be executed a certain number of
+times.</p>
+<h3>Design</h3>
+<pre>
 create table workflow_action_dependencies(
   action_id                 integer
                             constraint wf_action_dep_action_fk
@@ -667,40 +752,61 @@ create table workflow_action_dependencies(
   constraint wf_action_dep_act_dep_pk
   primary key (action_id, dependent_on_action)
 );
-</pre><p>When an action is about to be enabled, and before calling the
+</pre>
+<p>When an action is about to be enabled, and before calling the
 CanEnableP callback, we check the workflow_case_enabled_actions
 table to see that the required actions have the required number of
 rows in the workflow_case_enabled_actions table with enabled_state
-'completed'.</p><p>The second part, about maximum number of times an action can be
+'completed'.</p>
+<p>The second part, about maximum number of times an action can be
 executed, this could be solved with a row in the above table with
 the action being dependent upon it self with the given max_n
-value.</p><h2><a name="enable-callback" id="enable-callback">Enable Condition
-Callback</a></h2><p>
+value.</p>
+<h2><a name="enable-callback" id="enable-callback">Enable Condition
+Callback</a></h2>
+<p>
 <b>Action.CanEnableP -&gt; (CanEnabledP)</b>: Gets called when
 an action is about to be enabled, and can be used to prevent the
-action from actually being enabled.</p><p>Is called after all database-driven enable preconditions have
-been met, i.e. FSM enabled-in-state, and "gated on"-conditions.</p><p>This will only get called once per case state change, so if the
+action from actually being enabled.</p>
+<p>Is called after all database-driven enable preconditions have
+been met, i.e. FSM enabled-in-state, and "gated on"-conditions.</p>
+<p>This will only get called once per case state change, so if the
 callback refuses to let the action become enabled, it will not be
-asked again until the next time an action is executed.</p><p>If the callback returns false, the <code>enabled_state</code> of
+asked again until the next time an action is executed.</p>
+<p>If the callback returns false, the <code>enabled_state</code> of
 the row in <code>workflow_case_enabled_actions</code> will be set
-to 'refused' (NOTE: Or the row will be deleted?).</p><h2><a name="non-user-trigger" id="non-user-trigger">Non-User
-Triggered Actions</a></h2><h3>Requirements</h3><p>Some actions, for example those will child workflows, may not
-want to allow users to trigger them.</p><h3>Design</h3><pre>
+to 'refused' (NOTE: Or the row will be deleted?).</p>
+<h2><a name="non-user-trigger" id="non-user-trigger">Non-User
+Triggered Actions</a></h2>
+<h3>Requirements</h3>
+<p>Some actions, for example those will child workflows, may not
+want to allow users to trigger them.</p>
+<h3>Design</h3>
+<pre>
 create table workflow_actions(
   ...
   user_trigger_p          boolean default 't',
   ...
 );
-</pre><p>If user_trigger_p is false, we do not show the action on any
-user's task list.</p><h2><a name="resolution-codes" id="resolution-codes">Resolution
-Codes</a></h2><h3>Requirements</h3><p>The bug-tracker has resolution codes under the "Resolve" action.
-It would be useful if these could be customized.</p><p>In addition, I saw one other dynamic-workflow product
+</pre>
+<p>If user_trigger_p is false, we do not show the action on any
+user's task list.</p>
+<h2><a name="resolution-codes" id="resolution-codes">Resolution
+Codes</a></h2>
+<h3>Requirements</h3>
+<p>The bug-tracker has resolution codes under the "Resolve" action.
+It would be useful if these could be customized.</p>
+<p>In addition, I saw one other dynamic-workflow product
 (TrackStudio) on the web, and they have the concept of resolution
 codes included. That made me realize that this is generally
-useful.</p><p>In general, a resolution code is a way of distinguishing
+useful.</p>
+<p>In general, a resolution code is a way of distinguishing
 different states, even though those states are identical in terms
-of the workflow process.</p><p>Currently, the code to make these happen is fairly clumsy, what
-with the "FormatLogTitle" callback which we invented.</p><h3>Design</h3><pre>
+of the workflow process.</p>
+<p>Currently, the code to make these happen is fairly clumsy, what
+with the "FormatLogTitle" callback which we invented.</p>
+<h3>Design</h3>
+<pre>
 create sequence ...
 
 create table workflow_action_resolutions(
@@ -743,22 +849,36 @@ create table workflow_action_res_output_map(
 -- FK index on action_id
 -- FK index on acs_sc_impl_id
 -- FK index on resolution
-</pre><h2><a name="assignment-notif" id="assignment-notif">Assignment
-Notifications</a></h2><h3>Requirements</h3><p>When someone is assigned to an action, we want the notification
-email to say "You are now assigned to these tasks".</p><h3>Design</h3><p>We'd need to postpone the notifications until we have fully
+</pre>
+<h2><a name="assignment-notif" id="assignment-notif">Assignment
+Notifications</a></h2>
+<h3>Requirements</h3>
+<p>When someone is assigned to an action, we want the notification
+email to say "You are now assigned to these tasks".</p>
+<h3>Design</h3>
+<p>We'd need to postpone the notifications until we have fully
 updated the workflow state to reflect the changed state, to
 determine who should get the normal notifications, and who should
-get personalized ones.</p><p>Notifications doesn't support personalized notifications, but we
+get personalized ones.</p>
+<p>Notifications doesn't support personalized notifications, but we
 could use acs-mail/acs-mail-lite to send them out instead, and
 exclude them from the normal notifications if they have instant
-notifications set up.</p><h2><a name="assignment-reminder" id="assignment-reminder">Assignment Reminders</a></h2><h3>Requirements</h3><p>We want to periodically send out email reminders with a list of
+notifications set up.</p>
+<h2><a name="assignment-reminder" id="assignment-reminder">Assignment Reminders</a></h2>
+<h3>Requirements</h3>
+<p>We want to periodically send out email reminders with a list of
 actions the user is assigned to, asking them to come do something
 about it. There should be a link to a web page showing all these
-actions.</p><p>For each action we will list the action pretty-name, the name of
+actions.</p>
+<p>For each action we will list the action pretty-name, the name of
 the case object, the date it was enabled, the deadline, and a link
-to the action page, where they can do something about it.</p><h2><a name="trying-to-sum-up" id="trying-to-sum-up">Trying to Sum
-Up</a></h2><h4>Logic to Determine if Action is Enabled</h4><p>Executed when any action in the workflow has been executed, to
-determine which actions are now enabled.</p><ul>
+to the action page, where they can do something about it.</p>
+<h2><a name="trying-to-sum-up" id="trying-to-sum-up">Trying to Sum
+Up</a></h2>
+<h4>Logic to Determine if Action is Enabled</h4>
+<p>Executed when any action in the workflow has been executed, to
+determine which actions are now enabled.</p>
+<ul>
 <li>If there are any rows in workflow_case_enabled_actions for this
 case with enabled_state 'running', no actions can be enabled, the
 action is not enabled.</li><li>Is the model-specific precondition met, e.g. are we in one of
@@ -768,14 +888,21 @@ other actions having executed a minimum number of times, or itself
 having executed a maximum number fo times? If not, the action is
 not enabled.</li><li>Execute the CanEnableP callback. If it returns false, the
 action is not enabled.</li><li>The action is enabled.</li>
-</ul><p>If the action is enabled:</p><ul>
+</ul>
+<p>If the action is enabled:</p>
+<ul>
 <li>If there are any rows in workflow_case_enabled_actions for this
 action with enabled_state of 'enabled', the action was already
 enabled before. Quit.</li><li>Otherwise start the "Enabled Action Logic" below.</li>
-</ul><p>If the action is not enabled.</p><ul><li>If there are any rows in workflow_case_enabled_actions for this
+</ul>
+<p>If the action is not enabled.</p>
+<ul><li>If there are any rows in workflow_case_enabled_actions for this
 action with enabled_state of 'enabled', the action was enabled
-before. Update the row to set 'enabled_state' to 'canceled'.</li></ul><h4>Enabled Action Logic</h4><p>Executed when an action which was previously not enabled becomes
-enabled.</p><ol>
+before. Update the row to set 'enabled_state' to 'canceled'.</li></ul>
+<h4>Enabled Action Logic</h4>
+<p>Executed when an action which was previously not enabled becomes
+enabled.</p>
+<ol>
 <li>Insert a row into workflow_case_enabled_actions with
 enabled_state = 'enabled', with the proper fire_timestamp: timeout
 = null -&gt; fire_timestamp = nul; timeout = 0 -&gt; fire_timestamp
@@ -796,24 +923,37 @@ first, if multiple exists), and use the workflow_fsm_output_map to
 determine which new state to bump the workflow to, if any.</li>
 </ul>
 </li>
-</ol><h4>Child Case State Changed Logic</h4><p>We execute the OnChildCaseStateChange callback, if any. This
+</ol>
+<h4>Child Case State Changed Logic</h4>
+<p>We execute the OnChildCaseStateChange callback, if any. This
 gets to determine whether the parent action is now complete and
-should fire.</p><p>We provide a default implementation, which simply checks if the
-child cases are in the 'complete' state, and if so, fires.</p><p>NOTE: What do we do if any of the child cases are canceled?
+should fire.</p>
+<p>We provide a default implementation, which simply checks if the
+child cases are in the 'complete' state, and if so, fires.</p>
+<p>NOTE: What do we do if any of the child cases are canceled?
 Consider the complete and move on with the parent workflow? Cancel
-the parent workflow?</p><p>NOTE: Should we provide this as internal workflow logic or as a
+the parent workflow?</p>
+<p>NOTE: Should we provide this as internal workflow logic or as a
 default callback implementation? If we leave this as a service
 contract with a default implementation, then applications can
 customize. But would that ever be relevant? Maybe this callback is
-never needed.</p><h4>On Fire Logic</h4><p>When the action finally fires.</p><p>If there's any OnFire callback defined, we execute this.</p><p>If the callback has output values defined, we use the mappings
+never needed.</p>
+<h4>On Fire Logic</h4>
+<p>When the action finally fires.</p>
+<p>If there's any OnFire callback defined, we execute this.</p>
+<p>If the callback has output values defined, we use the mappings
 in <code>workflow_action_fsm_output_map</code> to determine which
-state to move to.</p><p>After firing, we execute the SideEffect callbacks and send off
-notifications.</p><p>DESIGN QUESTION: How do we handle notifications for child cases?
+state to move to.</p>
+<p>After firing, we execute the SideEffect callbacks and send off
+notifications.</p>
+<p>DESIGN QUESTION: How do we handle notifications for child cases?
 We should consider the child case part of the parent in terms of
 notifications, so when a child action executes, we notify those who
 have requested notifications on the parent. And when the last child
 case completes, which will also complete the parent action, we
-should avoid sending out duplicate notifications. How?</p><h4>Callback Types</h4><ul>
+should avoid sending out duplicate notifications. How?</p>
+<h4>Callback Types</h4>
+<ul>
 <li style="color: gray;">(Not needed) <b>Action.OnEnable -&gt;
 (output)</b>: Gets called when an action is enabled. Output can be
 used to determine the new state of the case (see below), in
@@ -825,21 +965,30 @@ Called when a child changes its case state
 (active/completed/canceled/suspended). Returns whether the parent
 action has now completed. Output can be used to determine the new
 state of the case (see below).</li>
-</ul><h2><a name="timers" id="timers">Timers (Implemented)</a></h2><h3>Requirements</h3><p>Use cases:</p><ul>
+</ul>
+<h2><a name="timers" id="timers">Timers (Implemented)</a></h2>
+<h3>Requirements</h3>
+<p>Use cases:</p>
+<ul>
 <li>A student has one week to send a document to another role. If
 he/she fails to do so, a default action executes.</li><li>An OpenACS OCT member has one week to vote on a TIP. If he/she
 does not vote within that week, a default "Abstain" action is
 executed.</li>
-</ul><p>The timer will always be of the form "This action will
+</ul>
+<p>The timer will always be of the form "This action will
 automatically execute x amount of time after it becomes enabled".
 If it is later un-enabled (disabled) because another action (e.g. a
 vote action in the second use casae above) was executed, then the
 timer will be reset. If the action later becomes enabled, the timer
-will start anew.</p><h3>Design</h3><p>We currently do not have any information on which actions are
+will start anew.</p>
+<h3>Design</h3>
+<p>We currently do not have any information on which actions are
 enabled, and when they're enabled. We will probably need a table,
 perhaps one just for timed actions, in which a row is created when
 a timed action is enabled, and the row is deleted again when the
-state changes.</p><h4>Extending workflow_actions</h4><pre>
+state changes.</p>
+<h4>Extending workflow_actions</h4>
+<pre>
 create table workflow_actions(
     ...
     -- The number of seconds after having become enabled the action
@@ -847,8 +996,11 @@ create table workflow_actions(
     timeout                 interval
     ...
 );
-</pre><p>DESIGN NOTE: The 'interval' datatype is not supported in
-Oracle.</p><h4>The Enabled Actions Table</h4><pre>
+</pre>
+<p>DESIGN NOTE: The 'interval' datatype is not supported in
+Oracle.</p>
+<h4>The Enabled Actions Table</h4>
+<pre>
 create table workflow_case_enabled_actions(
     case_id                 integer
                             constraint wf_case_enbl_act_case_id_nn
@@ -869,24 +1021,35 @@ create table workflow_case_enabled_actions(
     constraint workflow_case_enabled_actions_pk
     primary key (case_id, action_id)
 );
-</pre><h4>The Logic</h4><p>After executing an action,
-<code>workflow::case::action::execute</code> will:</p><ol>
+</pre>
+<h4>The Logic</h4>
+<p>After executing an action,
+<code>workflow::case::action::execute</code> will:</p>
+<ol>
 <li>Delete all actions from
 <code>worklfow_case_enabled_actions</code> which are no longer
 enabled.</li><li>If the timeout is zero, execute immediately.</li><li>Insert a row for all enabled actions with timeouts which are
 not already in <code>workflow_case_enabled_actions</code>, with
 <code>fire_timestamp = current_timestamp +
 workflow_actions.timeout_seconds</code> .</li>
-</ol><p>NOTE: We need to keep running, so if another automatic action
-becomes enabled after this action fires, they'll fire as well.</p><h4>The Sweeper</h4><p>The sweeper will find rows in
+</ol>
+<p>NOTE: We need to keep running, so if another automatic action
+becomes enabled after this action fires, they'll fire as well.</p>
+<h4>The Sweeper</h4>
+<p>The sweeper will find rows in
 <code>workflow_case_enabled_actions</code> with
 <code>fire_timetsamp &lt; current_timestamp</code>, ordered by
-fire_timstamp, and execute them.</p><p>It should do a query to find the action to fire first, then
+fire_timstamp, and execute them.</p>
+<p>It should do a query to find the action to fire first, then
 release the db-handle and execute it. Then do a fresh query to find
 the next, etc. That way we will handle the situation correctly
 where the first action firing causes the second action to no longer
-be enabled.</p><h4>The Optimization</h4><p>Every time the sweeper runs, at least one DB query will be made,
-even if there are no timed actions to be executed.</p><p>Possible optimizations:</p><ul><li>We keep an NSV with the timestamp (in [clock seconds] format)
+be enabled.</p>
+<h4>The Optimization</h4>
+<p>Every time the sweeper runs, at least one DB query will be made,
+even if there are no timed actions to be executed.</p>
+<p>Possible optimizations:</p>
+<ul><li>We keep an NSV with the timestamp (in [clock seconds] format)
 and (case_id, action_id) of the first action to fire. That way, the
 sweeper need not hit the DB at all most of the time. When a new
 timed action is inserted, we compare with the NSV, and update if
@@ -897,5 +1060,5 @@ to the sweeper to execute the query to find the (case_id,
 action_id, fire_timestamp) of the first action to fire. Finally, we
 would need an NSV value to represent the fact that there are no
 rows in this table, so we don't keep executing the query in that
-case.</li></ul><hr>
-</body>
+case.</li></ul>
+<hr>

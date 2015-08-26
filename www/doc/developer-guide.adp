@@ -2,20 +2,25 @@
 <property name="context">{/doc/workflow {Workflow}} {Package Developer's Guide to Workflow}</property>
 <property name="doc(title)">Package Developer's Guide to Workflow</property>
 <master>
-
-<body>
-<h1>Package Developer's Guide to Workflow</h1><a href=".">Workflow Documentation</a> : Package Developer's Guide
+<h1>Package Developer's Guide to Workflow</h1>
+<a href=".">Workflow Documentation</a>
+ : Package Developer's Guide
 <p>By <a href="http://www.pinds.com">Lars Pind</a>
-</p><h2>Introduction</h2><p>The workflow package manages a collaborative process surrounding
-some object.</p><p>Examples of the object could be a bug in a bug tracker, a ticket
+</p>
+<h2>Introduction</h2>
+<p>The workflow package manages a collaborative process surrounding
+some object.</p>
+<p>Examples of the object could be a bug in a bug tracker, a ticket
 in a ticket tracker, a content item in a content management system,
 a user contribution in a moderated forum/comments/whatever
 application, a user's request for particpation in a
-course/event/whatever.</p><p>For example, when a new bug is submitted, someone's assigned to
+course/event/whatever.</p>
+<p>For example, when a new bug is submitted, someone's assigned to
 fix it, and whoever submitted it is assigned to verify the fix and
 close the bug. Once the bug's fixed, the submitter will get
 notified, and the bug will wait in the 'resolved' state until the
 submitter has verified and then closed the bug.</p>
+
 In order to make use of workflow in your own application, here are
 the things you need to consider:
 <ol>
@@ -26,12 +31,17 @@ point.</li><li>Identify, declare, and implement the callbacks that your
 application will need.</li><li>Write the code to set up the initial process, and to clone that
 process for each package instance.</li><li>Integrate workflow support into your application's API.</li><li>Integrate workflow support into your application's user
 interface.</li><li>Integrate workflow into your application's queries</li>
-</ol><p>Let's first look at some concepts before getting into the
+</ol>
+<p>Let's first look at some concepts before getting into the
 technicalities of how you actually do this. For a working example
 of building workflow-based applications, we recommend you take a
-look at bug-tracker.</p><h2>Workflow Concepts</h2><h3>What's in a workflow</h3><p>In its broadest, most conceptual sense, a workflow is defined as
+look at bug-tracker.</p>
+<h2>Workflow Concepts</h2>
+<h3>What's in a workflow</h3>
+<p>In its broadest, most conceptual sense, a workflow is defined as
 (and this does get a little hairy, so feel free to skip if you just
-want to start developing your applicaton):</p><ul>
+want to start developing your applicaton):</p>
+<ul>
 <li>A number of <b>actions</b> that can be executed (open, edit,
 comment, resolve, edit, publish, approve, reject, etc.) Whether or
 not an action is <b>enabled</b>, meaning it can be executed at this
@@ -53,23 +63,32 @@ The reason we link people to actions through the concept of roles
 is to allow you to specify that two or more actions should be done
 by the same party. In bug-tracker, for example, the same user who
 opened the bug should also close it.</li>
-</ul><h3>Finite State Machines (FSMs)</h3><p>As mentioned, workflow is designed to support workflows based on
+</ul>
+<h3>Finite State Machines (FSMs)</h3>
+<p>As mentioned, workflow is designed to support workflows based on
 any model, however the only model currently implemented is the
-finite state machine.</p><p>The workflow API is designed so that whenver you're using
+finite state machine.</p>
+<p>The workflow API is designed so that whenver you're using
 features that are specific to finite state machines, the procedure
 name will include the letters "fsm" in the name, as in
 <code><a href="/api-doc/proc-view?proc=workflow::case::fsm::get">workflow::case::fsm::get</a></code>.
 That way you'll know when you're hard-wiring a dependency on the
-particular workflow model.</p><p>It's considered good practice to only use non-fsm API calls, but
+particular workflow model.</p>
+<p>It's considered good practice to only use non-fsm API calls, but
 in practice, it can be hard to create good user experiences
-without. So feel free.</p><blockquote class="note">
+without. So feel free.</p>
+<blockquote class="note">
 <b>Notation:</b><p style="margin-left: 24px;">[Action] (State) {Role}</p><p style="margin-left: 24px;">(State1) -&gt; [Action1] -&gt;
 (State2) -&gt; [Action2] -&gt; (State3)</p>
-</blockquote><h3>Cases</h3><p>So much for defining the workflow. When you start "running" your
+</blockquote>
+<h3>Cases</h3>
+<p>So much for defining the workflow. When you start "running" your
 workflow, that's called a <b>workflow case</b>, or simply a case. A
 case is concerned with a particular object, it's always in a
 particular state, and it has specific people or groups assigned to
-its different roles.</p><h3>In-flow and out-of-flow</h3><p>When defining actions, we differentiate between <b>in-flow and
+its different roles.</p>
+<h3>In-flow and out-of-flow</h3>
+<p>When defining actions, we differentiate between <b>in-flow and
 out-of-flow</b>. In-flow refers to the normal idealized flow of the
 workflow, out-of-flow are the rest. Concretely what it means is
 that if you're assigned to an in-flow action, we'll bug you about
@@ -78,35 +97,44 @@ don't come and do something to get the workflow moving along. We
 don't do that with out-of-flow actions. So we'll send a
 notification that says "Please come back and resolve this bug",
 whereas we'll not notify everybody who are allowed to comment
-saying "Please come back and comment on this bug".</p><p>For bug-tracker, the normal flow (in-flow) is this:</p><blockquote>(Open) -&gt; [Resolve] -&gt; (Resolved) -&gt; [Close]
--&gt; (Closed)</blockquote><p>Other actions not in the normal flow are [Edit] and [Comment],
+saying "Please come back and comment on this bug".</p>
+<p>For bug-tracker, the normal flow (in-flow) is this:</p>
+<blockquote>(Open) -&gt; [Resolve] -&gt; (Resolved) -&gt; [Close]
+-&gt; (Closed)</blockquote>
+<p>Other actions not in the normal flow are [Edit] and [Comment],
 which are always enabled, but never change the state. And [Reopen]
 which throw you back to the (Open) state. And finally [Resolved] is
 in-flow when in the (Open) state, but out-of-flow when in the
 (Resolved) state, meaning that you can re-resolve a bug if you need
-to, but you're not required to.</p><p>In-flow and out-of-flow depends on the action, the state, and
+to, but you're not required to.</p>
+<p>In-flow and out-of-flow depends on the action, the state, and
 the user's role in the case. For example, it might be that users in
 the {Submitter} role are allowed to resolve their own bugs, but the
 [Resolve] action will still only be considered in-flow to people in
-the {Assignee} or {Resolver} role.</p><h2>The Six Steps Conceptually</h2><p>The recommended way a workflow is linked to an application is
+the {Assignee} or {Resolver} role.</p>
+<h2>The Six Steps Conceptually</h2>
+<p>The recommended way a workflow is linked to an application is
 this: As part of developing your application, you define your
 <b>default workflow</b>, which will be used as a template for
 customization by the users of your applications. This workflow will
 be installed using the APM after-install callback, and will be
-linked to your application's package-key.</p><p>Then when a new instance of your application is created, your
+linked to your application's package-key.</p>
+<p>Then when a new instance of your application is created, your
 <b>default workflow will be cloned</b>, and the clone linked to the
 new instance, so that your users can customize the workflow for
 each instance of your application individually. The default copy
 installed along with your package is never actually used except for
 cloning when creating a new instance. This means that your users
 can customize this deafult workflow, and the modified version will
-serve as the boilerplate for all new package instances.</p><p>In order to integrate workflow with your application, you'll
+serve as the boilerplate for all new package instances.</p>
+<p>In order to integrate workflow with your application, you'll
 want to implement one or more of the <b>callback service
 contracts</b>. These can do things like determine default assignees
 based on certain data in your application, get information about
 your application's object for use when sending out notifications,
 or perform side-effects, such as actually changing the publication
-state of a content item when you execute the [Publish] action.</p><p>When integrating the workflow with your application's user
+state of a content item when you execute the [Publish] action.</p>
+<p>When integrating the workflow with your application's user
 experience, what workflow will give you is essentially the <b>list
 of actions</b> that the given user can perform on the given object
 at the given time. In bug-tracker, for example, bug-tracker takes
@@ -114,19 +142,26 @@ care of displaying the form displaying and editing a bug, while
 workflow takes care of displaying the buttons that say [Comment],
 [Edit], [Resolve], [Reopen], [Close], etc., along the bottom of the
 form. Workflow also has a place to store which form elements should
-be opened for editing depending on the action being executed.</p><p>Your application should typically have an API for creating a new
+be opened for editing depending on the action being executed.</p>
+<p>Your application should typically have an API for creating a new
 object, editing an object, etc. This <b>application object API will
 need to be workflow-aware</b>, so when a new object is created, a
 new workflow case will be started as well. And when the object's
 edited, that should generally only happen through a workflow
-action, so that needs to be taken into account as well.</p><p>The final step is integrating workflow into your application's
+action, so that needs to be taken into account as well.</p>
+<p>The final step is integrating workflow into your application's
 queries when you want to <b>filter an object listing/count based on
 the workflow state</b>. This is the only place where you'll
-directly be dependent on the workflow data model.</p><h2>Defining Your Process (FSM)</h2><p>The current version of workflow only supports workflows based on
+directly be dependent on the workflow data model.</p>
+<h2>Defining Your Process (FSM)</h2>
+<p>The current version of workflow only supports workflows based on
 a finite state machine (FSM). Support for other models, such as
 petri nets and directed graphs are possible, but not currently
-designed or implemented.</p><p>An FSM-based workflow consists of a set of states, actions, and
-roles.</p><p>You define a new workflow like this:</p><pre class="code">
+designed or implemented.</p>
+<p>An FSM-based workflow consists of a set of states, actions, and
+roles.</p>
+<p>You define a new workflow like this:</p>
+<pre class="code">
 set spec {
     <i>workflow-short-name</i> {
         ...
@@ -152,19 +187,25 @@ set spec {
 }
 
 set workflow_id [<a href="/api-doc/proc-view?proc=workflow::fsm::new_from_spec">workflow::fsm::new_from_spec</a> -spec $spec]
-</pre><p>All the items (workflow, roles, states, actions) have a
+</pre>
+<p>All the items (workflow, roles, states, actions) have a
 short-name, which should be lowercase and use underbar (_) instead
 of spaces. These are mainly used to refer to the items in other
-parts of the spec.</p><p>The workflow short name can be used to refer to the workflow in
+parts of the spec.</p>
+<p>The workflow short name can be used to refer to the workflow in
 your application, which is useful if you have several different
 workflows. The bug-tracker, for example, could have a workflow for
-bugs and another one for patches.</p><p>Finally, you can also refer states, roles, and actions in your
+bugs and another one for patches.</p>
+<p>Finally, you can also refer states, roles, and actions in your
 application using short names, although this creates a dependency
 in your application on a particular form of the workflow, and
 there's currently no mechanism for ensuring that your workflow
 contains the states, roles, and actions you'd refer to. This is on
-the todo-list.</p><h3>Workflow</h3><p>These are the attributes you can specify for the workflow
-itself:</p><table cellspacing="1">
+the todo-list.</p>
+<h3>Workflow</h3>
+<p>These are the attributes you can specify for the workflow
+itself:</p>
+<table cellspacing="1">
 <tr><th colspan="2" class="header">Workflow Attributes</th></tr><tr>
 <th>Attribute</th><th>Description</th>
 </tr><tr bgcolor="white">
@@ -190,12 +231,16 @@ states.</td>
 <td><code>actions</code></td><td>Denotes the section of the spec that defines the workflow's
 actions.</td>
 </tr>
-</table><blockquote class="note">
+</table>
+<blockquote class="note">
 <b>Internationalization Note:</b><p style="margin-left: 24px;">When we make workflow
 internationalized for OpenACS 5.0, pretty names will contain
 message keys in the form "#<i>message-key</i>#". More about this in
 the package developer's guide to internationalization.</p>
-</blockquote><h3>Roles</h3><p>Attributes for roles:</p><table cellspacing="1">
+</blockquote>
+<h3>Roles</h3>
+<p>Attributes for roles:</p>
+<table cellspacing="1">
 <tr><th colspan="2" class="header">Role Attributes</th></tr><tr>
 <th>Attribute</th><th>Description</th>
 </tr><tr>
@@ -204,7 +249,10 @@ the package developer's guide to internationalization.</p>
 <td><code>callbacks</code></td><td>Callbacks that define how assignment of this role to users is
 done.</td>
 </tr>
-</table><h3>States</h3><p>A few typical examples of states:</p><table cellspacing="1">
+</table>
+<h3>States</h3>
+<p>A few typical examples of states:</p>
+<table cellspacing="1">
 <tr><th colspan="2" class="header">Examples of States</th></tr><tr>
 <th>Application</th><th>States</th>
 </tr><tr>
@@ -216,8 +264,10 @@ done.</td>
 </tr><tr>
 <td>Simple Approval</td><td>(Requested), (Approved), and (Rejected)</td>
 </tr>
-</table><p>These are the state attributes in the workflow
-specification:</p><table cellspacing="1">
+</table>
+<p>These are the state attributes in the workflow
+specification:</p>
+<table cellspacing="1">
 <tr><th colspan="2" class="header">State Attributes</th></tr><tr>
 <th>Attribute</th><th>Description</th>
 </tr><tr>
@@ -229,27 +279,36 @@ doesn't make sense when the bug is (Open), and thus not yet fixed.
 It's currently up to your application to do incorporate this into
 your application.</td>
 </tr>
-</table><h3>Actions</h3><p>Actions are what the workflow allows you to do to your
-object.</p><blockquote class="note">
+</table>
+<h3>Actions</h3>
+<p>Actions are what the workflow allows you to do to your
+object.</p>
+<blockquote class="note">
 <b>Terminology:</b><dl style="margin-left: 24px;">
 <dt>Enabled</dt><dd>The action is allowed to be executed in the workflow's current
 state.</dd><dt>Allowed</dt><dd>The given user is allowed to execute the action given his
 current relationship to the workflow case and the object.</dd><dt>Assigned</dt><dd>The same as allowed, but the action is in-flow for this
 user.</dd><dt>Available</dt><dd>The action is both enabled and allowed for this user.</dd>
 </dl>
-</blockquote><p>Some actions will <b>always be enabled</b>. In bug-tracker, for
+</blockquote>
+<p>Some actions will <b>always be enabled</b>. In bug-tracker, for
 example, we have [Comment] and [Edit] actions, which are always
 allowed, regardless of whether the bug is (Open), (Resolved), or
-(Closed).</p><p>Other actions, however, will only be <b>enabled in certain
+(Closed).</p>
+<p>Other actions, however, will only be <b>enabled in certain
 states</b>. In bug-tracker, for example, the [Close] action is only
-available in the (Resolved) state.</p><p>Another distinction is that <b>some actions change the state,
+available in the (Resolved) state.</p>
+<p>Another distinction is that <b>some actions change the state,
 and others do not</b>. [Comment] and [Edit], for example, do not.
 [Resolve], [Close], and [Reopen] do. For an FSM, when an action
 changes the state, you simply specify what the new state should
-be.</p><p>There's a special action called the <b>initial action</b>. This
+be.</p>
+<p>There's a special action called the <b>initial action</b>. This
 is implicitly executed when a new case is started for this
 workflow, and must always specify the "new_state" attribute to
-define which state new cases start out in.</p><p>Attributes for actions:</p><table cellspacing="1">
+define which state new cases start out in.</p>
+<p>Attributes for actions:</p>
+<table cellspacing="1">
 <tr><th colspan="2" class="header">Action Attributes</th></tr><tr>
 <th>Attribute</th><th>Description</th>
 </tr><tr>
@@ -290,8 +349,11 @@ application to act on this.</td>
 <td><code>callbacks</code></td><td>Side-effect callbacks which are executed when this action is
 executed.</td>
 </tr>
-</table><h3>Putting A Workflow Together</h3><p>When you put this all together, here's a real live example of
-what defining a workflow could look like:</p><pre class="code">
+</table>
+<h3>Putting A Workflow Together</h3>
+<p>When you put this all together, here's a real live example of
+what defining a workflow could look like:</p>
+<pre class="code">
 ad_proc -private bug_tracker::bug::workflow_create {} {
     Create the 'bug' workflow for bug-tracker
 } {
@@ -407,13 +469,18 @@ ad_proc -private bug_tracker::bug::workflow_create {} {
     
     return $workflow_id
 }
-</pre><h2>Defining Callbacks</h2><p>There are a number of different types of callbacks, each of
+</pre>
+<h2>Defining Callbacks</h2>
+<p>There are a number of different types of callbacks, each of
 which applies to different workflow items (workflows, roles,
-states, actions). They're all defined as service contracts.</p><p>In order to make use of them, your application will need to
+states, actions). They're all defined as service contracts.</p>
+<p>In order to make use of them, your application will need to
 implement these service contracts, and register the implementation
 with the relevant workflow item through the 'callbacks' attribute
-in the spec above.</p><p>Here are the types of callbacks defined, how they're used, and
-the workflow items they apply to.</p><table cellspacing="1">
+in the spec above.</p>
+<p>Here are the types of callbacks defined, how they're used, and
+the workflow items they apply to.</p>
+<table cellspacing="1">
 <tr><th colspan="3" class="header">Service contracts</th></tr><tr>
 <th>Service Contract</th><th>Applies To</th><th>Description</th>
 </tr><tr>
@@ -466,9 +533,11 @@ will be put inside brackets [].</li>
 </ol>
 </td>
 </tr>
-</table><p>All the service contracts have 3 operations each. The first two
+</table>
+<p>All the service contracts have 3 operations each. The first two
 are the same for all service contracts, and they really just act
-like static variables:</p><table cellspacing="1">
+like static variables:</p>
+<table cellspacing="1">
 <tr><th colspan="4" class="header">Common service contract
 operations</th></tr><tr>
 <th>Operation</th><th>Input</th><th>Output</th><th>Description</th>
@@ -481,8 +550,10 @@ otherwise return the object type.</td>
 in the user interface to let the workflow designer pick which
 implementation to use.</td>
 </tr>
-</table><p>The third operation is the one that does the real work. Here are
-the inputs and outputs:</p><table cellspacing="1">
+</table>
+<p>The third operation is the one that does the real work. Here are
+the inputs and outputs:</p>
+<table cellspacing="1">
 <tr><th colspan="4" class="header">Specific service contract
 operations</th></tr><tr>
 <th>Contract</th><th>Operation</th><th>Input</th><th>Output</th>
@@ -507,18 +578,25 @@ entry_id:integer data_arraylist:string,multiple</td><td>title:string</td>
 </tr><tr>
 <td>Workflow.NotificationInfo</td><td>GetNotificationInfo</td><td>case_id:integer object_id:integer</td><td>info:string,multiple</td>
 </tr>
-</table><p>For the most up-to-date information about the service contracts,
+</table>
+<p>For the most up-to-date information about the service contracts,
 your safest bet is to refer to the user-visible pages of the
 acs-service-contract package itself, which will let you view your
-currently installed contracts and implementations.</p><h3>Log Entry Data and Log Entry Titles</h3><p>One noteworthy thing that side-effects can be used for, is to
+currently installed contracts and implementations.</p>
+<h3>Log Entry Data and Log Entry Titles</h3>
+<p>One noteworthy thing that side-effects can be used for, is to
 record information about a log entry for use later in displaying a
 more detailed log entry title, or can be used to e.g. tie a
 workflow log entry to a particular content repository revision,
-etc.</p><p>Using <a href="/api-doc/proc-view?proc=workflow::case::add_log_data">workflow::case::add_log_data</a>,
+etc.</p>
+<p>Using <a href="/api-doc/proc-view?proc=workflow::case::add_log_data">workflow::case::add_log_data</a>,
 you can add arbitrary key/value pairs to a log entry. These can the
 be retrieved later using <a href="/api-doc/proc-view?proc=workflow::case::get_log_data_by_key">workflow::case::get_log_data_by_key</a>,
-and <a href="/api-doc/proc-view?proc=workflow::case::get_log_data">workflow::case::get_log_data</a>.</p><h2>Installing and Instantiating (APM Tcl Callbacks)</h2><p>Here are the workflow-related operations that you'll typically
-want your application to do from the APM Tcl Callbacks:</p><dl>
+and <a href="/api-doc/proc-view?proc=workflow::case::get_log_data">workflow::case::get_log_data</a>.</p>
+<h2>Installing and Instantiating (APM Tcl Callbacks)</h2>
+<p>Here are the workflow-related operations that you'll typically
+want your application to do from the APM Tcl Callbacks:</p>
+<dl>
 <dt>after-install</dt><dd><ul>
 <li>Register service contract implementations</li><li>Create default workflow (<code><a href="/api-doc/proc-view?proc=workflow::fsm::new_from_spec">workflow::fsm::new_from_spec</a></code>)</li>
 </ul></dd><dt>before-uninstall</dt><dd><ul>
@@ -529,14 +607,19 @@ verison is not modified) (this isn't yet supported on the workflow
 API)</li>
 </ul></dd><dt>after-instantiate</dt><dd><ul><li>Clone default workflow to create a new workflow attached to the
 instance (<code><a href="/api-doc/proc-view?proc=workflow::fsm::clone">workflow::fsm::clone</a></code>)</li></ul></dd><dt>before-uninstantiate</dt><dd><ul><li>Delete the workflow attached to the instance (<code><a href="/api-doc/proc-view?proc=workflow::delete">workflow::delete</a></code>)</li></ul></dd>
-</dl><p>To see what this could look like in practice, check out
-<code>packages/bug-tracker/tcl/install-procs.tcl</code>.</p><h2>Integrating With Your Application's API</h2><p>Newer applications will define a namespace for each of the
+</dl>
+<p>To see what this could look like in practice, check out
+<code>packages/bug-tracker/tcl/install-procs.tcl</code>.</p>
+<h2>Integrating With Your Application's API</h2>
+<p>Newer applications will define a namespace for each of the
 objects it defines, which will contain procs like "get", "new",
-"delete", etc., to manipulate these objects.</p><p>Given such a setup, here are the procs that you want to
+"delete", etc., to manipulate these objects.</p>
+<p>Given such a setup, here are the procs that you want to
 integrate workflow into for your workflow-integrated objects. For a
 real-life example, see
 <code>packages/bug-tracker/tcl/bug-procs.tcl</code> and search for
-"workflow::".</p><dl>
+"workflow::".</p>
+<dl>
 <dt>get</dt><dd>In addition to your application's object data, you'll want to
 call <code><a href="/api-doc/proc-view?proc=workflow::case::get_id">workflow::case::get_id</a></code>
 to get the case_id for your object, and then either <code><a href="/api-doc/proc-view?proc=workflow::case::get">workflow::case::get</a></code>
@@ -563,47 +646,66 @@ to pass these on to workflow, and finally you'll say <code><a href="/api-doc/pro
 to execute the action, including state changes, side-effects, and
 notifications.</p>
 </dd>
-</dl><h2>Integrating With Your Application's User Interface</h2><p>Usually, you'll want one page that lists all the objects in your
+</dl>
+<h2>Integrating With Your Application's User Interface</h2>
+<p>Usually, you'll want one page that lists all the objects in your
 package instance, and another that lets the user view/edit one
 object, called the object form page. This section is about the
 object form page, the next section is about the object listing
-page.</p><p>For a real-life example, look at
+page.</p>
+<p>For a real-life example, look at
 <code>packages/bug-tracker/www/bug.tcl</code>. You may want to have
-that handy while reading through this.</p><p>We're hoping to make some streamlining of both ad_form and
+that handy while reading through this.</p>
+<p>We're hoping to make some streamlining of both ad_form and
 workflow to make this form page integration even easier at some
-point. But no promises.</p><p>Use <code><a href="/api-doc/proc-view?proc=workflow::case::get_id">workflow::case::get_id</a></code>
-to get the case_id.</p><p>If you want buttons along the bottom of the form like
+point. But no promises.</p>
+<p>Use <code><a href="/api-doc/proc-view?proc=workflow::case::get_id">workflow::case::get_id</a></code>
+to get the case_id.</p>
+<p>If you want buttons along the bottom of the form like
 bug-tracker, use the new 'action' feature of the form builder. What
 you do is pass a list of possible actions to the form builder as a
 list-of-lists with { label value }. These will be displayed as
-buttons at the bottom of the form.</p><p>When one of these buttons are clicked, the form will be in
+buttons at the bottom of the form.</p>
+<p>When one of these buttons are clicked, the form will be in
 edit-mode, and you can use <code>form get_action</code> to get the
-value of the action chosen.</p><p>So up top, you'll want to ask the form if an action is in
+value of the action chosen.</p>
+<p>So up top, you'll want to ask the form if an action is in
 progress, and which one it is, by saying <code>set action_id [form
 get_action <i>form-id</i>]</code>. If no action is in progress this
-will return the empty string.</p><p>Then you should check that this action is currently available to
-this user by saying <code><a href="/api-doc/proc-view?proc=workflow::case::action::available_p">workflow::case::action::available_p</a></code>.</p><p>To get the currently available actions so you can offer them to
+will return the empty string.</p>
+<p>Then you should check that this action is currently available to
+this user by saying <code><a href="/api-doc/proc-view?proc=workflow::case::action::available_p">workflow::case::action::available_p</a></code>.</p>
+<p>To get the currently available actions so you can offer them to
 the user, use <code><a href="/api-doc/proc-view?proc=workflow::case::get_available_actions">workflow::case::get_available_actions</a></code>
 which will return the action_id's, then <code><a href="/api-doc/proc-view?proc=workflow::action::get">workflow::action::get</a></code>
-to get the details about each of the actions.</p><p>If you're using <code>ad_form</code>, and you want only one
+to get the details about each of the actions.</p>
+<p>If you're using <code>ad_form</code>, and you want only one
 assignee per role, and you want assignment integrated with your
 form, use <code><a href="/api-doc/proc-view?proc=workflow::case::role::add_assignee_widgets">
 workflow::case::role::add_assignee_widgets</a></code> to add the
 widgets. It'll do an <code>ad_form -extend</code>, so they'll
-appear at the point at which you call this proc.</p><p>To set the editable fields as defined for the action, do
-this:</p><pre>
+appear at the point at which you call this proc.</p>
+<p>To set the editable fields as defined for the action, do
+this:</p>
+<pre>
 if { ![empty_string_p $action_id] } {
     foreach field [<a href="/api-doc/proc-view?proc=workflow::action::get_element">workflow::action::get_element</a> -action_id $action_id -element edit_fields] { 
         element set_properties bug $field -mode edit 
     }
 }
-</pre><p>Similarly, on submit, you'll want to set the value of the
-editable fields.</p><p>To populate values of the assignee widgets, use <code><a href="/api-doc/proc-view?proc=workflow::case::role::set_assignee_values">
+</pre>
+<p>Similarly, on submit, you'll want to set the value of the
+editable fields.</p>
+<p>To populate values of the assignee widgets, use <code><a href="/api-doc/proc-view?proc=workflow::case::role::set_assignee_values">
 workflow::case::role::set_assignee_values</a></code> in your
-<code>on_request</code> block.</p><p>To add the case log to the comment field, use <code><a href="/api-doc/proc-view?proc=workflow::case::get_activity_html">workflow::case::get_activity_html</a></code>
+<code>on_request</code> block.</p>
+<p>To add the case log to the comment field, use <code><a href="/api-doc/proc-view?proc=workflow::case::get_activity_html">workflow::case::get_activity_html</a></code>
 and feed it to the <code>before_html</code> property of a
-textarea.</p><h2>Integrating With Your Application's Queries</h2><p>Here's an example of how the bug-tracker integrates with
-workflow for nformation about the current state of bugs.</p><blockquote><pre>
+textarea.</p>
+<h2>Integrating With Your Application's Queries</h2>
+<p>Here's an example of how the bug-tracker integrates with
+workflow for nformation about the current state of bugs.</p>
+<blockquote><pre>
 select b.bug_id,
        ...
 
@@ -635,8 +737,14 @@ and    cfsm.case_id = cas.case_id
 and    st.state_id = cfsm.current_state
 and    b.project_id = :package_id
 order  by $order_by_clause
-</pre></blockquote><p>Note the outer join to get the assignee(s). The joins to get
-information about the current state is straight-forward.</p><h2>Good Luck!</h2><p>That's all I think you'll need to know to start developing
-workflow-enabled applications.</p><p>Let me know how it goes, or of something's missing, by posting
-on the <a href="http://openacs.org/forums/">OpenACS Forums</a>.</p><hr><a href="mailto:lars\@pinds.com"></a><address>lars\@pinds.com</address>
-</body>
+</pre></blockquote>
+<p>Note the outer join to get the assignee(s). The joins to get
+information about the current state is straight-forward.</p>
+<h2>Good Luck!</h2>
+<p>That's all I think you'll need to know to start developing
+workflow-enabled applications.</p>
+<p>Let me know how it goes, or of something's missing, by posting
+on the <a href="http://openacs.org/forums/">OpenACS Forums</a>.</p>
+<hr>
+<a href="mailto:lars\@pinds.com"></a>
+<address>lars\@pinds.com</address>

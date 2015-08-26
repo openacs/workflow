@@ -2,16 +2,17 @@
 <property name="context">{/doc/workflow {Workflow}} {Workflow Documentation}</property>
 <property name="doc(title)">Workflow Documentation</property>
 <master>
-
-<body>
 <h1>Workflow Documentation</h1>
+
 Workflow Documentation
 <p>By <a href="http://www.pinds.com">Lars Pind</a>
-</p><p>The workflow package provides a service to keep track of a
+</p>
+<p>The workflow package provides a service to keep track of a
 process involving multiple people around some object. Workflow
 keeps track of the process you wish to follow, of where you
 currently are in the process (the current state), and who's
-supposed to do what.</p><dl>
+supposed to do what.</p>
+<dl>
 <dt><a href="mockups">Mockups of alternatives for compound
 workflows</a></dt><dt><a href="developer-guide">Package Developer's Guide to
 Workflow</a></dt><dd>This is for developers developing applications that should take
@@ -22,7 +23,9 @@ changes.</dd><dt><a href="fall-2003-extensions">Fall 2003
 Extensions</a></dt><dd>Adding actions as sub-workflows, automatic/timed actions, more
 conditions before actions are enabled, dynamic outcome of actions,
 resolution codes.</dd>
-</dl><h2>Version History</h2><ul>
+</dl>
+<h2>Version History</h2>
+<ul>
 <li>
 <b>1.0d4</b> Resolved conflicts with old acs-workflow package,
 so they install side by side. (May 11, 2003)</li><li>
@@ -38,7 +41,9 @@ useful as is. Also added a little API and cleaned up things a bit,
 the kind of things you learn while writing the documentation.</li><li>
 <b>0.2d2</b> First version released along with OpenACS
 4.6.2.</li>
-</ul><h2>Todo</h2><ul>
+</ul>
+<h2>Todo</h2>
+<ul>
 <li>Internationalization.</li><li>Add API for modifying live workflows, including ensuring that
 the modifications are always safe (i.e. you can't delete a state
 that's used.)</li><li>Add a user interface for defining workflows.</li><li>Add a user interface for monitoring workflows and bulk changing
@@ -54,5 +59,7 @@ user choose between the available variants (e.g. simple approval
 vs. multiple approval variants, choice of triage and Q&amp;A steps
 in the bug-tracker, etc.). This should probably be tied to some
 concept of an 'application' as in the bullet above.</li>
-</ul><hr><a href="mailto:lars\@pinds.com"></a><address>lars\@pinds.com</address>
-</body>
+</ul>
+<hr>
+<a href="mailto:lars\@pinds.com"></a>
+<address>lars\@pinds.com</address>
