@@ -693,7 +693,7 @@ models.</p>
   GetOutputs -&gt; [string]
 </pre>
 <p>GetOutputs returns a list of short_names and pretty_names
-(possibly localizable, with #...# notation) of possible
+(possibly localizable, with <span>#</span>...# notation) of possible
 outputs.</p>
 <h3>Note</h3>
 <p>The above table could be merged with the current
