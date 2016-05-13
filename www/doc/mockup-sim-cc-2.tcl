@@ -1,6 +1,12 @@
 ad_page_contract {
     Mockup
 } {
+    action_id:naturalnum
+    workflow_id:naturalnum
+    assigned_role:word
+    recipient_role:word
+    description.format:notnull,trim
+    completiontype:word
 }
 
 set page_title "Editing a single task: Respond to Deposition"
