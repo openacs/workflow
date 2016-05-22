@@ -10,7 +10,7 @@
     <inherit-templates-p>t</inherit-templates-p>
     <auto-mount>workflow</auto-mount>
 
-    <version name="2.1.1" url="http://openacs.org/repository/download/apm/workflow-2.1.1.apm">
+    <version name="2.1.2d1" url="http://openacs.org/repository/download/apm/workflow-2.1.2d1.apm">
         <owner url="http://pinds.com">Lars Pind</owner>
         <owner url="http://petermarklund.com">Peter Marklund</owner>
         <summary>A Tcl API for creating and managing workflows.</summary>
@@ -26,7 +26,7 @@
 For more information, see: &lt;a href=&quot;http://www.collaboraid.biz/developer/workflow-spec&quot;&gt;the workflow specification&lt;/a&gt;.</description>
         <maturity>0</maturity>
 
-        <provides url="workflow" version="2.1.1"/>
+        <provides url="workflow" version="2.1.2d1"/>
         <requires url="acs-content-repository" version="5.0.0b4"/>
         <requires url="acs-kernel" version="5.2.0d2"/>
         <requires url="notifications" version="5.1.7"/>

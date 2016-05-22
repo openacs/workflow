@@ -401,6 +401,7 @@ create table workflow_cases (
 );
 
 create index workflow_cases_workflow_id on workflow_cases (workflow_id);
+create index workflow_cases_object_id_idx on workflow_cases(object_id);
 
 create table workflow_case_role_party_map (
   case_id                 integer
