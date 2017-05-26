@@ -391,7 +391,7 @@ ad_proc -public workflow::action::edit {
             }
         }
         
-        # Auxilliary rows
+        # Auxiliary rows
         switch $operation {
             insert - update {
                 # Record which roles are allowed to take action
@@ -1061,7 +1061,7 @@ ad_proc -public workflow::action::fsm::edit {
                 unset row(assigned_states)
             }
 
-            # Handle auxillary rows
+            # Handle auxiliary rows
             array set aux [list]
             foreach attr { 
                 enabled_state_ids assigned_state_ids
@@ -1123,7 +1123,7 @@ ad_proc -public workflow::action::fsm::edit {
             }
         }
         
-        # Auxilliary rows
+        # Auxiliary rows
         switch $operation {
             insert - update {
                 # Record in which states the action is enabled but not assigned

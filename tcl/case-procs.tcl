@@ -1952,7 +1952,7 @@ $hr
 
 # Below are all the procs that drive the workflow engine, 
 # the logic to change state and determine which actions
-# are availble given the current state.
+# are available given the current state.
 
 #####
 #
@@ -2531,7 +2531,7 @@ ad_proc -private workflow::case::action::fsm::execute_state_change {
                 set enabled_action_p {}
                 # We rely on parent_enabled_action_id being set by the caller here
             } else {
-                # This will not work with dynamic actions, but is necessary for inital actions
+                # This will not work with dynamic actions, but is necessary for initial actions
                 set enabled_action_id [workflow::case::action::get_enabled_action_id \
                                            -case_id $case_id \
                                            -action_id $action_id \

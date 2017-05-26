@@ -28,7 +28,7 @@ Workflows</a></h2>
 <h3>Requirements</h3>
 <p>Use cases:</p>
 <ul>
-<li>Leiden: We have several occurances of the simple
+<li>Leiden: We have several occurrences of the simple
 AskInfo-GiveInfo question/response pair. Defining simulation
 templates would be simplified if that was a reusable
 component.</li><li>TIP Voting: There&#39;s a master workflow case for the TIP
@@ -746,7 +746,7 @@ create table workflow_fsm_states(
 <h2><a name="gated-actions" id="gated-actions">Gated
 Actions</a></h2>
 <h3>Requirements</h3>
-<p>An action does not become avilable until a given list of other
+<p>An action does not become available until a given list of other
 actions have completed. The advanced version is that you can also
 specify for each of these other tasks how many times they
 must&#39;ve been executed.</p>

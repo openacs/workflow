@@ -43,7 +43,7 @@ ad_form -name "add_edit" -form {
     {description:text(text),optional {label {Description:}}}
     {trigger_type:text(select),optional {options $trigger_options }}
     {timeout_seconds:text(text),optional }
-    {callbacks:text(textarea),optional,nospell {label {Insert or remove callbacks. Put a new callback on a seperate line:}} {html {rows 6 cols 35}}}
+    {callbacks:text(textarea),optional,nospell {label {Insert or remove callbacks. Put a new callback on a separate line:}} {html {rows 6 cols 35}}}
     {always_enabled_p:text(radio) {label {Always Enabled?}} {options $yes_no_options}}
     {enabled_states:text(checkbox),multiple,optional {label {Enabled States:}} {options $state_options}}
     {assigned_states:text(checkbox),multiple,optional {label {Assigned States:}} {options $state_options}}

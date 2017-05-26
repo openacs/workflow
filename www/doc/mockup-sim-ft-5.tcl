@@ -53,7 +53,7 @@ template::list::create \
 
 multirow create tasks edit_url pretty_name state1 state2 state3 state4
 
-multirow append tasks "" "Ask for infomation" "<input disabled type=\"checkbox\" checked disabled>" "<input disabled type=\"checkbox\">" 
+multirow append tasks "" "Ask for information" "<input disabled type=\"checkbox\" checked disabled>" "<input disabled type=\"checkbox\">" 
 multirow append tasks "mockup-sim-ft-6" "Respond to request" "<input disabled type=\"checkbox\">" "<input disabled type=\"checkbox\" checked>" 
 
 

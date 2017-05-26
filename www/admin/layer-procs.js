@@ -2,7 +2,7 @@
  *
  *  A library to manipulate layers
  *
- *  Browser and OS Compatability:
+ *  Browser and OS Compatibility:
  *	
  *	Internet Explorer 6+ 			(Windows XP, Max OSX)
  *	Netscape/Mozilla/FireFox 1.0	     	(Windows, Macs)

@@ -115,7 +115,7 @@ Submitter, and Assignee. More complex bug-tracker workflows, could
 add Triager and Tester. For a typical pulication workflow,
 you&#39;d have Author, Editor, and Publisher. Normally, you&#39;d
 always include an 'Administrator' role.</p>
-<p>Each role is associated wtih one or more actions in the
+<p>Each role is associated with one or more actions in the
 workflow. The assignee is assigned to the 'Resolve' action,
 but also has permission to perform the Edit, Comment and Reassign
 actions. The submitter is assigned to the 'Close' action,
@@ -453,7 +453,7 @@ the GetObjectType call would return for this implementation. If
 your implementation is valid for any ACS Object, then simply return
 'acs_object', as this is the mother of all objects.</p>
 <p>The <strong>GetPrettyName</strong> method will be run through a
-localization filter, meaning that any occurance of the
+localization filter, meaning that any occurrence of the
 <code>#<em>message-key</em>#</code> notation will be replaced with
 a message catalog lookup for the current domain.</p>
 <p>The <strong>AssigneeQuery</strong> service contract probably

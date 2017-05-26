@@ -222,7 +222,7 @@ ad_proc -public workflow::state::fsm::edit {
                 }
             }
 
-            # Auxilliary helper attributes (enabled_actions -> enabled_action_ids, assigned_actions -> assigned_action_ids)
+            # Auxiliary helper attributes (enabled_actions -> enabled_action_ids, assigned_actions -> assigned_action_ids)
 
             # Enabled actions
             if { [info exists row(enabled_actions)] } {
@@ -252,7 +252,7 @@ ad_proc -public workflow::state::fsm::edit {
                 unset row(assigned_actions)
             }
 
-            # Handle auxillary rows
+            # Handle auxiliary rows
             array set aux [list]
             foreach attr { 
                 enabled_action_ids assigned_action_ids
@@ -312,7 +312,7 @@ ad_proc -public workflow::state::fsm::edit {
             }
         }
 
-        # Auxilliary rows
+        # Auxiliary rows
         switch $operation {
             insert - update {
 

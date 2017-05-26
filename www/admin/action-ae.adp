@@ -14,7 +14,7 @@
 		<tr> <td> Timeout Seconds only applicable for timer trigger type: </td>	<td><formwidget id=timeout_seconds></td> </tr>
 		<tr> <td> New State: </td>		<td><formwidget id=new_state_id></td> </tr>
 
-		<tr> 	<td> Insert or remove callbacks. Put a new callback on a seperate line: </td>		
+		<tr> 	<td> Insert or remove callbacks. Put a new callback on a separate line: </td>		
 			<td><formwidget id=callbacks></td> </tr>
 		<tr> <td> Always Enabled?</td>	
 			<td>

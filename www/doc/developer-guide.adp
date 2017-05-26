@@ -536,7 +536,7 @@ have been sent out.</p>
 <td><code>Workflow.ActivityLog_FormatTitle</code></td><td>Workflows</td><td>Used to format the title of the case log. In bug-tracker, this
 is used to get the resolution code displayed in the case log as
 "Resolved (Fixed)" or "Resolved (Not
-Reproducable)".
+Reproducible)".
 <p>The implementation should return the text string that should go
 into the parenthesis. The parenthesis are automatically added if
 the returned string is non-empty.</p>
@@ -623,7 +623,7 @@ Callbacks:</p>
 <li>Delete default workflow (<code><a href="/api-doc/proc-view?proc=workflow::delete">workflow::delete</a></code>)</li><li>Unregister service contract implementations</li>
 </ul></dd><dt>before-upgrade</dt><dd><ul>
 <li>Add new service contract implementations</li><li>Add new workflows</li><li>Make changes to existing default workflows (if the installed
-verison is not modified) (this isn&#39;t yet supported on the
+version is not modified) (this isn&#39;t yet supported on the
 workflow API)</li>
 </ul></dd><dt>after-instantiate</dt><dd><ul><li>Clone default workflow to create a new workflow attached to the
 instance (<code><a href="/api-doc/proc-view?proc=workflow::fsm::clone">workflow::fsm::clone</a></code>)</li></ul></dd><dt>before-uninstantiate</dt><dd><ul><li>Delete the workflow attached to the instance (<code><a href="/api-doc/proc-view?proc=workflow::delete">workflow::delete</a></code>)</li></ul></dd>

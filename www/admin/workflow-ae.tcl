@@ -52,7 +52,7 @@ set the_form {
     {package:text(select) {label {Package:}} {options $package_options}}
     {short_name:text(text) {label {Short Name:}}}
     {pretty_name:text(text) {label {Pretty Name:}}}
-    {callbacks:text(textarea),nospell,optional {label {Insert or remove callbacks. Put a new callback on a seperate line:}} {html {rows 6 cols 35}}}
+    {callbacks:text(textarea),nospell,optional {label {Insert or remove callbacks. Put a new callback on a separate line:}} {html {rows 6 cols 35}}}
 }
 
 
