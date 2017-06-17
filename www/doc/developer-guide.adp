@@ -6,7 +6,7 @@
 <a href=".">Workflow Documentation</a>
  : Package Developer&#39;s
 Guide
-<p>By <a href="http://www.pinds.com">Lars Pind</a>
+<p>By Lars Pind
 </p>
 <h2>Introduction</h2>
 <p>The workflow package manages a collaborative process surrounding

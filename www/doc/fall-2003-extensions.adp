@@ -8,7 +8,7 @@ Design</property>
 <a href=".">Workflow Documentation</a>
  : Fall 2003 Workflow
 Extensions
-<p>By <a href="http://www.pinds.com">Lars Pind</a>
+<p>By Lars Pind
 </p>
 <p>This requirements and design document is primarily motivated
 by:</p>

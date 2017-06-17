@@ -6,7 +6,7 @@
 <a href=".">Workflow Documentation</a>
  : Functional Specification
 <hr>
-<p>By <a href="http://www.pinds.com">Lars Pind</a>
+<p>By Lars Pind
 </p>
 <h2>Overview</h2>
 <p>I recently built a typical workflow-based application, <a href="http://clients.museatech.net/bug-tracker/">bug-tracker</a>, and

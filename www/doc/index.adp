@@ -5,7 +5,7 @@
 <h1>Workflow Documentation</h1>
 
 Workflow Documentation
-<p>By <a href="http://www.pinds.com">Lars Pind</a>
+<p>By Lars Pind
 </p>
 <p>The workflow package provides a service to keep track of a
 process involving multiple people around some object. Workflow
