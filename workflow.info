@@ -23,7 +23,7 @@
           to avoid that any cases falls through the cracks.
           It supports the Bug Tracker, CMS publication, simple approval, and much more.
 &lt;p&gt;
-For more information, see: &lt;a href=&quot;http://www.collaboraid.biz/developer/workflow-spec&quot;&gt;the workflow specification&lt;/a&gt;.</description>
+For more information, see: &lt;a href=&quot;http://web.archive.org/web/20050224212933/http://www.collaboraid.biz/developer/workflow-spec&quot;&gt;the workflow specification&lt;/a&gt;.</description>
         <maturity>0</maturity>
 
         <provides url="workflow" version="2.1.2d1"/>
