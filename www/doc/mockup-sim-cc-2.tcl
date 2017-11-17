@@ -1,14 +1,14 @@
 ad_page_contract {
     Mockup
 } {
+    {action_id:naturalnum "123"}
+    {workflow_id:naturalnum "456"}
+    {assigned_role:word ""}
+    {recipient_role:word ""}
+    {description.format:notnull,trim ""}
+    {completiontype:word ""}
 }
 # one needs probably the following arguments:
-#    action_id:naturalnum
-#    workflow_id:naturalnum
-#    assigned_role:word
-#    recipient_role:word
-#    description.format:notnull,trim
-#    completiontype:word
 
 set page_title "Editing a single task: Respond to Deposition"
 set context [list [list "." "Documentation"] [list "mockups.html" "Mockups"] [list "mockup-sim-cc-1" "Sim Use Case as collection of FSMs"] $page_title]
@@ -46,7 +46,7 @@ ad_form -name task -form {
         {label "Completion Codes"}
         {options $task_state_options}
     }
-}
+} -has_submit 1 ;# to avoid validation error in mockup
 
 template::list::create \
     -name depends \
