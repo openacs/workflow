@@ -75,7 +75,7 @@
 
   <fullquery name="workflow::default_sort_order.max_sort_order">
     <querytext>
-        select max(sort_order)
+        select coalesce(max(sort_order), 0)
         from   $table_name
         where  workflow_id = :workflow_id
     </querytext>
