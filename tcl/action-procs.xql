@@ -145,5 +145,24 @@
     </querytext>
   </fullquery>
 
+  <fullquery name="workflow::action::callback_insert.select_sort_order">
+    <querytext>
+        select coalesce(max(sort_order),0) + 1
+        from   workflow_action_callbacks
+        where  action_id = :action_id
+    </querytext>
+  </fullquery>
+
+  <fullquery name="workflow::action::edit.insert_allowed_role">
+    <querytext>
+        insert into workflow_action_allowed_roles
+        select :action_id,
+                (select role_id
+                from workflow_roles
+                where workflow_id = :workflow_id
+                and short_name = :allowed_role) as role_id
+    </querytext>
+  </fullquery>
+  
 </queryset>
 

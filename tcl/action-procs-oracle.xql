@@ -2,16 +2,6 @@
 <queryset>
   <rdbms><type>oracle</type><version>8.1.6</version></rdbms>
 
-  <fullquery name="workflow::action::new.insert_action">
-    <querytext>
-        insert into workflow_actions
-            (action_id, workflow_id, sort_order, short_name, pretty_name, pretty_past_tense, 
-             edit_fields, assigned_role, always_enabled_p, description, description_mime_type, timeout_seconds)
-      values (:action_id, :workflow_id, :sort_order, :short_name, :pretty_name, :pretty_past_tense, 
-              :edit_fields, :assigned_role_id, :always_enabled_p, :description, :description_mime_type, :timeout_seconds)
-    </querytext>
-  </fullquery>
-
   <partialquery name="workflow::action::edit.update_timeout_seconds_name">
     <querytext>
       timeout_seconds
@@ -51,26 +41,5 @@
         order by a.sort_order
     </querytext>
  </fullquery>
- 
-  <fullquery name="workflow::action::callback_insert.select_sort_order">
-    <querytext>
-        select nvl(max(sort_order),0) + 1
-        from   workflow_action_callbacks
-        where  action_id = :action_id
-    </querytext>
-  </fullquery>
-
-  <fullquery name="workflow::action::edit.insert_allowed_role">
-    <querytext>
-        insert into workflow_action_allowed_roles
-        select :action_id,
-                (select role_id
-                from workflow_roles
-                where workflow_id = :workflow_id
-                and short_name = :allowed_role) as role_id
-        from dual
-    </querytext>
-  </fullquery>
-
 
 </queryset>
