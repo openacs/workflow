@@ -2,27 +2,6 @@
 <queryset>
   <rdbms><type>oracle</type><version>8.1.6</version></rdbms>
 
-  <fullquery name="workflow::get_not_cached.workflow_info">
-    <querytext>
-      select w.workflow_id,
-             w.short_name,
-             w.pretty_name,
-             w.object_id,
-             w.package_key,
-             w.object_type,
-             w.description,
-             w.description_mime_type,
-             a.short_name as initial_action,
-             a.action_id as initial_action_id
-      from   workflows w,
-             workflow_actions a
-      where  w.workflow_id = :workflow_id
-        and  w.workflow_id = a.workflow_id (+)
-        and  a.parent_action_id is null
-	and  a.trigger_type(+) = 'init'
-    </querytext>
-  </fullquery>
-
   <fullquery name="workflow::edit.do_insert">
     <querytext>
         begin
@@ -47,13 +26,5 @@
         end;
     </querytext>
   </fullquery>
- 
-  <fullquery name="workflow::callback_insert.select_sort_order">
-    <querytext>
-        select nvl(max(sort_order),0) + 1
-        from   workflow_callbacks
-        where  workflow_id = :workflow_id
-    </querytext>
-  </fullquery>
-
+  
 </queryset>
