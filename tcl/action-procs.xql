@@ -161,6 +161,7 @@
                 from workflow_roles
                 where workflow_id = :workflow_id
                 and short_name = :allowed_role) as role_id
+          from dual
     </querytext>
   </fullquery>
   
