@@ -471,8 +471,7 @@ ad_proc workflow::test::run_with_teardown {
 } {
     set error_p [catch $test_chunk errMsg]
 
-    global errorInfo
-    set setup_error_stack $errorInfo
+    set setup_error_stack $::errorInfo
 
     # Teardown
     eval $teardown_chunk
@@ -592,7 +591,7 @@ ad_proc workflow::test::run_bug_tracker_test {
         # 1. Make sure the cache is populated
         set dummy [workflow::case::get_element -case_id $case_id -element state_short_name]
 
-        with_catch errmsg {
+        ad_try {
 
             # 2. Stub the cache proc
             aa_stub workflow::case::fsm::get_info_not_cached {
@@ -632,15 +631,13 @@ ad_proc workflow::test::run_bug_tracker_test {
             set i_got_called_p 0
             set dummy [workflow::case::get_element -case_id $case_id -element state_short_name]
             aa_true "Check that the value is NOT in the cache (2nd time)" $i_got_called_p
-        } {
-            aa_unstub workflow::case::fsm::get_info_not_cached
-            
-            global errorInfo
-            error $errmsg $errorInfo
-        }
-        
-        # 10. Unstub
-        aa_unstub workflow::case::fsm::get_info_not_cached
+
+        } on error {errorMsg} {
+            error $errorMsg $::errorInfo
+        } finally {
+	    # 10. Unstub
+	    aa_unstub workflow::case::fsm::get_info_not_cached
+	}
 
         
         #####
@@ -674,8 +671,7 @@ ad_proc workflow::test::run_bug_tracker_test {
     workflow::test::workflow_teardown
 
     if { $error_p } {    
-        global errorInfo
-        aa_false "error during setup: $errMsg - $errorInfo" $error_p
+        aa_false "error during setup: $errMsg - $::errorInfo" $error_p
     }
 }
 
@@ -730,8 +726,7 @@ aa_register_case bugtracker_workflow_clone {
     }
 
     if { $error_p } {    
-        global errorInfo
-        aa_false "error during setup: $errMsg - $errorInfo" $error_p
+        aa_false "error during setup: $errMsg - $::errorInfo" $error_p
     }
 }
 
