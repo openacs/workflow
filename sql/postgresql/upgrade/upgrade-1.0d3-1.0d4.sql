@@ -59,7 +59,7 @@ end;' language 'plpgsql';
 
 drop function workflow_case__delete (integer);
 
--- Renamed from workflow_case__get_pretty_state to maintain consitency with workflow_case__delete
+-- Renamed from workflow_case__get_pretty_state to maintain consistency with workflow_case__delete
 
 -- Function for getting the pretty state of a case
 create or replace function workflow_case_pkg__get_pretty_state (

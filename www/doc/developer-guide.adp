@@ -42,7 +42,7 @@ look at bug-tracker.</p>
 <h3>What&#39;s in a workflow</h3>
 <p>In its broadest, most conceptual sense, a workflow is defined as
 (and this does get a little hairy, so feel free to skip if you just
-want to start developing your applicaton):</p>
+want to start developing your application):</p>
 <ul>
 <li>A number of <strong>actions</strong> that can be executed
 (open, edit, comment, resolve, edit, publish, approve, reject,
@@ -132,7 +132,7 @@ linked to the new instance, so that your users can customize the
 workflow for each instance of your application individually. The
 default copy installed along with your package is never actually
 used except for cloning when creating a new instance. This means
-that your users can customize this deafult workflow, and the
+that your users can customize this default workflow, and the
 modified version will serve as the boilerplate for all new package
 instances.</p>
 <p>In order to integrate workflow with your application, you&#39;ll

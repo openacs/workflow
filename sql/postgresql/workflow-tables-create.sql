@@ -450,7 +450,7 @@ create table workflow_case_enabled_actions(
                             on delete cascade,
   assigned_p                boolean default 'f',
   completed_p               boolean default 'f',
-  -- TOOD: trigger_type, assigned_role, use_action_assignees_p ...
+  -- TODO: trigger_type, assigned_role, use_action_assignees_p ...
   execution_time            timestamptz
 );
 
