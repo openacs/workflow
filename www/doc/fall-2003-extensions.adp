@@ -692,7 +692,7 @@ create table workflow_action_fsm_output_map(
 Executed when the action fires. Output can be used to determine the
 new state of the case (see below).</p>
 <p>The callback must enumerate all the values it can possible
-output (similar contruct to GetObjectType operation on other
+output (similar construct to GetObjectType operation on other
 current workflow service contracts), and the callback itself must
 return one of those possible values.</p>
 <p>The workflow engine will then allow the workflow designer to map

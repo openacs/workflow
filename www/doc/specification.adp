@@ -844,7 +844,7 @@ specification: FSMs have states and transitions; a transition is an
 arc from one state to another. Petri nets have places and
 transitions, and it has arcs that point from a place to a
 transition, or a transition to a state. Dependency graphcs has
-tasks and dependencies, where a depency goes from one task to
+tasks and dependencies, where a dependency goes from one task to
 another task.</li><li>All workflow models has some concept of actions (tasks,
 transitions). An action has some precondition for when it&#39;s
 enabled, i.e., for when a user can or should perform this action.
