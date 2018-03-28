@@ -726,7 +726,7 @@ and feed it to the <code>before_html</code> property of a
 textarea.</p>
 <h2>Integrating With Your Application&#39;s Queries</h2>
 <p>Here&#39;s an example of how the bug-tracker integrates with
-workflow for nformation about the current state of bugs.</p>
+workflow for information about the current state of bugs.</p>
 <blockquote><pre>
 select b.bug_id,
        ...
