@@ -1580,7 +1580,7 @@ ad_proc -public workflow::case::action::permission_p {
 
         # Is this an allowed role for this action?
         set allowed_roles [workflow::action::get_allowed_roles -action_id $action_id]
-        if { [lsearch $allowed_roles $role_id] != -1 } {
+        if {$role_id in $allowed_roles} {
             return 1
         }
     }
