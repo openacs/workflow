@@ -177,9 +177,9 @@ ad_proc -public workflow::state::fsm::edit {
                 unset missing_elm(parent_action)
             }
 
-            set update_clauses [list]
-            set insert_names [list]
-            set insert_values [list]
+            set update_clauses {}
+            set insert_names {}
+            set insert_values {}
 
             # Handle columns in the workflow_fsm_states table
             foreach attr { 
@@ -229,7 +229,7 @@ ad_proc -public workflow::state::fsm::edit {
                 if { [info exists row(enabled_action_ids)] } {
                     error "You cannot supply both enabled_actions and enabled_actions_ids"
                 }
-                set row(enabled_action_ids) [list]
+                set row(enabled_action_ids) {}
                 foreach action_short_name $row(enabled_actions) {
                     lappend row(enabled_action_ids) [workflow::action::get_id \
                                                          -workflow_id $workflow_id \
@@ -243,7 +243,7 @@ ad_proc -public workflow::state::fsm::edit {
                 if { [info exists row(assigned_action_ids)] } {
                     error "You cannot supply both assigned_actions and assigned_action_ids"
                 }
-                set row(assigned_action_ids) [list]
+                set row(assigned_action_ids) {}
                 foreach action_short_name $row(assigned_actions) {
                     lappend row(assigned_action_ids) [workflow::action::get_id \
                                                         -workflow_id $workflow_id \
@@ -253,7 +253,7 @@ ad_proc -public workflow::state::fsm::edit {
             }
 
             # Handle auxiliary rows
-            array set aux [list]
+            array set aux {}
             foreach attr { 
                 enabled_action_ids assigned_action_ids
             } {
@@ -373,7 +373,7 @@ ad_proc -public workflow::state::fsm::get_existing_short_names {
 
     @param ignore_state_id   If specified, the short_name for the given state will not be included in the result set.
 } {
-    set result [list]
+    set result {}
 
     foreach state_id [workflow::fsm::get_states -all -workflow_id $workflow_id] {
         if { $ignore_state_id eq "" || $ignore_state_id ne $state_id } {
@@ -540,7 +540,7 @@ ad_proc -private workflow::state::fsm::get_ids {
     if { $all_p } {
         return $state_data(state_ids)
     }
-    set state_ids [list]
+    set state_ids {}
     foreach state_id $state_data(state_ids) {
         if { [workflow::state::fsm::get_element \
                   -state_id $state_id \
@@ -659,7 +659,7 @@ ad_proc -private workflow::state::fsm::generate_states_spec {
     @author Lars Pind (lars@collaboraid.biz)
 } {
     # states(short_name) { ... state-spec ... }
-    set states_list [list]
+    set states_list {}
     foreach state_id [workflow::fsm::get_states -workflow_id $workflow_id] {
         lappend states_list [get_element -state_id $state_id -element short_name] [generate_spec -state_id $state_id]
     }
@@ -715,7 +715,7 @@ ad_proc -private workflow::state::fsm::get_all_info_not_cached {
     #                                    enabled_actions, enabled_action_ids, assigned_actions, assigned_action_ids
     # In addition:
     # state_data(state_ids) = [list of state_ids in sort order]
-    array set state_data [list]
+    array set state_data {}
 
     # state_array_$state_id is an internal datastructure. It's the array for each state_id entry
     # but as a separate array making it easier to lappend to individual entries
@@ -725,7 +725,7 @@ ad_proc -private workflow::state::fsm::get_all_info_not_cached {
     #----------------------------------------------------------------------
 
     # Use a list to be able to retrieve states in sort order
-    set state_ids [list]
+    set state_ids {}
     db_foreach select_states {} -column_array state_row {
         # Cache the state_id -> workflow_id lookup
         util_memoize_seed \
@@ -740,7 +740,7 @@ ad_proc -private workflow::state::fsm::get_all_info_not_cached {
     }
     set state_data(state_ids) $state_ids
 
-    array set action_short_name [list]
+    array set action_short_name {}
 
     #----------------------------------------------------------------------
     # Build state-action map
@@ -805,10 +805,10 @@ ad_proc -private workflow::state::fsm::get_all_info_not_cached {
     
     # 3. Put stuff back into the output array
     foreach state_id $state_ids {
-        set state_array_${state_id}(enabled_action_ids) [list]
-        set state_array_${state_id}(enabled_actions) [list]
-        set state_array_${state_id}(assigned_action_ids) [list]
-        set state_array_${state_id}(assigned_actions) [list]
+        set state_array_${state_id}(enabled_action_ids) {}
+        set state_array_${state_id}(enabled_actions) {}
+        set state_array_${state_id}(assigned_action_ids) {}
+        set state_array_${state_id}(assigned_actions) {}
         
         if { [info exists assigned_p_${state_id}] } {
             foreach action_id [array names assigned_p_${state_id}] {

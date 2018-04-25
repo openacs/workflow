@@ -143,9 +143,9 @@ ad_proc -public workflow::role::edit {
     # Parse column values
     switch $operation {
         insert - update {
-            set update_clauses [list]
-            set insert_names [list]
-            set insert_values [list]
+            set update_clauses {}
+            set insert_names {}
+            set insert_values {}
 
             # Handle columns in the workflow_roles table
             foreach attr { 
@@ -292,7 +292,7 @@ ad_proc -public workflow::role::get_options {
 
     @author Lars Pind (lars@collaboraid.biz)
 } {
-    set result [list]
+    set result {}
 
     # workflow::get_roles returns the roles in sort_order
     foreach role_id [workflow::get_roles -workflow_id $workflow_id] {
@@ -598,7 +598,7 @@ ad_proc -private workflow::role::get_all_info_not_cached {
     @author Peter Marklund
 } {
     # For performance we avoid nested queries in this proc
-    set role_ids [list]
+    set role_ids {}
 
     db_foreach role_info {} -column_array row {
         set role_id $row(role_id)
@@ -620,8 +620,8 @@ ad_proc -private workflow::role::get_all_info_not_cached {
     foreach role_id $role_ids {
         set role,${role_id}(callbacks) {}
         set role,${role_id}(callback_ids) {}
-        array set callback_impl_names,$role_id [list]
-        array set callbacks_array,$role_id [list]
+        array set callback_impl_names,$role_id {}
+        array set callbacks_array,$role_id {}
     }
 
     db_foreach role_callbacks {} -column_array row {
@@ -674,7 +674,7 @@ ad_proc -public workflow::role::get_existing_short_names {
 
     @param ignore_role_id   If specified, the short_name for the given role will not be included in the result set.
 } {
-    set result [list]
+    set result {}
 
     foreach role_id [workflow::get_roles -all -workflow_id $workflow_id] {
         if { $ignore_role_id eq "" || $ignore_role_id ne $role_id } {
@@ -779,7 +779,7 @@ ad_proc -public workflow::role::get_picklist {
 } {
     set contract_name [workflow::service_contract::role_assignee_pick_list]
 
-    set party_id_list [list]
+    set party_id_list {}
 
     db_transaction {
 

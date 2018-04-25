@@ -383,7 +383,7 @@ ad_proc -public -deprecated workflow::case::get_available_actions {
         set user_id [ad_conn user_id]
     }
 
-    set action_list [list]
+    set action_list {}
 
     foreach enabled_action_id [workflow::case::get_enabled_action_ids -case_id $case_id] {
         if { [workflow::case::action::permission_p -enabled_action_id $enabled_action_id -user_id $user_id] } {
@@ -412,7 +412,7 @@ ad_proc -public workflow::case::get_available_enabled_action_ids {
         set user_id [ad_conn user_id]
     }
 
-    set action_list [list]
+    set action_list {}
 
     foreach enabled_action_id [get_enabled_action_ids -case_id $case_id] {
         if { [workflow::case::action::permission_p -enabled_action_id $enabled_action_id -user_id $user_id] } {
@@ -623,12 +623,12 @@ ad_proc -private workflow::case::get_activity_log_info_not_cached {
     set counter 1
 
     set last_entry_id {}
-    set data_arraylist [list]
+    set data_arraylist {}
 
     # Then iterate over the multirow to build up the activity log HTML
     # We need to peek ahead, because this is an outer join to get the rows in workflow_case_log_data
 
-    set entries [list]
+    set entries {}
     template::multirow -local foreach entries {
 
         if { $key ne "" } {
@@ -637,7 +637,7 @@ ad_proc -private workflow::case::get_activity_log_info_not_cached {
 
         if { $counter == $rowcount || $last_entry_id ne [set "entries:[expr {$counter + 1}](entry_id)"] } {
             
-            set log_title_elements [list]
+            set log_title_elements {}
             foreach impl_name $impl_names {
                 set result [acs_sc::invoke \
                                 -contract $contract_name \
@@ -650,7 +650,7 @@ ad_proc -private workflow::case::get_activity_log_info_not_cached {
             }
             set log_title [ad_decode [llength $log_title_elements] 0 "" "([join $log_title_elements ", "])"]
             
-            set row [list]
+            set row {}
             foreach var { 
                 comment comment_mime_type creation_date_pretty action_pretty_past_tense log_title 
                 user_first_names user_last_name user_email creation_user data_arraylist
@@ -659,7 +659,7 @@ ad_proc -private workflow::case::get_activity_log_info_not_cached {
             }
             lappend entries $row
 
-            set data_arraylist [list]
+            set data_arraylist {}
         }
         set last_entry_id $entry_id
         incr counter
@@ -1001,7 +1001,7 @@ ad_proc -public workflow::case::role::get_picklist {
 } {
     set contract_name [workflow::service_contract::role_assignee_pick_list]
 
-    set party_id_list [list]
+    set party_id_list {}
 
     db_transaction {
 
@@ -1841,7 +1841,7 @@ ad_proc -public workflow::case::action::notify {
     }
                      
     # Output notification info
-    set object_details_lines [list]
+    set object_details_lines {}
     foreach { label value } $object_details_list {
         if { $label ne "" } {
             lappend object_details_lines "$label[string repeat " " [expr {$max_label_len - [string length $label]}]] : $value"
@@ -1860,7 +1860,7 @@ ad_proc -public workflow::case::action::notify {
 
 #XXXXX Verify this ... probably wrong
     set assigned_role_id [workflow::action::get_assigned_role -action_id $action_id]
-    set assignee_list [list]
+    set assignee_list {}
     foreach assignee_array [workflow::case::role::get_assignees \
                           -case_id $case_id \
                           -role_id $assigned_role_id] {
@@ -1917,7 +1917,7 @@ $hr
     set subset(workflow_assignee) $assignee_list
     set subset(workflow_my_cases) $case_player_list
     
-    set notified_list [list]
+    set notified_list {}
 
     foreach type { 
         workflow_assignee workflow_my_cases workflow_case workflow
@@ -2188,7 +2188,7 @@ ad_proc -private workflow::case::state_changed_handler {
         array set enable_action_ids [array get assigned_p]
         
         # List of enabled_action_id's of actions that are no longer enabled
-        set unenable_enabled_action_ids [list]
+        set unenable_enabled_action_ids {}
 
         #----------------------------------------------------------------------
         # 2. Get the rows in workflow_case_enabled_actions

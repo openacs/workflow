@@ -105,7 +105,7 @@ ad_proc -public workflow::action::new {
 } {
     # Wrapper for workflow::action::edit
     
-    array set row [list]
+    array set row {}
     foreach col { 
         initial_action_p sort_order short_name pretty_name
         pretty_past_tense edit_fields allowed_roles assigned_role 
@@ -269,9 +269,9 @@ ad_proc -public workflow::action::edit {
                 unset missing_elm(initial_action_p)
             }
 
-            set update_clauses [list]
-            set insert_names [list]
-            set insert_values [list]
+            set update_clauses {}
+            set insert_names {}
+            set insert_values {}
             # Handle columns in the workflow_actions table
             foreach attr { 
                 short_name 
@@ -673,7 +673,7 @@ ad_proc -private workflow::action::get_callbacks {
     
     # Loop over the callbacks and return the impl_names of those with a matching
     # contract name
-    set impl_names [list]
+    set impl_names {}
     foreach callback_id $callback_ids {
         array set one_callback $callbacks($callback_id)
 
@@ -707,7 +707,7 @@ ad_proc -public workflow::action::get_existing_short_names {
 
     @param ignore_action_id   If specified, the short_name for the given action will not be included in the result set.
 } {
-    set result [list]
+    set result {}
 
     foreach action_id [workflow::get_actions -all -workflow_id $workflow_id] {
         if { $ignore_action_id eq "" || $ignore_action_id ne $action_id } {
@@ -775,7 +775,7 @@ ad_proc -public workflow::action::get_ids {
         return $action_data(action_ids)
     }
         
-    set action_ids [list]
+    set action_ids {}
     foreach action_id $action_data(action_ids) {
         if { [workflow::action::get_element \
                   -action_id $action_id \
@@ -794,7 +794,7 @@ ad_proc -public workflow::action::get_options {
 } {
     Get an options list of actions for use with form builder.
 } {
-    set result [list]
+    set result {}
     foreach action_id [workflow::get_actions \
                            -all=$all_p \
                            -workflow_id $workflow_id \
@@ -874,7 +874,7 @@ ad_proc -public workflow::action::fsm::new {
 } {        
     # Wrapper for workflow::action::edit
 
-    array set row [list]
+    array set row {}
     foreach col { 
         initial_action_p sort_order short_name pretty_name
         pretty_past_tense edit_fields allowed_roles assigned_role 
@@ -1000,9 +1000,9 @@ ad_proc -public workflow::action::fsm::edit {
                 unset row(new_state)
             }
 
-            set update_clauses [list]
-            set insert_names [list]
-            set insert_values [list]
+            set update_clauses {}
+            set insert_names {}
+            set insert_values {}
 
             # Handle columns in the workflow_fsm_actions table
             foreach attr { 
@@ -1040,7 +1040,7 @@ ad_proc -public workflow::action::fsm::edit {
                 if { [info exists row(enabled_state_ids)] } {
                     error "You cannot supply both enabled_states and enabled_state_ids"
                 }
-                set row(enabled_state_ids) [list]
+                set row(enabled_state_ids) {}
                 foreach state_short_name $row(enabled_states) {
                     lappend row(enabled_state_ids) [workflow::state::fsm::get_id \
                                                         -workflow_id $workflow_id \
@@ -1052,7 +1052,7 @@ ad_proc -public workflow::action::fsm::edit {
                 if { [info exists row(assigned_state_ids)] } {
                     error "You cannot supply both assigned_states and assigned_state_ids"
                 }
-                set row(assigned_state_ids) [list]
+                set row(assigned_state_ids) {}
                 foreach state_short_name $row(assigned_states) {
                     lappend row(assigned_state_ids) [workflow::state::fsm::get_id \
                                                         -workflow_id $workflow_id \
@@ -1062,7 +1062,7 @@ ad_proc -public workflow::action::fsm::edit {
             }
 
             # Handle auxiliary rows
-            array set aux [list]
+            array set aux {}
             foreach attr { 
                 enabled_state_ids assigned_state_ids
             } {
@@ -1384,7 +1384,7 @@ ad_proc -private workflow::action::fsm::generate_spec {
         # LARS: Ugly as hell with the string range to cut from 'actions' to 'action_ids'
 
         if { [info exists row(child_[string range $type 0 end-1]_ids)] } {
-            set row(child_${type}) [list]
+            set row(child_${type}) {}
             foreach child_id $row(child_[string range $type 0 end-1]_ids) {
                 set child_short_name [${namespace}::get_element \
                                           -one_id $child_id \
@@ -1406,7 +1406,7 @@ ad_proc -private workflow::action::fsm::generate_spec {
         always_enabled_p f 
     }
 
-    set spec [list]
+    set spec {}
     foreach name [lsort [array names row]] {
         if { $row($name) ne "" && ![exists_and_equal defaults($name) $row($name)] } {
             lappend spec $name $row($name)
@@ -1520,7 +1520,7 @@ ad_proc -private workflow::action::get_all_info_not_cached {
     array set action_data {}
 
     # This will be a list of all action_id's
-    set action_ids [list]
+    set action_ids {}
 
     # Get basic action info
     db_foreach action_info {} -column_array action_row {
@@ -1555,8 +1555,8 @@ ad_proc -private workflow::action::get_all_info_not_cached {
     
     foreach action_id $action_ids {
         if { ![info exists action_array_${action_id}(child_action_ids)] } {
-            set action_array_${action_id}(child_action_ids) [list]
-            set action_array_${action_id}(child_actios) [list]
+            set action_array_${action_id}(child_action_ids) {}
+            set action_array_${action_id}(child_actios) {}
         }
     }
     

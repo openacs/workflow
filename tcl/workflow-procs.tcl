@@ -195,9 +195,9 @@ ad_proc -public workflow::edit {
     # Parse column values
     switch $operation {
         insert - update {
-            set update_clauses [list]
-            set insert_names [list]
-            set insert_values [list]
+            set update_clauses {}
+            set insert_names {}
+            set insert_values {}
 
             # Handle columns in the workflows table
             foreach attr { 
@@ -477,7 +477,7 @@ ad_proc -public workflow::get_existing_short_names {
 
     @param ignore_workflow_id   If specified, the short_name for the given workflow will not be included in the result set.
 } {
-    set result [list]
+    set result {}
 
     db_foreach select_workflows {
         select workflow_id, 
@@ -573,7 +573,7 @@ ad_proc -public workflow::generate_spec {
         array unset row description_mime_type
     }
 
-    set spec [list]
+    set spec {}
 
     # Output sorted, and with no empty elements
     foreach name [lsort [array names row]] {
@@ -583,7 +583,7 @@ ad_proc -public workflow::generate_spec {
     }
 
     foreach { key namespace } $handlers {
-        set subspec [list]
+        set subspec {}
         
         foreach sub_id [${namespace}::get_ids -workflow_id $workflow_id] {
             set sub_short_name [${namespace}::get_element \
@@ -752,9 +752,9 @@ ad_proc -private workflow::parse_spec {
     }
     
     # Pull out the extra types, roles/actions/states, so we don't try to create the workflow with them
-    array set aux [list]
-    array set counter [list]
-    array set remain [list]
+    array set aux {}
+    array set counter {}
+    array set remain {}
     foreach { key namespace } $handlers {
         if { [info exists workflow($key)] } {
             set aux($key) $workflow($key)
@@ -768,7 +768,7 @@ ad_proc -private workflow::parse_spec {
         }
     }
 
-    array set sub_id [list]
+    array set sub_id {}
 
     db_transaction {
         # Create the workflow
@@ -908,10 +908,10 @@ ad_proc -private workflow::get_not_cached {
 } {
     db_1row workflow_info {} -column_array row
 
-    set callbacks [list]
-    set callback_ids [list]
-    array set callback_impl_names [list]
-    array set callbacks_array [list]
+    set callbacks {}
+    set callback_ids {}
+    array set callback_impl_names {}
+    array set callbacks_array {}
 
     db_foreach workflow_callbacks {} -column_array callback_row {
         lappend callbacks "$callback_row(impl_owner_name).$callback_row(impl_name)"
