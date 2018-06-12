@@ -363,7 +363,7 @@ ad_proc -public workflow::role::get {
     @param role_id The ID of the workflow
     @param array Name of the array you want the info returned in
 
-    @Author Lars Pind (lars@collaboraid.biz)
+    @author Lars Pind (lars@collaboraid.biz)
 } {
     set workflow_id [workflow::role::get_workflow_id -role_id $role_id]
 
