@@ -529,7 +529,7 @@ ad_proc workflow::test::run_bug_tracker_test {
             workflow::role::get -role_id $role_id -array role
 
             aa_true "checking that role names of workflow can be fetched with workflow::get_roles and workflow::role::get" \
-                  [expr {$role(short_name) in $expect_role_names}]
+                  {$role(short_name) in $expect_role_names}
 
         }
 
@@ -539,7 +539,7 @@ ad_proc workflow::test::run_bug_tracker_test {
             workflow::action::get -action_id $action_id -array action
 
             aa_true "checking retrieval of action names with workflow::get_actions and workflow::get" \
-                    [expr {$action(short_name) in $expect_action_names}]
+                    {$action(short_name) in $expect_action_names}
 
         }
 
