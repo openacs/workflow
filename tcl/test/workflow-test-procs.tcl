@@ -509,15 +509,15 @@ ad_proc workflow::test::run_bug_tracker_test {
         # Test the workflow::get proc
         workflow::get -workflow_id $workflow_id -array workflow_array
         aa_equals "checking the short_name retrieved with workflow::get of workflow" \
-                $workflow_array(short_name) \
-                [workflow::test::workflow_name]
+	    $workflow_array(short_name) \
+	    [workflow::test::workflow_name]
         
         set retrieved_initial_action_name [workflow::action::get_element \
                                             -action_id $workflow_array(initial_action_id) \
                                             -element short_name]
 
         aa_equals "Checking initial action short name from workflow::get and workflow::action::get_element" \
-                $retrieved_initial_action_name [workflow::test::initial_action_short_name]
+	    $retrieved_initial_action_name [workflow::test::initial_action_short_name]
 
         
         # Test changing the short_name and check that the flush is cached
@@ -546,8 +546,8 @@ ad_proc workflow::test::run_bug_tracker_test {
         # Get the state short names
         # TODO
 
-        aa_true "case_id of a created workflow case should be retrievable" \
-                [string equal $case_id $retrieved_case_id]
+        aa_equals "case_id of a created workflow case should be retrievable" \
+	    $case_id $retrieved_case_id
     
         set expect_enabled_actions [list comment edit resolve]
         workflow::test::assert_case_state \
@@ -582,7 +582,9 @@ ad_proc workflow::test::run_bug_tracker_test {
         #####
 
         # -1. Basic sanity check
-        aa_equals "Stat is resolved" [workflow::case::get_element -case_id $case_id -element state_short_name] "resolved"
+        aa_equals "Stat is resolved" \
+	    [workflow::case::get_element -case_id $case_id -element state_short_name] \
+	    "resolved"
 
         # 0. Desired output
         global desired_output 
@@ -617,7 +619,10 @@ ad_proc workflow::test::run_bug_tracker_test {
             aa_true "Check that the value is NOT in the cache (1st time)" $i_got_called_p
             
             # 6. Manually populate the cache
-            util_memoize_seed [list workflow::case::fsm::get_info_not_cached $case_id] $desired_output [workflow::case::cache_timeout]
+            util_memoize_seed \
+		[list workflow::case::fsm::get_info_not_cached $case_id] \
+		$desired_output \
+		[workflow::case::cache_timeout]
             
             # 7. Check that it doesn't call stubbed proc
             set i_got_called_p 0
@@ -714,8 +719,8 @@ aa_register_case bugtracker_workflow_clone {
         set spec_1 [workflow::fsm::generate_spec -workflow_id $workflow_id_1]
         set spec_2 [workflow::fsm::generate_spec -workflow_id $workflow_id_2]
 
-        aa_true "Generated spec from original and cloned workflow should be identical" \
-                [string equal $spec_1 $spec_2]
+        aa_equals "Generated spec from original and cloned workflow should be identical" \
+	    $spec_1 $spec_2
     } 
 
     set error_p [catch $test_chunk errMsg]
