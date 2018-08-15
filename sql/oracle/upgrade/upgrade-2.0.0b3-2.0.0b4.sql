@@ -4,7 +4,6 @@
 -- @author Jade Rubick (jader@bread.com)
 -- From bug #2210
 -- @creation-date 2004-12-16
--- @arch-tag: 16d12f6e-d889-45a4-b7d5-df75388b11fe
 -- @cvs-id $Id$
 --
 
