@@ -1,8 +1,14 @@
 <?xml version="1.0"?>
  <queryset>
    <rdbms><type>postgresql</type><version>7.2</version></rdbms>
- 	 
+
          <fullquery name="get_packages">
+ 	         <querytext>
+ 	           select object_id,name, name as rawname, 1 as level from site_nodes s where s.parent_id is null;
+ 	         </querytext>
+         </fullquery>
+   
+         <fullquery name="get_packages_old">
  	         <querytext>
  	                 select n.name,
  	                 n.object_id,

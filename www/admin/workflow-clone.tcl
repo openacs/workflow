@@ -20,7 +20,11 @@ set default_workflows [db_list_of_lists get_wfs {}]
 workflow::tree::sorter::create -multirow "package_options" -sort_by sort_key
 
 db_multirow -extend {sort_key} package_options get_packages  {} {
-    set sort_key [workflow::tree::sorter::make_full_key_for -multirow "package_options" -partial_key $rawname -id  $object_id -level $level]
+    set sort_key [workflow::tree::sorter::make_full_key_for \
+		      -multirow "package_options" \
+		      -partial_key $rawname \
+		      -id  $object_id \
+		      -level $level]
 }
 
 workflow::tree::sorter::sort -multirow "package_options"
