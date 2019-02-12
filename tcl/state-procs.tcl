@@ -170,8 +170,6 @@ ad_proc -public workflow::state::fsm::edit {
                     set row(parent_action_id) [workflow::action::get_id \
                                                     -workflow_id $workflow_id \
                                                     -short_name $row(parent_action)]
-                } else {
-                    set row(parent_action_id) [db_null]
                 }
                 unset row(parent_action)
                 unset missing_elm(parent_action)

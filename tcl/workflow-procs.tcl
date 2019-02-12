@@ -149,14 +149,14 @@ ad_proc -public workflow::edit {
                 if { [ad_conn isconnected] } {
                     set row(creation_user) [ad_conn user_id]
                 } else {
-                    set row(creation_user) [db_null]
+                    set row(creation_user) ""
                 }
             }
             if { ![info exists row(creation_ip)] } {
                 if { [ad_conn isconnected] } {
                     set row(creation_ip) [ad_conn peeraddr]
                 } else {
-                    set row(creation_ip) [db_null]
+                    set row(creation_ip) ""
                 }
             }
             # Default object_type

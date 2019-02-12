@@ -250,8 +250,6 @@ ad_proc -public workflow::action::edit {
                     set row(parent_action_id) [workflow::action::get_id \
                                                     -workflow_id $workflow_id \
                                                     -short_name $row(parent_action)]
-                } else {
-                    set row(parent_action_id) [db_null]
                 }
                 unset row(parent_action)
                 unset missing_elm(parent_action)
@@ -311,7 +309,7 @@ ad_proc -public workflow::action::edit {
                         }
                         assigned_role {
                             if { $row($attr) eq "" } {
-                                set $varname [db_null]
+                                set $varname ""
                             } else {
                                 # Get role_id by short_name
                                 set $varname [workflow::role::get_id \
@@ -994,8 +992,6 @@ ad_proc -public workflow::action::fsm::edit {
                     set row(new_state_id) [workflow::state::fsm::get_id \
                                                -workflow_id $workflow_id \
                                                -short_name $row(new_state)]
-                } else {
-                    set row(new_state_id) [db_null]
                 }
                 unset row(new_state)
             }
