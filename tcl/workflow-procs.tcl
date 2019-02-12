@@ -1,6 +1,6 @@
 ad_library {
     Procedures in the workflow namespace.
-    
+
     @creation-date 8 January 2003
     @author Lars Pind (lars@collaboraid.biz)
     @author Peter Marklund (peter@collaboraid.biz)
@@ -34,7 +34,7 @@ ad_proc -public workflow::new {
 
     @param package_key The package to which this workflow belongs
 
-    @param object_id   The id of an ACS Object indicating the scope the workflow. 
+    @param object_id   The id of an ACS Object indicating the scope the workflow.
                        Typically this will be the id of a package type or a package instance
                        but it could also be some other type of ACS object within a package, for example
                        the id of a bug in the Bug Tracker application.
@@ -42,7 +42,7 @@ ad_proc -public workflow::new {
     @param object_type The type of objects that the workflow will be applied to. Valid values are in the
                        acs_object_types table. The parameter is optional and defaults to acs_object.
 
-    @param callbacks   List of names of service contract implementations of callbacks for the workflow in 
+    @param callbacks   List of names of service contract implementations of callbacks for the workflow in
                        impl_owner_name.impl_name format.
 
     @return            New workflow_id.
@@ -71,7 +71,7 @@ ad_proc -public workflow::edit {
 } {
     Edit a workflow.
 
-    Attributes of the array are: 
+    Attributes of the array are:
 
     <ul>
       <li>short_name
@@ -89,23 +89,23 @@ ad_proc -public workflow::edit {
 
     @param operation    insert, update, delete
 
-    @param workflow_id  For update/delete: The workflow to update or delete. 
+    @param workflow_id  For update/delete: The workflow to update or delete.
 
     @param array        For insert/update: Name of an array in the caller's namespace with attributes to insert/update.
 
-    @param internal     Set this flag if you're calling this proc from within the corresponding proc 
-                        for a particular workflow model. Will cause this proc to not flush the cache 
+    @param internal     Set this flag if you're calling this proc from within the corresponding proc
+                        for a particular workflow model. Will cause this proc to not flush the cache
                         or call workflow::definition_changed_handler, which the caller must then do.
 
-    @param no_complain  Silently ignore extra attributes that we don't know how to handle. 
-                        
+    @param no_complain  Silently ignore extra attributes that we don't know how to handle.
+
     @return             workflow_id
-    
+
     @see workflow::new
 
     @author Peter Marklund
     @author Lars Pind (lars@collaboraid.biz)
-} {        
+} {
     switch $operation {
         update - delete {
             if { $workflow_id eq "" } {
@@ -200,7 +200,7 @@ ad_proc -public workflow::edit {
             set insert_values [list]
 
             # Handle columns in the workflows table
-            foreach attr { 
+            foreach attr {
                 short_name
                 pretty_name
                 object_id
@@ -224,7 +224,7 @@ ad_proc -public workflow::edit {
                                     set row(pretty_name) {}
                                 }
                             }
-                            
+
                             set $varname [workflow::generate_short_name \
                                               -workflow_id $workflow_id \
                                               -pretty_name $row(pretty_name) \
@@ -266,7 +266,7 @@ ad_proc -public workflow::edit {
             }
         }
     }
-    
+
     db_transaction {
         # Do the insert/update/delete
         switch $operation {
@@ -363,7 +363,7 @@ ad_proc -public workflow::get_id {
 } {
     Get workflow_id by short_name and object_id. Provide either package_key
     or object_id.
-    
+
     @param object_id The ID of the object the workflow's for (typically a package instance)
     @param package_key The key of the package workflow belongs to.
     @param short_name the short name of the workflow you want
@@ -392,7 +392,7 @@ ad_proc -public workflow::get {
     @param workflow_id ID of workflow
     @param array name of array in which the info will be returned
     @return An array list with keys workflow_id, short_name,
-            pretty_name, object_id, package_key, object_type, 
+            pretty_name, object_id, package_key, object_type,
             and callbacks.
 
 } {
@@ -424,7 +424,7 @@ ad_proc -public workflow::get_roles {
     {-parent_action_id {}}
 } {
     Get the role_id's of all the roles in the workflow.
-    
+
     @param workflow_id The ID of the workflow
     @return list of role_id's.
 
@@ -439,7 +439,7 @@ ad_proc -public workflow::get_actions {
     {-parent_action_id {}}
 } {
     Get the action_id's of all the actions in the workflow.
-    
+
     @param workflow_id The ID of the workflow
     @return list of action_id's.
 
@@ -462,7 +462,7 @@ ad_proc -public workflow::definition_changed_handler {
         workflow::case::state_changed_handler \
             -case_id $case_id
     }
-    
+
 }
 
 
@@ -472,7 +472,7 @@ ad_proc -public workflow::get_existing_short_names {
     {-ignore_workflow_id {}}
 } {
     Returns a list of existing workflow short_names for this package_key and object_id.
-    Useful when you're trying to ensure a short_name is unique, 
+    Useful when you're trying to ensure a short_name is unique,
     or construct a new short_name that is guaranteed to be unique.
 
     @param ignore_workflow_id   If specified, the short_name for the given workflow will not be included in the result set.
@@ -480,7 +480,7 @@ ad_proc -public workflow::get_existing_short_names {
     set result [list]
 
     db_foreach select_workflows {
-        select workflow_id, 
+        select workflow_id,
                short_name
         from   workflows
         where  package_key = :package_key
@@ -502,16 +502,16 @@ ad_proc -public workflow::generate_short_name {
     {-workflow_id {}}
 } {
     Generate a unique short_name from pretty_name, or verify uniqueness of a given short_name.
-    
+
     @param workflow_id    If you pass in this, we will allow that workflow's short_name to be reused.
 
-    @param short_name     Suggested short_name.    
+    @param short_name     Suggested short_name.
 } {
     set existing_short_names [workflow::get_existing_short_names \
                                   -package_key $package_key \
                                   -object_id $object_id \
                                   -ignore_workflow_id $workflow_id]
-    
+
     if { $short_name eq "" } {
         if { $pretty_name eq "" } {
             error "Cannot have empty pretty_name when short_name is empty"
@@ -537,18 +537,18 @@ ad_proc -public workflow::generate_short_name {
 ad_proc -public workflow::generate_spec {
     {-workflow_id:required}
     {-workflow_handler "workflow"}
-    {-handlers { 
-        roles workflow::role 
+    {-handlers {
+        roles workflow::role
         actions workflow::action
     }}
 } {
     Generate a spec for a workflow in array list style.
     Note that calling this directly with the default arguments will bomb, because workflow::action doesn't implement the required API.
-    
+
     @param workflow_id The id of the workflow to generate a spec for.
-    
+
     @param handlers    An array-list with Tcl namespaces where handlers for various elements are defined.
-                       The keys are identical to the keys in the spec, and the namespaces are where 
+                       The keys are identical to the keys in the spec, and the namespaces are where
                        the procs to handle them are defined.
 
     @return The spec for the workflow.
@@ -584,14 +584,14 @@ ad_proc -public workflow::generate_spec {
 
     foreach { key namespace } $handlers {
         set subspec [list]
-        
+
         foreach sub_id [${namespace}::get_ids -workflow_id $workflow_id] {
             set sub_short_name [${namespace}::get_element \
                                 -one_id $sub_id \
                                 -element short_name]
             set elm_spec [${namespace}::generate_spec -one_id $sub_id -handlers $handlers]
-            
-            lappend subspec $sub_short_name $elm_spec 
+
+            lappend subspec $sub_short_name $elm_spec
         }
         lappend spec $key $subspec
     }
@@ -612,14 +612,14 @@ ad_proc -public workflow::clone {
 
     @param pretty_name   A human readable name for the workflow for use in the UI.
 
-    @param object_id     The id of an ACS Object indicating the scope the workflow. 
+    @param object_id     The id of an ACS Object indicating the scope the workflow.
                          Typically this will be the id of a package type or a package instance
                          but it could also be some other type of ACS object within a package, for example
                          the id of a bug in the Bug Tracker application.
 
     @param package_key   A package to which this workflow belongs
 
-    @param array         The name of an array in the caller's namespace. Values in this array will 
+    @param array         The name of an array in the caller's namespace. Values in this array will
                          override workflow attributes of the workflow being cloned.
 
     @author Lars Pind (lars@collaboraid.biz)
@@ -628,12 +628,12 @@ ad_proc -public workflow::clone {
     if { $array ne "" } {
         upvar 1 $array row
         set array row
-    } 
+    }
 
     set spec [${workflow_handler}::generate_spec \
                   -workflow_id $workflow_id \
                   -workflow_handler $workflow_handler]
-    
+
     set workflow_id [${workflow_handler}::new_from_spec \
                          -package_key $package_key \
                          -object_id $object_id \
@@ -649,8 +649,8 @@ ad_proc -public workflow::new_from_spec {
     {-spec:required}
     {-array {}}
     {-workflow_handler workflow}
-    {-handlers { 
-        roles workflow::role 
+    {-handlers {
+        roles workflow::role
         actions workflow::action
     }}
 } {
@@ -658,14 +658,14 @@ ad_proc -public workflow::new_from_spec {
 
     @param package_key   A package to which this workflow belongs
 
-    @param object_id     The id of an ACS Object indicating the scope the workflow. 
+    @param object_id     The id of an ACS Object indicating the scope the workflow.
                          Typically this will be the id of a package type or a package instance
                          but it could also be some other type of ACS object within a package, for example
                          the id of a bug in the Bug Tracker application.
 
     @param spec          The workflow spec
 
-    @param array         The name of an array in the caller's namespace. Values in this array will 
+    @param array         The name of an array in the caller's namespace. Values in this array will
                          override workflow attributes of the workflow being cloned.
 
     @return The ID of the workflow created
@@ -686,7 +686,7 @@ ad_proc -public workflow::new_from_spec {
 
     set short_name [lindex $spec 0]
     array set workflow_array [lindex $spec 1]
-    
+
     # Override workflow attributes from the array
     if { $array ne "" } {
         upvar 1 $array row
@@ -710,7 +710,7 @@ ad_proc -public workflow::new_from_spec {
     # The lookup proc might have cached that there is no workflow
     # with the short name of the workflow we have now created so
     # we need to flush
-    util_memoize_flush_regexp {^workflow::get_id_not_cached}    
+    util_memoize_flush_regexp {^workflow::get_id_not_cached}
 
     return $workflow_id
 }
@@ -721,8 +721,8 @@ ad_proc -private workflow::parse_spec {
     {-object_id {}}
     {-spec:required}
     {-workflow_handler workflow}
-    {-handlers { 
-        roles workflow::role 
+    {-handlers {
+        roles workflow::role
         actions workflow::action
     }}
 } {
@@ -735,12 +735,12 @@ ad_proc -private workflow::parse_spec {
     @see workflow::new
 } {
     # Default values
-    array set workflow { 
+    array set workflow {
         callbacks {}
         object_type {acs_object}
     }
 
-    foreach { key value } $spec { 
+    foreach { key value } $spec {
         set workflow($key) [string trim $value]
     }
 
@@ -750,7 +750,7 @@ ad_proc -private workflow::parse_spec {
             set workflow($var) [set $var]
         }
     }
-    
+
     # Pull out the extra types, roles/actions/states, so we don't try to create the workflow with them
     array set aux [list]
     array set counter [list]
@@ -776,7 +776,7 @@ ad_proc -private workflow::parse_spec {
                              -internal \
                              -operation "insert" \
                              -array workflow]
-    
+
         # Create roles/actions/states
         foreach { type namespace } $handlers {
             # type is 'roles', 'actions', 'states', etc.
@@ -790,10 +790,10 @@ ad_proc -private workflow::parse_spec {
                     set row(short_name) $subshort_name
 
                     # string trim everything
-                    foreach key [array names row] { 
+                    foreach key [array names row] {
                         set row($key) [string trim $row($key)]
                     }
-    
+
                     set cmd [list ${namespace}::edit \
                                  -internal \
                                  -workflow_id $workflow_id \
@@ -817,7 +817,7 @@ ad_proc -private workflow::parse_spec {
             }
         }
     }
-    
+
     return $workflow_id
 }
 
@@ -849,7 +849,7 @@ ad_proc -private workflow::flush_cache {
 
     # Flush all workflow cases from the cache. We are flushing more than needed here
     # but this approach seems easier and faster than looping over a potentially big number
-    # of cases mapped to the workflow in the database, only a few of which may actually be 
+    # of cases mapped to the workflow in the database, only a few of which may actually be
     # cached and need flushing
     workflow::case::flush_cache
 }
@@ -918,7 +918,7 @@ ad_proc -private workflow::get_not_cached {
         lappend callback_ids $callback_row(impl_id)
         lappend callback_impl_names($callback_row(contract_name)) $callback_row(impl_name)
         set callbacks_array($callback_row(impl_id)) [array get callback_row]
-    } 
+    }
 
     set row(callbacks) $callbacks
     set row(callback_ids) $callback_ids
@@ -933,9 +933,9 @@ ad_proc -private workflow::default_sort_order {
     {-table_name:required}
 } {
     By default the sort_order will be the highest current sort order plus 1.
-    This reflects the order in which states and actions are added to the 
+    This reflects the order in which states and actions are added to the
     workflow starting with 1
-    
+
     @author Peter Marklund
 } {
     set max_sort_order [db_string max_sort_order {} -default 0]
@@ -949,12 +949,12 @@ ad_proc -private workflow::callback_insert {
     {-sort_order {}}
 } {
     Add a side-effect to a workflow.
-    
+
     @param workflow_id The ID of the workflow.
-    @param name Name of service contract implementation, in the form (impl_owner_name).(impl_name), 
+    @param name Name of service contract implementation, in the form (impl_owner_name).(impl_name),
     for example, bug-tracker.FormatLogTitle.
     @param sort_order The sort_order for the rule. Leave blank to add to the end of the list
-    
+
     @author Lars Pind (lars@collaboraid.biz)
 } {
     db_transaction {
@@ -981,7 +981,7 @@ ad_proc -private workflow::get_callbacks {
     {-workflow_id:required}
     {-contract_name:required}
 } {
-    Return the implementation names for a certain contract and a 
+    Return the implementation names for a certain contract and a
     given workflow.
 
     @author Peter Marklund
@@ -1003,9 +1003,8 @@ ad_proc -public workflow::get_notification_links {
     Return a links to sign up for notifications.
     @return A multirow with columns url, label, title
 } {
-    
-}
 
+}
 
 #####
 #
@@ -1025,14 +1024,14 @@ ad_proc -public workflow::fsm::new_from_spec {
 
     @param package_key   A package to which this workflow belongs
 
-    @param object_id     The id of an ACS Object indicating the scope the workflow. 
+    @param object_id     The id of an ACS Object indicating the scope the workflow.
                          Typically this will be the id of a package type or a package instance
                          but it could also be some other type of ACS object within a package, for example
                          the id of a bug in the Bug Tracker application.
 
     @param spec          The workflow spec
 
-    @param array         The name of an array in the caller's namespace. Values in this array will 
+    @param array         The name of an array in the caller's namespace. Values in this array will
                          override workflow attributes of the workflow being cloned.
 
     @return The ID of the workflow created
@@ -1043,7 +1042,7 @@ ad_proc -public workflow::fsm::new_from_spec {
     if { $array ne "" } {
         upvar 1 $array row
         set array row
-    } 
+    }
     return [workflow::new_from_spec \
                 -package_key $package_key \
                 -object_id $object_id \
@@ -1051,7 +1050,7 @@ ad_proc -public workflow::fsm::new_from_spec {
                 -array $array \
                 -workflow_handler "workflow::fsm" \
                 -handlers {
-                    roles workflow::role 
+                    roles workflow::role
                     actions workflow::action
                     states workflow::state::fsm
                     actions workflow::action::fsm
@@ -1066,14 +1065,14 @@ ad_proc -public workflow::fsm::clone {
 } {
     Clones an existing FSM workflow. The clone must belong to either a package key or an object id.
 
-    @param object_id     The id of an ACS Object indicating the scope the workflow. 
+    @param object_id     The id of an ACS Object indicating the scope the workflow.
                          Typically this will be the id of a package type or a package instance
                          but it could also be some other type of ACS object within a package, for example
                          the id of a bug in the Bug Tracker application.
 
     @param package_key   A package to which this workflow belongs
 
-    @param array         The name of an array in the caller's namespace. Values in this array will 
+    @param array         The name of an array in the caller's namespace. Values in this array will
                          override workflow attributes of the workflow being cloned.
 
     @author Lars Pind (lars@collaboraid.biz)
@@ -1082,7 +1081,7 @@ ad_proc -public workflow::fsm::clone {
     if { $array ne "" } {
         upvar 1 $array row
         set array row
-    } 
+    }
     return [workflow::clone \
                 -workflow_id $workflow_id \
                 -package_key $package_key \
@@ -1097,13 +1096,13 @@ ad_proc -public workflow::fsm::generate_spec {
     {-workflow_id:required}
     {-workflow_handler "workflow"}
     {-handlers {
-        roles workflow::role 
+        roles workflow::role
         actions workflow::action::fsm
         states workflow::state::fsm
     }}
 } {
     Generate a spec for a workflow in array list style.
-    
+
     @param  workflow_id   The id of the workflow to generate a spec for.
     @return The spec for the workflow.
 
@@ -1123,8 +1122,8 @@ ad_proc -public workflow::fsm::get_states {
     {-workflow_id:required}
     {-parent_action_id {}}
 } {
-    Get the state_id's of all the states in the workflow. 
-    
+    Get the state_id's of all the states in the workflow.
+
     @param workflow_id The ID of the workflow
     @return list of state_id's.
 
@@ -1170,12 +1169,6 @@ ad_proc -public workflow::fsm::edit {
                 -internal=$internal_p]
 }
 
-
-
-
-
-
-
 #####
 #
 #  workflow::service_contract
@@ -1213,3 +1206,9 @@ ad_proc -public workflow::service_contract::get_impl_id {
 
     return [acs_sc::impl::get_id -owner [lindex $namev 0] -name [lindex $namev 1]]
 }
+
+# Local variables:
+#    mode: tcl
+#    tcl-indent-level: 4
+#    indent-tabs-mode: nil
+# End:

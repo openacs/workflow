@@ -1,6 +1,6 @@
 ad_library {
     Procedures in the workflow::action namespace.
-    
+
     @creation-date 9 January 2003
     @author Lars Pind (lars@collaboraid.biz)
     @author Peter Marklund (peter@collaboraid.biz)
@@ -9,9 +9,6 @@ ad_library {
 
 namespace eval workflow::action {}
 namespace eval workflow:::action::fsm {}
-
-
-
 
 #####
 #
@@ -48,7 +45,7 @@ ad_proc -public workflow::action::new {
 
     @param action_id              Optionally specify the ID of the new action.
 
-    @param sort_order             The number which this action should be in the sort ordering sequence. 
+    @param sort_order             The number which this action should be in the sort ordering sequence.
                                   Leave blank to add action at the end. If you provide a sort_order number
                                   which already exists, existing actions are pushed down one number.
 
@@ -62,19 +59,19 @@ ad_proc -public workflow::action::new {
     @param edit_fields            A space-separated list of the names of form fields which should be
                                   opened for editing when this action is carried out.
 
-    @param assigned_role          The short_name of an assigned role. Users in this 
-                                  role are expected (obliged) to take 
+    @param assigned_role          The short_name of an assigned role. Users in this
+                                  role are expected (obliged) to take
                                   the action.
 
-    @param allowed_roles          A list of role short_names or IDs. Users in these roles are 
+    @param allowed_roles          A list of role short_names or IDs. Users in these roles are
                                   allowed to take the action.
-                                  
-    @param privileges             Users with these privileges on the object 
-                                  treated by the workflow (i.e. a bug in the 
-                                  Bug Tracker) will be allowed to take this 
+
+    @param privileges             Users with these privileges on the object
+                                  treated by the workflow (i.e. a bug in the
+                                  Bug Tracker) will be allowed to take this
                                   action.
 
-    @param callbacks              List of names of service contract implementations of callbacks for the action in 
+    @param callbacks              List of names of service contract implementations of callbacks for the action in
                                   impl_owner_name.impl_name format.
 
     @param trigger_type           user, auto, message, time, init, workflow, parallel, dynamic.
@@ -84,15 +81,15 @@ ad_proc -public workflow::action::new {
     @param initial_action_p       Deprecated. Use this switch to indicate that this is the initial
                                   action that will fire whenever a case of the workflow
                                   is created. The initial action is used to determine
-                                  the initial state of the worklow as well as any 
+                                  the initial state of the worklow as well as any
                                   procedures that should be executed when the case created.
 
     @param timeout_seconds        If zero, the action will automatically fire whenever it becomes enabled.
                                   If greater than zero, the action will automatically fire x number of
                                   seconds after the action is enabled. If empty, will never fire automatically.
 
-    @param internal               Set this flag if you're calling this proc from within the corresponding proc 
-                                  for a particular workflow model. Will cause this proc to not flush the cache 
+    @param internal               Set this flag if you're calling this proc from within the corresponding proc
+                                  for a particular workflow model. Will cause this proc to not flush the cache
                                   or call workflow::definition_changed_handler, which the caller must then do.
 
     @return The id of the created action
@@ -104,12 +101,12 @@ ad_proc -public workflow::action::new {
     @author Peter Marklund
 } {
     # Wrapper for workflow::action::edit
-    
+
     array set row [list]
-    foreach col { 
+    foreach col {
         initial_action_p sort_order short_name pretty_name
-        pretty_past_tense edit_fields allowed_roles assigned_role 
-        privileges callbacks always_enabled_p description description_mime_type 
+        pretty_past_tense edit_fields allowed_roles assigned_role
+        privileges callbacks always_enabled_p description description_mime_type
         timeout_seconds trigger_type parent_action
     } {
         if { [info exists $col] } {
@@ -133,24 +130,24 @@ ad_proc -public workflow::action::edit {
     {-array {}}
     {-internal:boolean}
     {-no_complain:boolean}
-    {-handlers { 
-        roles "workflow::role" 
+    {-handlers {
+        roles "workflow::role"
         actions "workflow::action"
     }}
 } {
-    Edit an action. 
+    Edit an action.
 
-    Attributes of the array: 
+    Attributes of the array:
 
     <ul>
       <li>short_name
       <li>pretty_name
       <li>pretty_past_tense
       <li>edit_fields
-      <li>description 
+      <li>description
       <li>description_mime_type
       <li>sort_order
-      <li>always_enabled_p 
+      <li>always_enabled_p
       <li>assigned_role
       <li>timeout_seconds
       <li>trigger_type
@@ -167,25 +164,25 @@ ad_proc -public workflow::action::edit {
     <ul>
       <li>initial_action_p
     </ul>
-    
+
     @param operation    insert, update, delete
 
-    @param action_id    For update/delete: The action to update or delete. 
+    @param action_id    For update/delete: The action to update or delete.
                         For insert: Optionally specify a pre-generated action_id for the action.
 
     @param workflow_id  For update/delete: Optionally specify the workflow_id. If not specified, we will execute a query to find it.
                         For insert: The workflow_id of the new action.
-    
+
     @param array        For insert/update: Name of an array in the caller's namespace with attributes to insert/update.
 
-    @param internal     Set this flag if you're calling this proc from within the corresponding proc 
-                        for a particular workflow model. Will cause this proc to not flush the cache 
+    @param internal     Set this flag if you're calling this proc from within the corresponding proc
+                        for a particular workflow model. Will cause this proc to not flush the cache
                         or call workflow::definition_changed_handler, which the caller must then do.
 
-    @param no_complain  Silently ignore extra attributes that we don't know how to handle. 
-                        
+    @param no_complain  Silently ignore extra attributes that we don't know how to handle.
+
     @return action_id
-    
+
     @author Lars Pind (lars@collaboraid.biz)
 
     @see workflow::action::new
@@ -240,7 +237,7 @@ ad_proc -public workflow::action::edit {
     # Parse column values
     switch $operation {
         insert - update {
-            # Special-case: array entry parent_action (takes short_name) and parent_action_id (takes action_id) -- 
+            # Special-case: array entry parent_action (takes short_name) and parent_action_id (takes action_id) --
             # DB column is parent_action_id (takes action_id_id)
             if { [info exists row(parent_action)] } {
                 if { [info exists row(parent_action_id)] } {
@@ -271,12 +268,12 @@ ad_proc -public workflow::action::edit {
             set insert_names [list]
             set insert_values [list]
             # Handle columns in the workflow_actions table
-            foreach attr { 
-                short_name 
+            foreach attr {
+                short_name
                 pretty_name
                 pretty_past_tense
                 edit_fields
-                description 
+                description
                 description_mime_type
                 sort_order
                 always_enabled_p
@@ -297,7 +294,7 @@ ad_proc -public workflow::action::edit {
                                     set row(pretty_name) {}
                                 }
                             }
-                                
+
                             set $varname [workflow::action::generate_short_name \
                                               -workflow_id $workflow_id \
                                               -pretty_name $row(pretty_name) \
@@ -341,7 +338,7 @@ ad_proc -public workflow::action::edit {
             }
         }
     }
-    
+
     db_transaction {
         # Sort_order
         switch $operation {
@@ -388,7 +385,7 @@ ad_proc -public workflow::action::edit {
                 }
             }
         }
-        
+
         # Auxiliary rows
         switch $operation {
             insert - update {
@@ -403,7 +400,7 @@ ad_proc -public workflow::action::edit {
                     }
                     unset missing_elm(allowed_roles)
                 }
-                
+
                 # Record which privileges enable the action
                 if { [info exists row(privileges)] } {
                     db_dml delete_privileges {
@@ -415,7 +412,7 @@ ad_proc -public workflow::action::edit {
                     }
                     unset missing_elm(privileges)
                 }
-                     
+
                 # Callbacks
                 if { [info exists row(callbacks)] } {
                     db_dml delete_callbacks {
@@ -446,14 +443,14 @@ ad_proc -public workflow::action::edit {
                         foreach { child_short_name child_spec } $row(child_${type}) {
                             array unset child
                             array set child $child_spec
-                            set child(short_name) $child_short_name 
+                            set child(short_name) $child_short_name
                             set child(parent_action_id) $action_id
 
                             # string trim everything
-                            foreach key [array names child] { 
+                            foreach key [array names child] {
                                 set child($key) [string trim $child($key)]
                             }
-                            
+
                             ${namespace}::edit \
                                 -internal \
                                 -handlers $handlers \
@@ -535,7 +532,7 @@ ad_proc -public workflow::action::get_id {
 
     foreach action_id [set __workflow_action_data,${workflow_id}(action_ids)] {
         array set one_action [set __workflow_action_data,${workflow_id}($action_id)]
-        
+
         if {$one_action(short_name) eq $short_name} {
             return $action_id
         }
@@ -575,10 +572,10 @@ ad_proc -public workflow::action::get {
     @author Peter Marklund
     @author Lars Pind (lars@collaboraid.biz)
 
-    @return The array will contain the following entries: 
-            workflow_id, sort_order, short_name, pretty_name, 
-            pretty_past_tense, assigned_role (short_name), assigned_role_id, 
-            always_enabled_p, trigger_type, parent_action, parent_action_id, description, 
+    @return The array will contain the following entries:
+            workflow_id, sort_order, short_name, pretty_name,
+            pretty_past_tense, assigned_role (short_name), assigned_role_id,
+            always_enabled_p, trigger_type, parent_action, parent_action_id, description,
             description_mime_type values for an action.
 
     @see workflow::action::get_all_info
@@ -627,12 +624,12 @@ ad_proc -public workflow::action::callback_insert {
     {-sort_order {}}
 } {
     Add a side-effect to an action.
-    
+
     @param action_id The ID of the action.
-    @param name Name of service contract implementation, in the form (impl_owner_name).(impl_name), 
+    @param name Name of service contract implementation, in the form (impl_owner_name).(impl_name),
     for example, bug-tracker.CaptureResolutionCode
     @param sort_order The sort_order for the rule. Leave blank to add to the end of the list
-    
+
     @author Lars Pind (lars@collaboraid.biz)
 } {
 
@@ -668,7 +665,7 @@ ad_proc -private workflow::action::get_callbacks {
 } {
     array set callbacks [get_from_request_cache $action_id callbacks_array]
     set callback_ids [get_from_request_cache $action_id callback_ids]
-    
+
     # Loop over the callbacks and return the impl_names of those with a matching
     # contract name
     set impl_names [list]
@@ -676,7 +673,7 @@ ad_proc -private workflow::action::get_callbacks {
         array set one_callback $callbacks($callback_id)
 
         if {$one_callback(contract_name) eq $contract_name} {
-            lappend impl_names $one_callback(impl_name)            
+            lappend impl_names $one_callback(impl_name)
         }
     }
 
@@ -688,7 +685,7 @@ ad_proc -private workflow::action::update_sort_order {
     {-sort_order:required}
 } {
     Increase the sort_order of other actions, if the new sort_order is already taken.
-} { 
+} {
     set sort_order_taken_p [db_string select_sort_order_p {}]
     if { $sort_order_taken_p } {
         db_dml update_sort_order {}
@@ -700,7 +697,7 @@ ad_proc -public workflow::action::get_existing_short_names {
     {-ignore_action_id {}}
 } {
     Returns a list of existing action short_names in this workflow.
-    Useful when you're trying to ensure a short_name is unique, 
+    Useful when you're trying to ensure a short_name is unique,
     or construct a new short_name that is guaranteed to be unique.
 
     @param ignore_action_id   If specified, the short_name for the given action will not be included in the result set.
@@ -723,14 +720,14 @@ ad_proc -public workflow::action::generate_short_name {
     {-action_id {}}
 } {
     Generate a unique short_name from pretty_name.
-    
+
     @param action_id    If you pass in this, we will allow that action's short_name to be reused.
-    
+
 } {
     set existing_short_names [workflow::action::get_existing_short_names \
                                   -workflow_id $workflow_id \
                                   -ignore_action_id $action_id]
-    
+
     if { $short_name eq "" } {
         if { $pretty_name eq "" } {
             error "Cannot have empty pretty_name when short_name is empty"
@@ -759,7 +756,7 @@ ad_proc -public workflow::action::get_ids {
     {-parent_action_id {}}
 } {
     Get the action_id's of all the actions in the workflow.
-    
+
     @param workflow_id   The ID of the workflow
 
     @return              list of action_id's.
@@ -772,7 +769,7 @@ ad_proc -public workflow::action::get_ids {
     if { $all_p } {
         return $action_data(action_ids)
     }
-        
+
     set action_ids [list]
     foreach action_id $action_data(action_ids) {
         if { [workflow::action::get_element \
@@ -809,12 +806,12 @@ ad_proc -public workflow::action::pretty_name_unique_p {
     {-parent_action_id {}}
     {-action_id {}}
 } {
-    Check if suggested pretty_name is unique. 
-    
+    Check if suggested pretty_name is unique.
+
     @return 1 if unique, 0 if not unique.
 } {
-    set exists_p [db_string name_exists { 
-        select count(*) 
+    set exists_p [db_string name_exists {
+        select count(*)
         from   workflow_actions
         where  workflow_id = :workflow_id
         and    pretty_name = :pretty_name
@@ -859,9 +856,9 @@ ad_proc -public workflow::action::fsm::new {
     {-description_mime_type {}}
     {-timeout_seconds {}}
 } {
-    Add an action to a certain FSM (Finite State Machine) workflow. 
-    This procedure invokes the generic workflow::action::new procedures 
-    and does additional inserts for FSM specific information. See the 
+    Add an action to a certain FSM (Finite State Machine) workflow.
+    This procedure invokes the generic workflow::action::new procedures
+    and does additional inserts for FSM specific information. See the
     parameter documentation for the proc workflow::action::new.
 
     @return the new action_id.
@@ -869,21 +866,21 @@ ad_proc -public workflow::action::fsm::new {
     @see workflow::action::fsm::edit
 
     @author Peter Marklund
-} {        
+} {
     # Wrapper for workflow::action::edit
 
     array set row [list]
-    foreach col { 
+    foreach col {
         initial_action_p sort_order short_name pretty_name
-        pretty_past_tense edit_fields allowed_roles assigned_role 
-        privileges callbacks always_enabled_p description description_mime_type 
+        pretty_past_tense edit_fields allowed_roles assigned_role
+        privileges callbacks always_enabled_p description description_mime_type
         timeout_seconds trigger_type parent_action
     } {
         if { [info exists $col] } {
             set row($col) [set $col]
         }
     }
-    foreach elm { 
+    foreach elm {
         new_state new_state_id
         enabled_states assigned_states
         enabled_state_ids assigned_state_ids
@@ -908,15 +905,15 @@ ad_proc -public workflow::action::fsm::edit {
     {-workflow_id {}}
     {-array {}}
     {-internal:boolean}
-    {-handlers { 
-        roles "workflow::role" 
+    {-handlers {
+        roles "workflow::role"
         actions "workflow::action::fsm"
         states "workflow::state::fsm"
     }}
 } {
-    Edit an action. 
+    Edit an action.
 
-    Attributes: 
+    Attributes:
 
     <ul>
       <li>new_state_id
@@ -929,20 +926,20 @@ ad_proc -public workflow::action::fsm::edit {
 
     @param operation    insert, update, delete
 
-    @param action_id    For update/delete: The action to update or delete. 
+    @param action_id    For update/delete: The action to update or delete.
                         For insert: Optionally specify a pre-generated action_id for the action.
 
     @param workflow_id  For update/delete: Optionally specify the workflow_id. If not specified, we will execute a query to find it.
                         For insert: The workflow_id of the new action.
-    
+
     @param array        For insert/update: Name of an array in the caller's namespace with attributes to insert/update.
 
-    @param internal     Set this flag if you're calling this proc from within the corresponding proc 
-                        for a particular workflow model. Will cause this proc to not flush the cache 
+    @param internal     Set this flag if you're calling this proc from within the corresponding proc
+                        for a particular workflow model. Will cause this proc to not flush the cache
                         or call workflow::definition_changed_handler, which the caller must then do.
 
     @return action_id
-    
+
     @see workflow::action::edit
 } {
     switch $operation {
@@ -1001,7 +998,7 @@ ad_proc -public workflow::action::fsm::edit {
             set insert_values [list]
 
             # Handle columns in the workflow_fsm_actions table
-            foreach attr { 
+            foreach attr {
                 new_state_id
             } {
                 if { [info exists row($attr)] } {
@@ -1059,7 +1056,7 @@ ad_proc -public workflow::action::fsm::edit {
 
             # Handle auxiliary rows
             array set aux [list]
-            foreach attr { 
+            foreach attr {
                 enabled_state_ids assigned_state_ids
             } {
                 if { [info exists row($attr)] } {
@@ -1069,7 +1066,7 @@ ad_proc -public workflow::action::fsm::edit {
             }
         }
     }
-    
+
     db_transaction {
         # Base row
         set action_id [workflow::action::edit \
@@ -1118,7 +1115,7 @@ ad_proc -public workflow::action::fsm::edit {
                 # Handled through cascading delete
             }
         }
-        
+
         # Auxiliary rows
         switch $operation {
             insert - update {
@@ -1131,7 +1128,7 @@ ad_proc -public workflow::action::fsm::edit {
                     }
                     unset aux(enabled_state_ids)
                 }
-                
+
                 # Record where the action is both enabled and assigned
                 if { [info exists aux(assigned_state_ids)] } {
                     set assigned_p "t"
@@ -1184,7 +1181,7 @@ ad_proc -public workflow::action::fsm::get {
 } {
     # Select the info into the upvar'ed Tcl Array
     upvar $array row
-    
+
     workflow::action::get -action_id $action_id -array row
 }
 
@@ -1242,18 +1239,18 @@ ad_proc -public workflow::action::fsm::set_enabled_in_state {
                              -element workflow_id]
     }
 
-    set currently_assigned_p [db_string enabled_p { 
+    set currently_assigned_p [db_string enabled_p {
         select assigned_p
         from   workflow_fsm_action_en_in_st
         where  action_id = :action_id
         and    state_id = :state_id
     } -default {}]
 
-    set currently_enabled_p [expr {$currently_assigned_p ne ""}] 
+    set currently_enabled_p [expr {$currently_assigned_p ne ""}]
     set currently_assigned_p [template::util::is_true $currently_assigned_p]
 
     set db_assigned_p [db_boolean $assigned_p]
-    
+
     if { $currently_enabled_p != $enabled_p} {
         if { $enabled_p } {
             db_dml enabled {
@@ -1262,26 +1259,26 @@ ad_proc -public workflow::action::fsm::set_enabled_in_state {
             }
         } else {
             db_dml disable {
-                delete 
-                from   workflow_fsm_action_en_in_st 
+                delete
+                from   workflow_fsm_action_en_in_st
                 where  action_id = :action_id
                 and    state_id = :state_id
             }
         }
     } elseif { $currently_assigned_p != $assigned_p } {
         db_dml update_assigned_p {
-            update workflow_fsm_action_en_in_st 
+            update workflow_fsm_action_en_in_st
             set    assigned_p = :db_assigned_p
             where  action_id = :action_id
             and    state_id = :state_id
         }
     }
-    
+
     workflow::definition_changed_handler -workflow_id $workflow_id
 }
 
 
-    
+
 
 #####
 # Private procs
@@ -1302,20 +1299,20 @@ ad_proc -private workflow::action::fsm::parse_spec {
     @author Lars Pind (lars@collaboraid.biz)
 } {
     # Initialize array with default values
-    array set action { 
-        pretty_past_tense {} 
+    array set action {
+        pretty_past_tense {}
         edit_fields {}
-        allowed_roles {} 
-        assigned_role {} 
-        privileges {} 
-        always_enabled_p f 
-        enabled_states {} 
+        allowed_roles {}
+        assigned_role {}
+        privileges {}
+        always_enabled_p f
+        enabled_states {}
         assigned_states {}
-        new_state {} 
+        new_state {}
         trigger_type user
         callbacks {}
     }
-    
+
     # Get the info from the spec
     foreach { key value } $spec {
         set action($key) [string trim $value]
@@ -1359,7 +1356,7 @@ ad_proc -private workflow::action::fsm::generate_spec {
     get -action_id $action_id -array row
 
     # Get rid of elements that shouldn't go into the spec
-    array unset row short_name 
+    array unset row short_name
     array unset row action_id
     array unset row workflow_id
     array unset row sort_order
@@ -1397,9 +1394,9 @@ ad_proc -private workflow::action::fsm::generate_spec {
     }
 
     # Get rid of a few defaults
-    array set defaults { 
+    array set defaults {
         trigger_type user
-        always_enabled_p f 
+        always_enabled_p f
     }
 
     set spec [list]
@@ -1425,7 +1422,7 @@ ad_proc -private workflow::action::flush_cache {
     if { [info exists __workflow_action_data,${workflow_id}] } {
         foreach action_id [set __workflow_action_data,${workflow_id}(action_ids)] {
             global __workflow_one_action,$action_id
-            
+
             if { [info exists __workflow_one_action,$action_id] } {
                 unset __workflow_one_action,$action_id
             }
@@ -1450,13 +1447,13 @@ ad_proc -private workflow::action::refresh_request_cache { workflow_id } {
         array set __workflow_action_data,${workflow_id} [workflow::action::get_all_info -workflow_id $workflow_id]
     }
 }
-    
+
 ad_proc -private workflow::action::get_from_request_cache {
     action_id
     {element ""}
 } {
     This provides some abstraction for the Workflow API cache
-    and also some optimization - we only convert lists to 
+    and also some optimization - we only convert lists to
     arrays once per request. Should be used internally
     by the workflow API only.
 
@@ -1548,14 +1545,14 @@ ad_proc -private workflow::action::get_all_info_not_cached {
         }
         lappend action_ids $action_id
     }
-    
+
     foreach action_id $action_ids {
         if { ![info exists action_array_${action_id}(child_action_ids)] } {
             set action_array_${action_id}(child_action_ids) [list]
             set action_array_${action_id}(child_actios) [list]
         }
     }
-    
+
     # Get child states
     foreach state_id [workflow::fsm::get_states -all -workflow_id $workflow_id] {
         workflow::state::fsm::get -state_id $state_id -array state_array
@@ -1564,7 +1561,7 @@ ad_proc -private workflow::action::get_all_info_not_cached {
             lappend action_array_$state_array(parent_action_id)(child_states) $state_array(short_name)
         }
     }
-    
+
     # Build a separate array for all action callbacks of the workflow
 
     # Columns: impl_id, impl_name, impl_owner_name, contract_name, action_id
@@ -1576,7 +1573,7 @@ ad_proc -private workflow::action::get_all_info_not_cached {
         lappend action_array_${action_id}(callback_ids) $callback_row(impl_id)
 
         lappend action_array_${action_id}(callbacks_array) $callback_row(impl_id) [array get callback_row]
-    } 
+    }
 
     # Build an array for all allowed roles for all actions
     db_foreach action_allowed_roles {} -column_array allowed_role_row {
@@ -1585,7 +1582,7 @@ ad_proc -private workflow::action::get_all_info_not_cached {
         lappend action_array_${action_id}(allowed_roles) $allowed_role_row(short_name)
         lappend action_array_${action_id}(allowed_role_ids) $allowed_role_row(role_id)
 
-        # The 'allowed_roles_array' entry is an array-list, keyed by role_id, with the value being 
+        # The 'allowed_roles_array' entry is an array-list, keyed by role_id, with the value being
         # an array-list of the information returned by this call
         lappend action_array_${action_id}(allowed_roles_array) \
             [list $allowed_role_row(role_id) [array get allowed_role_row]]
@@ -1623,7 +1620,7 @@ ad_proc -public workflow::action::fsm::get_ids {
     {-parent_action_id {}}
 } {
     Get the action_id's of all the actions in the workflow.
-    
+
     @param workflow_id   The ID of the workflow
 
     @return              list of action_id's.
@@ -1633,3 +1630,8 @@ ad_proc -public workflow::action::fsm::get_ids {
     return [workflow::action::get_ids -all=$all_p -workflow_id $workflow_id -parent_action_id $parent_action_id]
 }
 
+# Local variables:
+#    mode: tcl
+#    tcl-indent-level: 4
+#    indent-tabs-mode: nil
+# End:
