@@ -9,7 +9,7 @@
 <p>By Lars Pind
 </p>
 <h2>Overview</h2>
-<p>I recently built a typical workflow-based application, <a href="http://clients.museatech.net/bug-tracker/">bug-tracker</a>, and
+<p>I recently built a typical workflow-based bug-tracker, and
 decided against using the acs-workflow package that I myself built.
 That&#39;s not a good recommendation. We need to fix that.</p>
 <h2>Goals</h2>
