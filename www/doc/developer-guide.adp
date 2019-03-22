@@ -73,7 +73,7 @@ should also close it.</li>
 <p>As mentioned, workflow is designed to support workflows based on
 any model, however the only model currently implemented is the
 finite state machine.</p>
-<p>The workflow API is designed so that whenver you&#39;re using
+<p>The workflow API is designed so that whenever you&#39;re using
 features that are specific to finite state machines, the procedure
 name will include the letters "fsm" in the name, as in
 <code><a href="/api-doc/proc-view?proc=workflow::case::fsm::get">workflow::case::fsm::get</a></code>.

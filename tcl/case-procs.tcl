@@ -321,7 +321,7 @@ ad_proc -public workflow::case::get_enabled_action_ids {
 } {
     Get the currently enabled_action_id's of enabled user actions in the case.
 
-    Note, that this is different from get_enabled_actions, which only returns 
+    Note that this is different from get_enabled_actions, which only returns 
     the action_id, which will not work for dynamic actions.
 
     @param case_id       The ID of the case.
@@ -2541,7 +2541,7 @@ ad_proc -private workflow::case::action::fsm::execute_state_change {
 
         if { $enabled_action_id ne "" } {
             workflow::case::enabled_action_get -enabled_action_id $enabled_action_id -array enabled_action
-            # Even if these are provided, we overide them with the DB call
+            # Even if these are provided, we override them with the DB call
             set case_id $enabled_action(case_id)
             set action_id $enabled_action(action_id)
             set parent_enabled_action_id $enabled_action(parent_enabled_action_id)
