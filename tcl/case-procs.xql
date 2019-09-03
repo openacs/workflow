@@ -1,6 +1,43 @@
 <?xml version="1.0"?>
 <queryset>
 
+  <fullquery name="workflow::case::action::notify.select_object_name">
+    <querytext>
+        select acs_object.name(:object_id) as name from dual
+    </querytext>
+  </fullquery>
+
+  <partialquery name="workflow::case::role::get_search_query.select_search_results">
+    <querytext>
+        select distinct acs_object.name(p.party_id) || ' (' || p.email || ')' as label, p.party_id
+        from   [ad_decode $subquery "" "cc_users" $subquery] p
+        where  upper(coalesce(acs_object.name(p.party_id) || ' ', '')  || p.email) like upper('%'||:value||'%')
+        order  by label
+    </querytext>
+  </partialquery>
+
+  <fullquery name="workflow::case::role::get_picklist.select_options">
+    <querytext>
+        select acs_object.name(p.party_id) || ' (' || p.email || ')'  as label, p.party_id
+        from   parties p
+        where  p.party_id in ([join $party_id_list ", "])
+        order  by label
+    </querytext>
+  </fullquery>
+
+  <fullquery name="workflow::case::role::get_assignees_not_cached.select_assignees">
+    <querytext>
+        select m.party_id,
+               p.email,
+               acs_object.name(m.party_id) as name
+        from   workflow_case_role_party_map m,
+               parties p
+        where  m.case_id = :case_id
+        and    m.role_id = :role_id
+        and    p.party_id = m.party_id
+    </querytext>
+  </fullquery>
+
   <fullquery name="workflow::case::insert.select_initial_state">
     <querytext>
       select state_id
