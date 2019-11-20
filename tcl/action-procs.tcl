@@ -1401,7 +1401,7 @@ ad_proc -private workflow::action::fsm::generate_spec {
 
     set spec [list]
     foreach name [lsort [array names row]] {
-        if { $row($name) ne "" && ![exists_and_equal defaults($name) $row($name)] } {
+        if { $row($name) ne "" && !([info exists defaults($name)] && $defaults($name) eq $row($name)) } {
             lappend spec $name $row($name)
         }
     }

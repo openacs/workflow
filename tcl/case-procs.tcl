@@ -2229,7 +2229,7 @@ ad_proc -private workflow::case::state_changed_handler {
                 -action_id $action_id \
                 -parent_enabled_action_id $parent_enabled_action_id \
                 -user_id $user_id \
-                -assigned=[exists_and_equal assigned_p($action_id) 1]
+                -assigned=[expr {[info exists assigned_p($action_id)] && $assigned_p($action_id) == 1}]
         }
 
         #----------------------------------------------------------------------
