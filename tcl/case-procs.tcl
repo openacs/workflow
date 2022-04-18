@@ -486,7 +486,7 @@ ad_proc -private workflow::case::get_activity_html {
     }
     
     # ensure that the style template has been compiled and is up-to-date
-    template::adp_init adp $file_stub
+    set stub_call [template::adp_init adp $file_stub]
 
     set activity_entry_list [get_activity_log_info_not_cached -case_id $case_id]
     set start_index 0
@@ -513,12 +513,15 @@ ad_proc -private workflow::case::get_activity_html {
 	}
 
         # The output of this procedure will be placed in __adp_output in this stack frame.
-        template::code::adp::$file_stub
+        $stub_call
         append log_html $__adp_output
     }
 
     if { $action_id ne "" } {
-        set action_pretty_past_tense [lang::util::localize [workflow::action::get_element -action_id $action_id -element pretty_past_tense]]
+        set action_pretty_past_tense [lang::util::localize \
+                                          [workflow::action::get_element \
+                                               -action_id $action_id \
+                                               -element pretty_past_tense]]
 
         # sets first_names, last_name, email
         acs_user::get -user_id [ad_conn untrusted_user_id] -array user
