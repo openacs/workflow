@@ -542,7 +542,7 @@ ad_proc -private workflow::case::get_activity_html {
 	}
 
         # The output of this procedure will be placed in __adp_output in this stack frame.
-        template::code::adp::$file_stub
+        $stub_call
         append log_html $__adp_output
     }
 
