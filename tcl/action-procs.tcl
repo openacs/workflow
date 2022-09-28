@@ -257,7 +257,7 @@ ad_proc -public workflow::action::edit {
                 if { [info exists row(trigger_type)] && $row(trigger_type) ne "user" } {
                     error "You can't specify both initial_action_p (which is deprecated) and trigger_type (which has replaced it) at the same time. Stick to trigger_type."
                 }
-                if { [template::util::is_true $row(initial_action_p)] } {
+                if { [string is true -strict $row(initial_action_p)] } {
                     set row(trigger_type) "init"
                 }
                 unset row(initial_action_p)
@@ -302,7 +302,7 @@ ad_proc -public workflow::action::edit {
                                               -action_id $action_id]
                         }
                         always_enabled_p {
-                            set $varname [db_boolean [template::util::is_true $row($attr)]]
+                            set $varname [db_boolean [string is true -strict $row($attr)]]
                         }
                         assigned_role {
                             if { $row($attr) eq "" } {
@@ -1247,7 +1247,7 @@ ad_proc -public workflow::action::fsm::set_enabled_in_state {
     } -default {}]
 
     set currently_enabled_p [expr {$currently_assigned_p ne ""}]
-    set currently_assigned_p [template::util::is_true $currently_assigned_p]
+    set currently_assigned_p [string is true -strict $currently_assigned_p]
 
     set db_assigned_p [db_boolean $assigned_p]
 

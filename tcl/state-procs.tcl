@@ -767,7 +767,7 @@ ad_proc -private workflow::state::fsm::get_all_info_not_cached {
         set action_info(${action_id},short_name) $short_name
         set action_info(${action_id},trigger_type) [string trim $trigger_type]
         set action_info(${action_id},parent_action_id) $parent_action_id
-        if { [template::util::is_true $always_enabled_p] && [lsearch { user auto message } $trigger_type] != -1 } {
+        if { [string is true -strict $always_enabled_p] && [lsearch { user auto message } $trigger_type] != -1 } {
             set action_info(${action_id},always_enabled_p) 1
         } else {
             set action_info(${action_id},always_enabled_p) 0
@@ -798,7 +798,7 @@ ad_proc -private workflow::state::fsm::get_all_info_not_cached {
         where  a.workflow_id = :workflow_id
         and    a.action_id = e.action_id
     } {
-        set assigned_p_${state_id}($action_id) [template::util::is_true $assigned_p]
+        set assigned_p_${state_id}($action_id) [string is true -strict $assigned_p]
     }
 
     # 3. Put stuff back into the output array
