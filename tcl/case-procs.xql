@@ -44,7 +44,7 @@
       from   workflow_fsm_states
       where  workflow_id = :workflow_id
       order  by sort_order
-      limit  1
+      fetch first 1 rows only
     </querytext>
   </fullquery>
 
