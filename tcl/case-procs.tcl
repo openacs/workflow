@@ -2071,7 +2071,7 @@ ad_proc -public workflow::case::action::execute {
     if { $comment_mime_type eq "" } {
         set comment_mime_type "text/plain"
     }
-    ns_log notice "case::execute start = [set start [clock clicks -milliseconds]]"
+    #ns_log notice "case::execute start = [set start [clock clicks -milliseconds]]"
     db_transaction {
 
         # Double-click protection
@@ -2088,14 +2088,14 @@ ad_proc -public workflow::case::action::execute {
             -case_id $case_id \
             -action_id $action_id \
             -parent_enabled_action_id $parent_enabled_action_id
-	ns_log notice "case::execute two = [expr {[set two [clock clicks -milliseconds]] - $start}]"
+	#ns_log notice "case::execute two = [expr {[set two [clock clicks -milliseconds]] - $start}]"
         # Mark the action completed
         if { $enabled_action_id ne "" } {
             workflow::case::action::complete \
                 -enabled_action_id $enabled_action_id \
                 -user_id $user_id
         }
-	ns_log notice "case::execute three = [expr {[set three [clock clicks -milliseconds]] - $two}]"
+	#ns_log notice "case::execute three = [expr {[set three [clock clicks -milliseconds]] - $two}]"
         # Insert activity log entry
         set extra_vars [ns_set create]
         oacs_util::vars_to_ns_set \
@@ -2115,7 +2115,7 @@ ad_proc -public workflow::case::action::execute {
                 -case_id $case_id \
                 -action_id $action_id \
                 -entry_id $entry_id
-	ns_log notice "case::execute five = [expr {[set five [clock clicks -milliseconds]] - $three}]"        
+	#ns_log notice "case::execute five = [expr {[set five [clock clicks -milliseconds]] - $three}]"        
         # Scan for enabled actions
         if {$parent_trigger_type eq "workflow"} {
             workflow::case::state_changed_handler \
@@ -2123,7 +2123,7 @@ ad_proc -public workflow::case::action::execute {
                 -parent_enabled_action_id $parent_enabled_action_id \
                 -user_id $user_id
         }
-	ns_log notice "case::execute six = [expr {[set six [clock clicks -milliseconds]] - $five}]"        
+	#ns_log notice "case::execute six = [expr {[set six [clock clicks -milliseconds]] - $five}]"        
         # Notifications
         if { !$no_notification_p } {
             workflow::case::action::notify \
@@ -2133,7 +2133,7 @@ ad_proc -public workflow::case::action::execute {
                 -comment $comment \
                 -comment_mime_type $comment_mime_type
         }
-	ns_log notice "case::execute seven = [expr {[set seven [clock clicks -milliseconds]] - $six}]"                
+	#ns_log notice "case::execute seven = [expr {[set seven [clock clicks -milliseconds]] - $six}]"                
         # If there's a parent, alert the parent
         if { $parent_enabled_action_id ne "" } {
             workflow::case::child_state_changed_handler \
@@ -2141,10 +2141,10 @@ ad_proc -public workflow::case::action::execute {
                 -user_id $user_id
         }
     }
-	ns_log notice "case::execute eight = [expr {[set eight [clock clicks -milliseconds]] - $seven}]"                    
+	#ns_log notice "case::execute eight = [expr {[set eight [clock clicks -milliseconds]] - $seven}]"                    
     workflow::case::flush_cache -case_id $case_id
-	ns_log notice "case::execute nine = [expr {[set nine [clock clicks -milliseconds]] - $eight}]"                    
-	ns_log notice "case::execute end = [expr {[set end [clock clicks -milliseconds]] - $start}]"                    
+	#ns_log notice "case::execute nine = [expr {[set nine [clock clicks -milliseconds]] - $eight}]"                    
+	#ns_log notice "case::execute end = [expr {[set end [clock clicks -milliseconds]] - $start}]"                    
     return $entry_id
 }
 
