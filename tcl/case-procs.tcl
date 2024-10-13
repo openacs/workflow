@@ -2096,13 +2096,17 @@ ad_proc -public workflow::case::action::execute {
                 -user_id $user_id
         }
 	#ns_log notice "case::execute three = [expr {[set three [clock clicks -milliseconds]] - $two}]"
-        # Insert activity log entry
-        set extra_vars [ns_set create]
-        oacs_util::vars_to_ns_set \
-                -ns_set $extra_vars \
-                -var_list { entry_id case_id action_id comment comment_mime_type package_id}
 
+        # Insert activity log entry
         if {!$no_logging_p} {
+            set extra_vars [ns_set create \
+                                entry_id $entry_id \
+                                case_id $case_id \
+                                action_id $action_id\
+                                comment $comment \
+                                comment_mime_type $comment_mime_type \
+                                package_id $package_id \
+                               ]
 	    set entry_id [package_instantiate_object \
 			      -creation_user $user_id \
 			      -extra_vars $extra_vars \
